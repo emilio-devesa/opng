@@ -1,16 +1,17 @@
 
 <?php/*
 	view.php
-	Part of the Open Pastebin project - version 0.1-development
+	Part of the Open Pastebin project - version 0.2-development
 	10/8/2004
 	Ville Särkkälä - villeveikko@users.sourceforge.net
 
-	This is basically a database viewer. The ID is given as a query string,
-	for example:
+	The ID is given as a query string, for example:
 	http://domain.com/pastebin/view.php?id=349
 	view.php then connects to the database, fetches
 	the data, and outputs it.
-	
+	The viewer is also given an option to (re)submit
+	a modified version of the code.	
+
 	Released under GNU GENERAL PUBLIC LICENSE
 	Version 2, June 1991 -  or later
 */?>
@@ -22,24 +23,28 @@
     <body>
         <?php
             require ( "database.php" );
-            if ( isset ( $_REQUEST['id'] ) ) {
-                $id = $_REQUEST ['id'];
-                database_connect ();
-                $array = database_retrieve ( $id );
+            require ( "highlight.php" );
+            require ( "xmlparser.php" );
+            if ( !isset ( $_REQUEST['id'] ) ) die ( "ID not specified!" );
+            database_connect ();
+            $array = database_retrieve ( $_REQUEST['id'] );
 
-                $lines = explode ( "\n", $array ["Text"] );
-                for ( $i = 0; $i < count ( $lines ); $i++ ) {
-                    $lines[$i] = htmlentities ( $lines[$i] );
-                    $lines[$i] = str_replace ( "\t", "    ", $lines[$i] );
-                    $lines[$i] = str_replace ( " ", "&nbsp;", $lines[$i] );
-                    // Insert syntax highlighting stuff here.
-                }
-            } else {
-                die ( "Invalid arguments!" );
-            }
+            $text = htmlentities ( $array ['Text'] );
+
+            $xml_parser = new CXmlParser;
+            $rules = $xml_parser->parse ( "rules.xml" );
+            $highlighted_text = apply_rule ( $rules ['RULE'][$array ['Language']], $text );
+            
+            $lines = explode ( "\n", $highlighted_text );
         ?>
-
         <table border="1" cellpadding="2">
+            <tr>
+                <td>
+                    <?php
+                        print ( "Language: ". $rules ['RULE'][$array['Language']]['attributes']['NAME'] );
+                    ?>
+                </td>
+            </tr>
             <tr>
                 <td>
                     <?php
@@ -57,22 +62,35 @@
             <tr>
                 <td>
                     <table border="0" cellpadding="0" cellspacing="0">
-                        <?php
-                            for ( $i = 0; $i < count ( $lines ); $i++ ) {
-                                print ( "<tr>" );
-                                print ( "<td align=\"right\">" );
-                                print ( "<a name=\"" . ( $i + 1 ) . "\">" . ( $i + 1 ) );
-                                print ( "</td>" );
-                                print ( "<td>&nbsp;&nbsp;&nbsp;</td>" );
-                                print ( "<td nowrap align=\"left\">" );
-                                print ( "<tt>" . $lines[$i] . "</tt>" );
-                                print ( "</td>" );
-                                print ( "</tr>" );
-                            }
-                        ?>
+                        <td align="right">
+                            <?php
+                                print ( "<pre>" );
+                                for ( $i = 0; $i < count ( $lines ); $i++ ) {
+                                    print ( $i . "\n" );
+                                }
+                                print ( "</pre>" );
+                            ?>
+                        </td>
+                        <td>&nbsp;&nbsp;&nbsp;&nbsp;</td>
+                        <td nowrap align="left">
+                            <?php
+                                print ( "<pre>\n" . $highlighted_text . "\n</pre>" );
+                            ?>
+                        </td>
                     </table>
                 </td>
             </tr>
         </table>
+        <form method="post" action="submit.php">
+            <input type="hidden" name="input_language" value="<?php
+                print ( $array ['Language'] );
+            ?>">
+            Make changes:<br>
+            <textarea name="input_text" rows="25" cols="80"><?php
+                    print ( "\n" . $text );
+            ?></textarea>
+            <br><br>
+            <input type="submit" value="Submit">
+        </form>
     </body>
 </html>

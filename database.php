@@ -1,7 +1,7 @@
 
 <?php/*
 	database.php
-	Part of the Open Pastebin project - version 0.1-development
+	Part of the Open Pastebin project - version 0.2-development
 	10/8/2004
 	Ville Särkkälä - villeveikko@users.sourceforge.net
 	
@@ -27,26 +27,25 @@
                 die ( "Database creation error: " . mysql_error () );
             }
         }
-        if ( !mysql_query ( "CREATE TABLE IF NOT EXISTS Entries ( ID TINYBLOB, Date DATETIME, Text BLOB )" ) ) {
+        $query  = "CREATE TABLE IF NOT EXISTS";
+        $query .= " Entries ( ID TINYBLOB, Date DATETIME, Language TINYBLOB, Text BLOB )";
+        if ( !mysql_query ( $query ) ) {
             die ( "Unable to create table: " . mysql_error () . "<br>" );
         }
     }
 
-    function database_insert ( $uid, $text )
+    function database_insert ( $id, $language, $text )
     {
-        $entry = mysql_query ( "INSERT INTO Entries(ID, Date, Text) VALUES ( '$uid', CURRENT_TIMESTAMP(), '$text' )" );
-        if ( !$entry ) {
-            database_create ();
-            $entry = mysql_query ( "INSERT INTO Entries(ID, Date, Text) VALUES ( '$uid', CURRENT_TIMESTAMP(), '$text' )" );
-            if ( !$entry ) {
-                die ( "Query error: " . mysql_error () );
-            }
+        $query  = "INSERT INTO Entries ( ID, Date, Language, Text )";
+        $query .= " VALUES ( '$id', CURRENT_TIMESTAMP(), '$language', '$text' )";
+        if ( !mysql_query ( $query ) ) {
+            die ( "Unable to perform insertion query: " . mysql_error () );
         }
     }
 
     function database_retrieve ( $id )
     {
-        $entry = mysql_query ( "SELECT * FROM Entries WHERE ID = '" . $id . "'" );
+        $entry = mysql_query ( "SELECT * FROM Entries WHERE ID = '$id'" );
         if ( !$entry ) {
             die ( "Query error: " . mysql_error () );
         }
@@ -57,28 +56,13 @@
         return $array;
     }
 
-    function database_exists ( $id )
-    {
-        $fetch = mysql_query ( "SELECT * FROM Entries WHERE ID = " . $id );
-        if ( !$fetch ) {
-            die ( "Unable to check if entry exists!" );
-        }
-        if ( mysql_num_rows ( $fetch ) ) return TRUE;
-        else return FALSE;
-    }
-
     function database_entries ()
     {
         $entries = mysql_query ( "SELECT * FROM Entries" );
         if ( !$entries ) {
-            database_create ();
-            $entries = mysql_query ( "SELECT * FROM Entries" );
-            if ( !$entries ) {
-                die ( "Unable to get number of entries: " . mysql_error () );
-            }
+            die ( "Unable to get number of entries: " . mysql_error () );
         }
         return mysql_num_rows ( $entries );
     }
-
 
 ?>

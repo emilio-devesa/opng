@@ -1,7 +1,7 @@
 
 <?php/*
 	submit.php
-	Part of the Open Pastebin project - version 0.1-development
+	Part of the Open Pastebin project - version 0.2-development
 	10/8/2004
 	Ville Särkkälä - villeveikko@users.sourceforge.net
 
@@ -19,12 +19,14 @@
     <body>
         <?php
             require ( "database.php" );
-            if ( !isset ( $_POST ['input_text'] ) ) {
-                die ( "Input text is not set!" );
-            }
+            require ( "highlight.php" );
+            if ( !isset ( $_POST ['input_text'] ) ) die ( "Input text is not set!" );
+            if ( !isset ( $_POST ['input_language'] ) ) die ( "Input language is not set!" );
+            $text = $_POST ['input_text'];
+
             database_connect ();
             $id = database_entries ();
-            database_insert ( $id, $_POST ['input_text'] );
+            database_insert ( $id, $_POST['input_language'], $text );
             print ( "Entry added.<br>" );
             $url  = "http://" . $_SERVER['HTTP_HOST'] . dirname ( $_SERVER['PHP_SELF'] );
             $url .= "/view.php?id=" . $id;

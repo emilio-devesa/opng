@@ -1,7 +1,7 @@
 
 <?php/*
 	empty.php
-	Part of the Open Pastebin project - version 0.1-development
+	Part of the Open Pastebin project - version 0.2-development
 	10/8/2004
 	Ville Särkkälä - villeveikko@users.sourceforge.net
 
@@ -14,6 +14,7 @@
 */?>
 
 <?php
+    die ( "Remove this line and execute this script to empty the database." );
     require ( "config.php" );
     mysql_connect ( $mysql_server, $mysql_username, $mysql_password );
     mysql_query ( "DROP DATABASE " . $mysql_dbname );
