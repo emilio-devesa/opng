@@ -1,4 +1,3 @@
-
 <?php/*
 	config.php
 	Part of the Open Pastebin project - version 0.2-development

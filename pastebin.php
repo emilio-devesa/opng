@@ -1,6 +1,7 @@
-
 <?php/*
 	pastebin.php
+    OPNG v0.3-development
+
 	Part of the Open Pastebin project - version 0.2-development
 	10/8/2004
 	Ville Särkkälä - villeveikko@users.sourceforge.net
@@ -40,6 +41,6 @@
             <br><br>
             <input type="submit" value="Submit">
         </form>
-        <a href="http://www.sourceforge.net/projects/openpastebin/">Open Pastebin</a>
+        <a href="https://github.com/emiliodevesadrums/opng">opng</a>
     </body>
 </html>

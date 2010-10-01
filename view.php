@@ -1,4 +1,3 @@
-
 <?php/*
 	view.php
 	Part of the Open Pastebin project - version 0.2-development
@@ -18,7 +17,7 @@
 
 <html>
     <head>
-        <title>Open Pastebin</title>
+        <title>Open Pastebin NG</title>
     </head>
     <body>
         <?php
