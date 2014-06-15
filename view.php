@@ -1,26 +1,20 @@
 <?php/*
 	view.php
-	Part of the Open Pastebin project - version 0.2-development
-	10/8/2004
-	Ville Särkkälä - villeveikko@users.sourceforge.net
-
 	The ID is given as a query string, for example:
 	http://domain.com/pastebin/view.php?id=349
-	view.php then connects to the database, fetches
-	the data, and outputs it.
-	The viewer is also given an option to (re)submit
-	a modified version of the code.	
-
-	Released under GNU GENERAL PUBLIC LICENSE
-	Version 2, June 1991 -  or later
+	view.php then connects to the database, fetches	the data, and outputs it.
+	The viewer is also given an option to (re)submit a modified version of the code.	
 */?>
-
-<html>
-    <head>
-        <title>Open Pastebin NG</title>
-    </head>
-    <body>
-        <?php
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta http-equiv="content-type" content="text/html; charset=iso-8859-1">
+    <title>Open Pastebin</title>
+    <style type="text/css" media="all">@import "main.css";</style>
+</head>
+<body>
+    <div id="Content">
+	    <?php
             require ( "database.php" );
             require ( "highlight.php" );
             require ( "xmlparser.php" );
@@ -29,6 +23,8 @@
             $array = database_retrieve ( $_REQUEST['id'] );
 
             $text = htmlentities ( $array ['Text'] );
+            $topic = htmlentities ( $array ['Topic'] );
+            $language = htmlentities ( $array ['language']);
 
             $xml_parser = new CXmlParser;
             $rules = $xml_parser->parse ( "rules.xml" );
@@ -36,7 +32,15 @@
             
             $lines = explode ( "\n", $highlighted_text );
         ?>
+        <center>
         <table border="1" cellpadding="2">
+            <tr>
+                <td>
+                    <?php
+                        print ( "Topic: ". $array['Topic'] );
+                    ?>
+                </td>
+            </tr>
             <tr>
                 <td>
                     <?php
@@ -80,16 +84,34 @@
                 </td>
             </tr>
         </table>
+
+        <br />
         <form method="post" action="submit.php">
-            <input type="hidden" name="input_language" value="<?php
-                print ( $array ['Language'] );
-            ?>">
-            Make changes:<br>
-            <textarea name="input_text" rows="25" cols="80"><?php
+            Topic:<input type="text" name="input_topic" value="RE:
+                <?php
+                    print ( $topic );
+                ?>"><br />
+			Select language:<br />
+            <select name="input_language">
+                <?php
+                    var_dump ( $rules );
+                    for ( $i = 0; $i < count ( $rules ['RULE'] ); $i++ ) {
+                        print ( "<option value=\"" . $i . "\">" );
+                        print ( $rules ['RULE'][$i]['attributes']['NAME'] );
+                        print ( "</option>" );
+                    }
+                ?>
+            </select><br />
+            Make changes:<br />
+            <textarea name="input_text" rows="25" cols="80">
+                <?php
                     print ( "\n" . $text );
-            ?></textarea>
-            <br><br>
+                ?>
+            </textarea>
+            <br /><br />
             <input type="submit" value="Submit">
-        </form>
-    </body>
+        </form><br /><br />
+        <p>Return to <a href="index.php">index</a></center></p><br />
+    </div>
+</body>
 </html>

@@ -1,13 +1,6 @@
 <?php/*
 	database.php
-	Part of the Open Pastebin project - version 0.2-development
-	10/8/2004
-	Ville Särkkälä - villeveikko@users.sourceforge.net
-	
-	MySQL database functions.
-	
-	Released under GNU GENERAL PUBLIC LICENSE
-	Version 2, June 1991 -  or later
+	MySQL database functions
 */?>
 
 <?php
@@ -27,16 +20,17 @@
             }
         }
         $query  = "CREATE TABLE IF NOT EXISTS";
-        $query .= " Entries ( ID TINYBLOB, Date DATETIME, Language TINYBLOB, Text BLOB )";
+        $query .= " Entries ( ID TINYBLOB, Date DATETIME, Language TINYBLOB, Text BLOB, Topic BLOB )";
         if ( !mysql_query ( $query ) ) {
             die ( "Unable to create table: " . mysql_error () . "<br>" );
         }
     }
 
-    function database_insert ( $id, $language, $text )
+
+    function database_insert ( $id, $language, $text, $topic )
     {
-        $query  = "INSERT INTO Entries ( ID, Date, Language, Text )";
-        $query .= " VALUES ( '$id', CURRENT_TIMESTAMP(), '$language', '$text' )";
+        $query  = "INSERT INTO Entries ( ID, Date, Language, Text, Topic )";
+        $query .= " VALUES ( '$id', CURRENT_TIMESTAMP(), '$language', '$text', '$topic' )";
         if ( !mysql_query ( $query ) ) {
             die ( "Unable to perform insertion query: " . mysql_error () );
         }

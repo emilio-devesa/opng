@@ -3,6 +3,413 @@
 
 <rule name="None" />
 
+<rule name="Bash">
+	<class style="bold" color="blue">
+		<token>alias</token> 
+		<token>ar</token>
+        <token>asa</token>
+		<token>awk</token>
+		<token>banner</token>
+		<token>basename</token>
+		<token>bash</token>
+		<token>bc</token>
+		<token>bdiff</token>
+		<token>break</token>
+		<token>bunzip2</token>
+		<token>bzip2</token>
+		<token>cal</token>
+		<token>calendar</token>
+		<token>case</token>
+		<token>cat</token>
+		<token>cc</token>
+		<token>cd</token>
+		<token>chmod</token>
+		<token>cksum</token>
+		<token>clear</token>
+		<token>cmp</token>
+		<token>col</token>
+		<token>comm</token>
+		<token>compress</token>
+		<token>continue</token>
+		<token>cp</token>
+		<token>cpio</token>
+		<token>crypt</token>
+		<token>csplit</token>
+		<token>ctags</token>
+		<token>cut</token>
+		<token>date</token>
+		<token>dc</token>
+		<token>dd</token>
+		<token>declare</token>
+		<token>deroff</token>
+		<token>dev</token>
+		<token>df</token>
+		<token>diff</token>
+		<token>diff3</token>
+		<token>dircmp</token>
+		<token>dirname</token>
+		<token>do</token>
+		<token>done</token>
+		<token>du</token>
+		<token>echo</token>
+		<token>ed</token> 
+		<token>egrep </token>
+		<token>elif</token>
+		<token>else</token>
+		<token>env</token>
+		<token>esac</token>
+		<token>eval</token>
+		<token>ex</token>
+		<token>exec</token>
+		<token>exit</token>
+		<token>expand</token>
+		<token>export</token>
+		<token>expr</token>
+		<token>false</token>
+		<token>fc</token>
+		<token>fgrep</token>
+		<token>fi</token>
+		<token>file</token>
+		<token>find</token>
+		<token>fmt</token>
+		<token>fold</token>
+		<token>for</token>
+		<token>function</token>
+		<token>functions</token>
+		<token>getconf</token>
+		<token>getopt</token>
+	    <token>getopts</token>
+		<token>grep</token>
+		<token>gres</token>
+		<token>hash</token>
+		<token>head</token>
+		<token>help</token>
+		<token>history</token>
+		<token>iconv</token>
+		<token>id</token>
+		<token>if</token>
+	    <token>in</token>
+		<token>integer</token> 
+		<token>jobs</token>
+		<token>join</token>
+		<token>kill</token>
+		<token>local</token>
+		<token>lc</token>
+		<token>let</token>
+		<token>line</token>
+		<token>ln</token>
+		<token>logname</token>
+		<token>look</token>
+		<token>ls</token>
+	    <token>m4</token>
+	    <token>mail</token>
+		<token>mailx</token>
+		<token>make</token>
+		<token>man</token>
+		<token>mkdir</token>
+		<token>more</token>
+		<token>mt</token>
+		<token>mv</token>
+		<token>newgrp</token> 
+		<token>nl</token>
+		<token>nm</token>
+		<token>nohup</token>
+		<token>ntps</token>
+		<token>od</token>
+		<token>pack</token>
+		<token>paste</token>
+		<token>patch</token>
+		<token>pathchk</token>
+		<token>pax </token>
+		<token>pcat</token>
+		<token>perl</token>
+		<token>pg</token>
+		<token>pr</token>
+		<token>print</token>
+		<token>printf</token>
+		<token>ps</token>
+		<token>pwd</token>
+		<token>read</token>
+		<token>readonly</token>
+		<token>red</token>
+		<token>return</token>
+		<token>rev </token>
+		<token>rm</token>
+	    <token>rmdir</token>
+		<token>sed</token>
+		<token>select</token>
+		<token>set</token>
+		<token>sh</token>
+		<token>shift</token>
+		<token>size</token>
+		<token>sleep</token>
+		<token>sort</token>
+		<token>spell</token>
+		<token>split</token>
+	    <token>stop</token>
+		<token>strings</token>
+		<token>strip</token>
+		<token>stty</token>
+		<token>sum</token>
+		<token>suspend</token>
+		<token>sync</token>
+		<token>tail</token>
+		<token>tar</token>
+		<token>tee</token>
+		<token>test</token>
+		<token>then</token>
+		<token>time</token>
+		<token>times </token>
+		<token>touch</token>
+		<token>tr </token>
+		<token>trap</token>
+		<token>true</token>
+		<token>tsort</token>
+		<token>tty</token>
+		<token>type</token>
+		<token>typeset</token>
+		<token>ulimit</token>
+		<token>umask</token>
+		<token>unalias</token>
+		<token>uname</token>
+		<token>uncompress</token>
+		<token>unexpand</token>
+		<token>uniq</token>
+		<token>unpack</token>
+		<token>unset</token>
+		<token>until</token>
+		<token>uudecode</token>
+		<token>uuencode</token>
+		<token>vi</token>
+		<token>vim</token>
+		<token>vpax</token>
+		<token>wait</token>
+		<token>wc </token>
+		<token>whence</token>
+		<token>which </token>
+		<token>while </token>
+		<token>who</token>
+		<token>wpaste</token>
+		<token>wstart</token>
+		<token>xargs </token>
+		<token>zcat</token>
+    </class>
+    
+	<!-- Strings -->
+	<class color="purple">
+		<range start='"' end='"' escape="\" />
+		<range start="'" end="'" escape="\" />
+	</class>
+
+	<!--comments-->
+	<class color="green">
+		<range start="#" end="\n" />
+	</class>
+	
+	<!-- Symbols -->
+	<class color="blue" style="bold">
+		<token any="1">*</token>
+		<token any="1">/</token>
+		<token any="1">+</token>
+		<token any="1">-</token>
+		<token any="1">\</token>
+		<token any="1">[</token>
+		<token any="1">]</token>
+		<token any="1">(</token>
+		<token any="1">)</token>
+		<token any="1">=</token>
+		<token any="1">!</token>
+		<token any="1">&gt;</token>
+		<token any="1">&lt;</token>
+		<token any="1">{</token>
+		<token any="1">}</token>
+		<token any="1">.</token>
+		<token any="1">;</token>
+		<token any="1">,</token>
+		<token any="1">:</token>
+		<token any="1">&amp;</token>
+	</class>
+</rule>
+
+<rule name="PHP" >	
+	<class style="bold" color="blue">
+		<token>echo</token>
+		<token>foreach</token>
+	    <token>else</token>
+	    <token>if</token>
+	    <token>elseif</token>
+	    <token>for</token>
+	    <token>as</token>
+	    <token>while</token>
+	    <token>foreach</token>
+	    <token>break</token>
+	    <token>continue</token>
+	    <token>class</token>
+	    <token>switch</token>
+	    <token>case</token>
+	    <token>array</token>
+	    <token>default</token>
+	    <token>do</token>
+	    <token>exit</token>
+	    <token>function</token>
+	    <token>global</token>
+	    <token>include</token>
+	    <token>include_once</token>
+	    <token>require</token>
+	    <token>require_once</token>
+	    <token>isset</token>
+	    <token>empty</token>
+	    <token>list</token>
+	    <token>new</token>
+	    <token>static</token>
+	    <token>var</token>
+	    <token>return</token>
+	    <token>NULL</token>
+	    <token>true</token>
+	    <token>false</token>
+    </class>
+
+	<!-- Strings -->
+	<class color="#B366B3">
+		<range start='"' end='"' escape="\" />
+		<range start="'" end="'" escape="\" />
+	</class>
+
+	<class color="#ED9121">
+		<range start="`" end="\n" />
+	</class>
+
+    <class color="#9FF200">
+		<range start="/*" end="*/" />
+		<range start="//" end="\n" />
+    </class>
+
+	<!--comments-->
+	<class color="#0088FF">
+		<range start="$" end=" " />
+	</class>
+	
+	<!-- Symbols -->
+	<class color="blue" style="bold">
+		<token any="1">*</token>
+		<token any="1">/</token>
+		<token any="1">+</token>
+		<token any="1">-</token>
+		<token any="1">\</token>
+		<token any="1">[</token>
+		<token any="1">]</token>
+		<token any="1">(</token>
+		<token any="1">)</token>
+		<token any="1">=</token>
+		<token any="1">!</token>
+		<token any="1">&gt;</token>
+		<token any="1">&lt;</token>
+		<token any="1">{</token>
+		<token any="1">}</token>
+		<token any="1">.</token>
+		<token any="1">;</token>
+		<token any="1">,</token>
+		<token any="1">:</token>
+		<token any="1">&amp;</token>
+	</class>
+</rule>
+
+<rule name="Ruby">	
+	<class style="bold" color="#FF9900">
+	    <token>__FILE__</token>
+		<token>and</token>
+	    <token>def</token>
+		<token>end</token>
+		<token>in</token>
+		<token>or</token>
+		<token>self</token>
+		<token>unless</token>
+		<token>__LINE__</token>
+		<token>begin</token>
+		<token>defined?</token>
+		<token>ensure</token>
+		<token>module </token>
+		<token>redo</token>
+		<token>super</token>
+		<token>until</token>
+		<token>BEGIN</token>
+		<token>break</token>
+		<token>do</token>
+		<token>false</token>
+		<token>next</token>
+		<token>rescue</token>
+		<token>then</token>
+		<token>when</token>
+		<token>END</token>
+		<token>case</token>
+		<token>else</token>
+		<token>for</token>
+		<token>nil</token>
+		<token>retry</token>
+		<token>true</token>
+		<token>while</token>
+		<token>alias</token>
+		<token>class</token>
+		<token>elsif</token>
+		<token>if</token>
+		<token>not</token>
+		<token>return</token>
+		<token>undef</token>
+		<token>yield</token>
+        <token>argv</token>
+        <token>ARGV</token>
+        <token>File.</token>
+        <token>puts</token>
+        <token>print</token>
+    </class>
+
+	<class color="#99FF00">
+		<range start='"' end='"' escape="\" />
+		<range start="'" end="'" escape="\" />
+	</class>
+
+	<class color="#00C500">
+		<range start="@" end="\n" />
+	</class>
+
+	<class color="#138DD9">
+		<range start=":" end=" " />
+	</class>
+
+	<class color="#ED9121">
+		<range start="`" end="\n" />
+	</class>
+
+	<!--comments-->
+	<class color="#BB66FF">
+		<range start="#" end="\n" />
+	</class>
+
+	<!-- Symbols -->
+	<class color="blue" style="bold">
+		<token any="1">*</token>
+		<token any="1">/</token>
+		<token any="1">+</token>
+		<token any="1">-</token>
+		<token any="1">\</token>
+		<token any="1">[</token>
+		<token any="1">]</token>
+		<token any="1">(</token>
+		<token any="1">)</token>
+		<token any="1">=</token>
+		<token any="1">!</token>
+		<token any="1">&gt;</token>
+		<token any="1">&lt;</token>
+		<token any="1">{</token>
+		<token any="1">}</token>
+		<token any="1">.</token>
+		<token any="1">;</token>
+		<token any="1">,</token>
+		<token any="1">:</token>
+		<token any="1">&amp;</token>
+	</class>
+</rule>
+
 <rule name="Java/C/C++">
 	<!-- Keywords -->
 	<class style="bold" color="blue">
@@ -64,13 +471,13 @@
 		<token>void</token>
 		<token>volatile</token>
 		<token>while</token>
-        </class>
+    </class>
 
-        <!-- Comments -->
-        <class color="green">
+    <!-- Comments -->
+    <class color="green">
 		<range start="/*" end="*/" />
 		<range start="//" end="\n" />
-        </class>
+    </class>
 
 	<!-- Strings -->
 	<class color="purple">
@@ -107,7 +514,6 @@
 		<token any="1">&amp;</token>
 	</class>
 </rule>
-
 
 <rule name="Pascal">
 	<!-- Keywords -->
@@ -178,13 +584,13 @@
 		<token>binding</token>
 		<token>otherwise</token>
 		<token>complex</token>
-        </class>
+    </class>
 
-        <!-- Comments -->
-        <class color="blue">
+    <!-- Comments -->
+    <class color="blue">
 		<range start="{" end="}" />
 		<range start="" end="" />
-        </class>
+    </class>
 
 	<!-- Strings -->
 	<class color="purple">

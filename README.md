@@ -126,9 +126,13 @@ database.php	- database subroutines
 rule.php		- subroutines for parsing the rules and applying them
 highlight.php	- function for highlighting syntax
 xmlparser.php	- a relatively generic XML parser
-empty.php		- remove OPB entries (and the OPB database). SECURITY WARNING: DON'T KEEP THIS WHERE IT CAN BE ACCESSED!
 LICENSE			- the GNU General Public License.
 README..md		- this file.
+admin/
+	empty.php		- remove entries and database, then recreates it. 
+	drop.php        - remove an entry based on the ID
+	drop_id.php     - php backend for the file drop.php
+	SECURITY WARNING: DON'T KEEP THESE WHERE THEY CAN BE ACCESSED!
 
 Based on Open Pastebin by
 Ville Särkkälä - villeveikko@users.sourceforge.net

@@ -1,16 +1,7 @@
 <?php/*
 	submit.php
-    OPNG v0.3-development
-
-	Part of the Open Pastebin project - version 0.2-development
-	10/8/2004
-	Ville Särkkälä - villeveikko@users.sourceforge.net
-
-	This is the script that submits the text to the database.
+    This is the script that submits the text to the database.
 	It then gives the user a link to the entry.
-
-	Released under GNU GENERAL PUBLIC LICENSE
-	Version 2, June 1991 -  or later
 */?>
 
 <html>
@@ -41,14 +32,19 @@
             
             require ( "database.php" );
             require ( "highlight.php" );
+            require ( "sanitize.php" );
+
+            $text = $_POST ['input_text'];
+            $lang = $_POST ['input_language'];
+            $topic = $_POST ['input_topic'];
             if ( !isset ( $_POST ['input_text'] ) ) die ( "Input text is not set!" );
             if ( !isset ( $_POST ['input_language'] ) ) die ( "Input language is not set!" );
-            $text = $_POST ['input_text'];
+            if ( !isset ( $_POST ['input_topic'] ) ) die ( "Input topic is not set!" );
 
             database_connect ();
             $id = crypt ($text); //now the id is a hash of $text instead of a sequential number: 
 
-            database_insert ( $id, $_POST['input_language'], $text );
+            database_insert ( $id, sanitize($lang), $$text, sanitize($topic));
             print ( "Entry added.<br>" );
             $url  = "http://" . $_SERVER['HTTP_HOST'] . dirname ( $_SERVER['PHP_SELF'] );
             $url .= "view.php?id=" . $id;
@@ -59,5 +55,6 @@
             $short_url = short_url ($url);
             print ("Short link:<br><a href=\"" . $short_url . "\">" . $short_url . "</a>" );
         ?>
+        <p>Return to <a href="index.php">index</a></p>
     </body>
 </html>

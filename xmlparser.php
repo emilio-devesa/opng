@@ -1,13 +1,6 @@
 <?php/*
 	xmlparser.php
-	Part of the Open Pastebin project - version 0.2-development
-	10/8/2004
-	Ville Särkkälä - villeveikko@users.sourceforge.net
-	
 	A relatively generic XML parser.
-	
-	Released under GNU GENERAL PUBLIC LICENSE
-	Version 2, June 1991 -  or later
 */?>
 
 <?php

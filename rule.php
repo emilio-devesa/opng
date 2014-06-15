@@ -1,9 +1,5 @@
 <?php/*
 	rule.php
-	Part of the Open Pastebin project - version 0.2-development
-	10/8/2004
-	Ville Särkkälä - villeveikko@users.sourceforge.net
-	
 	Helper classes for syntax highlighting rules.
 	- CToken - represents tokens and ranges
 	- CClass - represents classes
@@ -15,9 +11,6 @@
 	
 	A class specifies most style and functionality rules for it's entities; the
 	entities themselves may contain certain entity-specific rules (link, link title, etc)
-
-	Released under GNU GENERAL PUBLIC LICENSE
-	Version 2, June 1991 -  or later
 */?>
 
 <?php
@@ -190,5 +183,4 @@
             return $matches;
         }
     };
-    
 ?>

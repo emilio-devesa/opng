@@ -1,13 +1,6 @@
 <?php/*
 	highlight.php
-	Part of the Open Pastebin project - version 0.2-development
-	10/8/2004
-	Ville Särkkälä - villeveikko@users.sourceforge.net
-	
-	Function to highlight syntax.
-	
-	Released under GNU GENERAL PUBLIC LICENSE
-	Version 2, June 1991 -  or later
+	Function to highlight syntax
 */?>
 
 <?php
@@ -38,8 +31,6 @@
                 $adjust += strlen ( $matches [$i]['replace'] ) - $matches [$i]['strlen'] ;
             }
         }
-        
-
         return $text;
     }
    
