@@ -29,7 +29,7 @@
                 return $content;
             }
             
-            
+            require ( "config.php" );            
             require ( "database.php" );
             require ( "highlight.php" );
             require ( "sanitize.php" );
@@ -42,18 +42,21 @@
             if ( !isset ( $_POST ['input_topic'] ) ) die ( "Input topic is not set!" );
 
             database_connect ();
-            $id = crypt ($text); //now the id is a hash of $text instead of a sequential number: 
+            $id = md5 ($text); // Using md5() instead of crypt() to avoid some characters in resulting string
 
-            database_insert ( $id, sanitize($lang), $$text, sanitize($topic));
+            // Using mysql_real_escape_string() instead of plain text to avoid mysql injections
+            database_insert ( $id, sanitize($lang), mysql_real_escape_string($text), sanitize($topic));
             print ( "Entry added.<br>" );
             $url  = "http://" . $_SERVER['HTTP_HOST'] . dirname ( $_SERVER['PHP_SELF'] );
             $url .= "view.php?id=" . $id;
             print ( "Link:<br><a href=\"" . $url . "\">" . $url . "</a>" );
             
-            //print the short URL
-            print ("<br>");
-            $short_url = short_url ($url);
-            print ("Short link:<br><a href=\"" . $short_url . "\">" . $short_url . "</a>" );
+            if ($short_url_enable == "yes") {
+                // Now give the short URL using David Walsh function
+                print ("<br>");
+                $short_url = short_url ($url);
+                print ("Short link:<br><a href=\"" . $short_url . "\">" . $short_url . "</a>" );
+            }
         ?>
         <p>Return to <a href="index.php">index</a></p>
     </body>

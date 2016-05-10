@@ -9,4 +9,7 @@
     $mysql_username = "USERNAME";
     $mysql_password = "PASSWORD";
     $mysql_dbname = "DB_NAME";
+
+    // Automatic Short URLs
+    $short_url_enable="yes";
 ?>

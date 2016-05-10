@@ -39,11 +39,14 @@ Edit the config.php file and set your hosting details, for example:
 	$ mysql_password = "";
 	$ mysql_dbname = "opbdb";
 
+Optionally, you can turn off the short url fetching as well (on v0.4 or higher), by setting this:
+
+	$ short_url_enable="no"
+
 Now, upload the files to your server.
-Note: There’s no index file, you can write one on your own. To use Open Pastebin NG, load the pastebin.php on your browser.
 
 ## Usage
-Load (http://www.example.com/pastebin.php) on your browser changing the example domain for yours.
+Load (http://www.example.com/index.php) on your browser changing the example domain for yours.
 Select your type of text (plain or any source code) and type the text.
 Press the «Submit» button. You’ll see the URLs where you can now read what you sent. You can also copy&paste the links into a email, chat, forum, IM…
 After that you can send modifications to the code using the text box below the viewer.
@@ -111,7 +114,7 @@ After that you can send modifications to the code using the text box below the v
 
 *How do I clean the database?*
 
-> Load the empty.php file. If you want to protect your database from being cleaned by another user, change the filename for something arbitrary like «33~dfif6he746&&2.php» or, even better, do not upload it.
+> You can doing using the admin panel. Password is hard-coded in the file login.php. The default password is 'demo' but you should change it to one of your own.
 
 ## Known Issues
 
