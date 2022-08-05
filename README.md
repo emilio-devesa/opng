@@ -23,9 +23,11 @@ service
 
 ## Screenshots
 
-!(https://raw.githubusercontent.com/emilio-devesa/opng/dev/res/pastebin.png)
-!(https://raw.githubusercontent.com/emilio-devesa/opng/dev/res/submit.png)
-!(https://raw.githubusercontent.com/emilio-devesa/opng/dev/res/view.png)
+![Pastebin](https://raw.githubusercontent.com/emilio-devesa/opng/dev/res/pastebin.png)
+
+![Submit](https://raw.githubusercontent.com/emilio-devesa/opng/dev/res/submit.png)
+
+![Viewer](https://raw.githubusercontent.com/emilio-devesa/opng/dev/res/view.png)
 
 ## Requirements
 
