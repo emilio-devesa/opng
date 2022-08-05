@@ -3,9 +3,9 @@
 Open Pastebin NG is an easy-to-use utility for sharing text and code through the web. It can 
 handle normal plain text (text without format), Java/C/C++ and Pascal source code syntax 
 highlight at this moment. See a feature list below for more details.
-It’s based on the Open Pastebin project (http://sourceforge.net/projects/openpastebin/). All 
+It’s based on the Open Pastebin project (<http://sourceforge.net/projects/openpastebin/>). All 
 you need is a web hosting with PHP and MySQL.
-Open Pastebin NG is free software released under the GNU GPL license (see details here).
+Open Pastebin NG is free software released under the GNU GPL license (see details [here]<LICENSE>).
 This software is a BETA release, wich means it’s still on development. Use it at your own 
 risk.
 
@@ -23,9 +23,9 @@ service
 
 ## Screenshots
 
-<img src="res/pastebin.png">
-<img src="res/submit.png">
-<img src="res/view.png">
+(res/pastebin.png)
+(res/submit.png)
+(res/view.png)
 
 ## Requirements
 
@@ -34,7 +34,7 @@ It only needs about 46 Kb of storage.
 
 ## Installation
 
-Download the ZIP file (look for it in the Downloads section) and extract it to an empty 
+Download the ZIP file (look for it in the [Downloads]<https://emiliodevesa.wordpress.com/opng/#downloads> section) and extract it to an empty 
 directory
 Edit the config.php file and set your hosting details, for example:
 
@@ -56,7 +56,7 @@ Note: There’s no index file, you can write one on your own. To use Open Pasteb
 pastebin.php on your browser.
 
 ## Usage
-Load http://www.example.com/pastebin.php on your browser changing the example domain for 
+Load <http://www.example.com/pastebin.php> on your browser changing the example domain for 
 yours.
 Select your type of text (plain or any source code) and type the text.
 Press the «Submit» button. You’ll see the URLs where you can now read what you sent. You can 
@@ -113,11 +113,11 @@ submission (see question above)
 
 *Can I download, modify and share again Open Pastebin NG?*
 
-> Yes you can. Again, read the details of the GNU GPL license wich OPNG is released under. There’s an online copy of the license here.
+> Yes you can. Again, read the details of the GNU GPL license wich OPNG is released under. There’s an online copy of the license [here]<LICENSE>.
 
 *I found a bug on Open Pastebin NG. Would you pay me any compensation? I lost my work!*
 
-> No, I won’t. As highlighted at the top of this page, this software is BETA wich means it can still contain bugs or crash for any reason at some point. Known bugs are listed below this FAQ (see here). If you find one, please send me your feedback (take a look at the Contact section).
+> No, I won’t. As highlighted at the top of this page, this software is BETA wich means it can still contain bugs or crash for any reason at some point. Known bugs are listed below this FAQ. If you find one, please send me your feedback (take a look at the [Contact]<https://emiliodevesa.wordpress.com/opng/#contact> section).
 
 *How can I add more code syntax highlight?*
 
