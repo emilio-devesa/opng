@@ -23,9 +23,9 @@ service
 
 ## Screenshots
 
-(res/pastebin.png)
-(res/submit.png)
-(res/view.png)
+!(res/pastebin.png)
+!(res/submit.png)
+!(res/view.png)
 
 ## Requirements
 
