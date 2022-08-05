@@ -14,13 +14,18 @@
   --
   
   09/31/2010
-  Modified by Emilio Devesa - emilio.devesa@udc.es
+  Modified by Emilio Devesa - edevmon@gmail.com
   Added a Short URL link feature, using David Walsh code
   and is.gd short-url service.
   
   09/30/2010
-  Modified by Emilio Devesa - emilio.devesa@udc.es
+  Modified by Emilio Devesa - edevmon@gmail.com
   Changed to improve privacy by hashing the resulting URLs
+
+  05/10/2016
+  Modified by Emilio Devesa - edevmon@gmail.com
+  Improvements by Jarett Stevens applied (jarett.stevens@gmail.com)
+  Now jumping to v0.4
   
 */?>
 
@@ -50,7 +55,7 @@
                 return $content;
             }
             
-            
+            require ( "config.php" );
             require ( "database.php" );
             require ( "highlight.php" );
             if ( !isset ( $_POST ['input_text'] ) ) die ( "Input text is not set!" );
@@ -58,21 +63,22 @@
             $text = $_POST ['input_text'];
 
             database_connect ();
-            $id = crypt ($text); //line modified by Emilio Devesa
-                                 //now id is not a sequential number: is a hash of $text
+            $id = md5 ($text); // Using md5() instead of crypt() to avoid some characters in resulting string
 
-            database_insert ( $id, $_POST['input_language'], $text );
+            // Using mysql_real_escape_string() instead of plain text to avoid mysql injections
+            database_insert ( $id, $_POST['input_language'], mysql_real_escape_string($text) );
             print ( "Entry added.<br>" );
             $url  = "http://" . $_SERVER['HTTP_HOST'] . dirname ( $_SERVER['PHP_SELF'] );
-            $url .= "view.php?id=" . $id; //line modified by Emilio Devesa
-                                          //no needed slash before "view.php..."
+            $url .= "/view.php?id=" . $id;
             print ( "Link:<br><a href=\"" . $url . "\">" . $url . "</a>" );
             
-            //Now give the short URL
-            //made by Emilio Devesa using David Walsh function
-            print ("<br>");
-            $short_url = short_url ($url);
-            print ("Short link:<br><a href=\"" . $short_url . "\">" . $short_url . "</a>" );
+            // Option suggested by Jarett Stevens
+            if ($short_url_enable == "yes") {
+                // Now give the short URL using David Walsh function
+                print ("<br>");
+                $short_url = short_url ($url);
+                print ("Short link:<br><a href=\"" . $short_url . "\">" . $short_url . "</a>" );
+            }
         ?>
     </body>
 </html>
