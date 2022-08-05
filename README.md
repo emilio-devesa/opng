@@ -128,7 +128,8 @@ submission (see question above)
 *How do I clean the database?*
 
 > Load the empty.php file. If you want to protect your database from being cleaned by another user, change the filename for something arbitrary like «33~dfif6he746&&2.php» or, even better, do not upload it.
+>
 
+## Known Issues
 
-##Known Issues
 There are zero known issues at this moment, but your feedback is really appreciated.
