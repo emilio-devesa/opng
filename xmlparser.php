@@ -26,7 +26,9 @@
             xml_set_object ( $xml_parser, $this );
             xml_set_element_handler ( $xml_parser, "start_handler", "end_handler");
             xml_set_character_data_handler ( $xml_parser, "cdata_handler");
-            xml_parse ( $xml_parser, $text );
+            if ( !xml_parse ( $xml_parser, $text ) ) {
+                die ( "XML parsing error: " . xml_error_string ( xml_get_error_code ( $xml_parser ) ) );
+            }
             xml_parser_free ( $xml_parser );
             return $this->current ['ROOT'][0];
         }

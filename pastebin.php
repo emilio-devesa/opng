@@ -14,17 +14,21 @@
 
 <html>
     <head>
-        <title>Open Pastebin</title>
+        <title>Open Pastebin NG</title>
     </head>
     <body>
+        <h1>Open Pastebin NG<h1>
+        <h2>Paste it =) !!</h2>
+        <?php
+            require ( "highlight.php" );
+            require ( "xmlparser.php" );
+            $xml_parser = new CXmlParser ();
+            $document = $xml_parser->parse ( "rules.xml" );
+        ?>
         <form method="post" action="submit.php">
             Select language:<br>
             <select name="input_language">
             <?php
-                require ( "highlight.php" );
-                require ( "xmlparser.php" );
-                $xml_parser = new CXmlParser ();
-                $document = $xml_parser->parse ( "rules.xml" );
                 var_dump ( $document );
                 for ( $i = 0; $i < count ( $document ['RULE'] ); $i++ ) {
                     print ( "<option value=\"" . $i . "\">" );
@@ -38,6 +42,7 @@
             <br><br>
             <input type="submit" value="Submit">
         </form>
-        <a href="http://www.sourceforge.net/projects/openpastebin/">Open Pastebin</a>
+        <a href="http://www.sourceforge.net/projects/openpastebin/">Based on Open Pastebin</a><br>
+        <a href="http://opng.sadhill.net/">Powered by Open Pastebin NG</a>
     </body>
 </html>

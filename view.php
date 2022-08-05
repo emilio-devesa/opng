@@ -18,7 +18,7 @@
 
 <html>
     <head>
-        <title>Open Pastebin</title>
+        <title>Open Pastebin NG</title>
     </head>
     <body>
         <?php
