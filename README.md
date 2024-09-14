@@ -1,8 +1,8 @@
 # Open Pastebin NG
 
-Open Pastebin NG is an easy-to-use utility for sharing text and code through the web. It can handle normal plain text (text without format), Java/C/C++ and Pascal source code syntax highlight at this moment. See a feature list below for more details.
-It’s based on the Open Pastebin project (<http://sourceforge.net/projects/openpastebin/>). All you need is a web hosting with PHP and MySQL.
-Open Pastebin NG is free software released under the GNU GPL license (see details [here](LICENSE).
+Open Pastebin NG is an easy-to-use utility for sharing text and code through the web. It can handle normal plain text (text without format), Php, Ruby, bash, Python, Java/C/C++ and Pascal source code syntax highlight at this moment. See a feature list below for more details.
+It’s based on [Open Pastebin](http://sourceforge.net/projects/openpastebin/). All you need is a web hosting with PHP and MySQL.
+Open Pastebin NG is free software released under the GNU GPL license (see details [here](LICENSE)).
 This software is a BETA release, wich means it’s still on development. Use it at your own risk.
 
 ## Features
@@ -119,23 +119,6 @@ After that you can send modifications to the code using the text box below the v
 ## Known Issues
 
 There are zero known issues at this moment, but your feedback is really appreciated.
-
-## Files:
-pastebin.php	- the main/index file
-submit.php		- the script that submits an entry
-view.php		- displays the entries
-config.php		- configuration file
-database.php	- database subroutines
-rule.php		- subroutines for parsing the rules and applying them
-highlight.php	- function for highlighting syntax
-xmlparser.php	- a relatively generic XML parser
-LICENSE			- the GNU General Public License.
-README..md		- this file.
-admin/
-	empty.php		- remove entries and database, then recreates it. 
-	drop.php        - remove an entry based on the ID
-	drop_id.php     - php backend for the file drop.php
-	SECURITY WARNING: DON'T KEEP THESE WHERE THEY CAN BE ACCESSED!
 
 Based on Open Pastebin by
 Ville Särkkälä - villeveikko@users.sourceforge.net
