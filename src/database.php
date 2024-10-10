@@ -1,61 +1,106 @@
-<?php/*
-	database.php
-	MySQL database functions
-*/?>
-
 <?php
-    function database_connect ()
-    {
-        require ( "config.php" );
-        $sql_connection = @mysql_connect ( $mysql_server, $mysql_username, $mysql_password );
-        if ( !$sql_connection ) {
-            die ( "Could not connect to MySQL server!" );
+// Conectar a la base de datos usando MySQLi
+function database_connect() {
+    require("config.php");
+
+    // Crear la conexión
+    $conn = new mysqli($mysql_server, $mysql_username, $mysql_password);
+
+    // Verificar la conexión
+    if ($conn->connect_error) {
+        die("Error de conexión: " . $conn->connect_error);
+    }
+
+    // Seleccionar la base de datos, o crearla si no existe
+    if (!$conn->select_db($mysql_dbname)) {
+        if (!$conn->query("CREATE DATABASE $mysql_dbname")) {
+            die("Error al crear la base de datos: " . $conn->error);
         }
-        if ( !mysql_select_db ( $mysql_dbname ) ) {
-            if ( !mysql_query ( "CREATE DATABASE " . $mysql_dbname ) ) {
-                die ( "Unable to create database: " . mysql_error () );
-            }
-            if ( !mysql_select_db ( $mysql_dbname ) ) {
-                die ( "Database creation error: " . mysql_error () );
-            }
-        }
-        $query  = "CREATE TABLE IF NOT EXISTS";
-        $query .= " Entries ( ID TINYBLOB, Date DATETIME, Language TINYBLOB, Text BLOB, Topic BLOB )";
-        if ( !mysql_query ( $query ) ) {
-            die ( "Unable to create table: " . mysql_error () . "<br>" );
+        if (!$conn->select_db($mysql_dbname)) {
+            die("Error al seleccionar la base de datos después de crearla: " . $conn->error);
         }
     }
 
-
-    function database_insert ( $id, $language, $text, $topic )
-    {
-        $query  = "INSERT INTO Entries ( ID, Date, Language, Text, Topic )";
-        $query .= " VALUES ( '$id', CURRENT_TIMESTAMP(), '$language', '$text', '$topic' )";
-        if ( !mysql_query ( $query ) ) {
-            die ( "Unable to perform insertion query: " . mysql_error () );
-        }
+    // Crear la tabla `Entries` si no existe
+    $query = "
+        CREATE TABLE IF NOT EXISTS Entries (
+            ID BLOB PRIMARY KEY, 
+            Date DATETIME DEFAULT CURRENT_TIMESTAMP,
+            Language TINYBLOB, 
+            Text BLOB, 
+            Topic BLOB
+        )
+    ";
+    if (!$conn->query($query)) {
+        die("Error al crear la tabla: " . $conn->error);
     }
 
-    function database_retrieve ( $id )
-    {
-        $entry = mysql_query ( "SELECT * FROM Entries WHERE ID = '$id'" );
-        if ( !$entry ) {
-            die ( "Query error: " . mysql_error () );
-        }
-        $array = mysql_fetch_assoc ( $entry );
-        if ( !$array ) {
-            die ( "Entry does not exist!" );
-        }
-        return $array;
+    return $conn;
+}
+
+// Insertar una entrada en la base de datos usando consultas preparadas
+function database_insert($id, $language, $text, $topic) {
+    $conn = database_connect();
+    $stmt = $conn->prepare("INSERT INTO Entries (ID, Date, Language, Text, Topic) VALUES (?, CURRENT_TIMESTAMP(), ?, ?, ?)");
+    if ($stmt === false) {
+        die("Error en la preparación de la consulta: " . $conn->error);
     }
 
-    function database_entries ()
-    {
-        $entries = mysql_query ( "SELECT * FROM Entries" );
-        if ( !$entries ) {
-            die ( "Unable to get number of entries: " . mysql_error () );
-        }
-        return mysql_num_rows ( $entries );
+    // Asociar los parámetros a la consulta preparada
+    $stmt->bind_param("ssss", $id, $language, $text, $topic);
+
+    // Ejecutar la consulta
+    if (!$stmt->execute()) {
+        die("Error al insertar los datos: " . $stmt->error);
     }
 
+    // Cerrar la conexión
+    $stmt->close();
+    $conn->close();
+}
+
+// Recuperar una entrada por su ID usando consultas preparadas
+function database_retrieve($id) {
+    $conn = database_connect();
+    $stmt = $conn->prepare("SELECT * FROM Entries WHERE ID = ?");
+    if ($stmt === false) {
+        die("Error en la preparación de la consulta: " . $conn->error);
+    }
+
+    // Asociar los parámetros y ejecutar la consulta
+    $stmt->bind_param("s", $id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    // Verificar si hay resultados
+    if ($result->num_rows == 0) {
+        die("La entrada no existe.");
+    }
+
+    // Obtener los datos de la entrada
+    $array = $result->fetch_assoc();
+
+    // Cerrar la conexión
+    $stmt->close();
+    $conn->close();
+
+    return $array;
+}
+
+// Obtener el número total de entradas
+function database_entries() {
+    $conn = database_connect();
+    $result = $conn->query("SELECT * FROM Entries");
+
+    if (!$result) {
+        die("Error al obtener el número de entradas: " . $conn->error);
+    }
+
+    $count = $result->num_rows;
+
+    // Cerrar la conexión
+    $conn->close();
+
+    return $count;
+}
 ?>

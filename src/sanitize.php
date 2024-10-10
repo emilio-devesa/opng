@@ -1,21 +1,20 @@
-
-<?php/*
-	sanitize.php
-	This script sanitizes user input for XSS attacks
-*/?>
-
-
-<?
+<?php
 function sanitize($input) 
 {
-	//Never EVER trust user input
-	$search = array(
-			'@<\s*script[^>]*?>.*?<\s*/\s*script\s*>@si', // Strip out javascript
-			'@<\s*[\/\!]*?[^<>]*?>@si', // Strip out HTML tags
-			'@<\s*style[^>]*?>.*?<\s*/\s*style\s*>@siU', // Strip style tags properly
-			'@<![\s\S]*?–[ \t\n\r]*>@' // Strip multi-line comments
-			);
-	$output = preg_replace($search, ”, $input);
-	return $output;
+    // Nunca confíes en la entrada del usuario
+    $search = array(
+        '@<\s*script[^>]*?>.*?<\s*/\s*script\s*>@si',  // Eliminar scripts
+        '@<\s*style[^>]*?>.*?<\s*/\s*style\s*>@siU',   // Eliminar estilos
+        '@<\s*[\/\!]*?[^<>]*?>@si',                    // Eliminar todas las etiquetas HTML
+        '@<![\s\S]*?--[ \t\n\r]*>@'                    // Eliminar comentarios multi-línea
+    );
+    
+    // Reemplazar con cadena vacía
+    $output = preg_replace($search, '', $input);
+    
+    // Convertir caracteres especiales a entidades HTML (prevenir XSS)
+    $output = htmlspecialchars($output, ENT_QUOTES, 'UTF-8');
+    
+    return $output;
 }
 ?>
