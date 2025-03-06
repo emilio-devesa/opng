@@ -1,10 +1,7 @@
 <?php
-function preg_escape($text)
-{
-    $text = str_replace("\\n", "\n", $text); // Reemplazar \n con saltos de línea
-    $text = preg_quote($text, '/'); // Escapar correctamente para expresiones regulares
-    $text = htmlentities($text);    // Escapar caracteres especiales para prevenir XSS
-    return $text;
+function preg_escape($text) {
+    $text = str_replace("\\n", "\n", $text);
+    return preg_quote($text, '/');
 }
 
 class CToken {
@@ -16,53 +13,56 @@ class CToken {
     var $token = "";
 
     function __construct($token) {
-        if (isset($token['attributes']['START'])) {
-            $start = preg_escape($token['attributes']['START']);
-            $end = preg_escape($token['attributes']['END']);
-            if (isset($token['attributes']['ESCAPE'])) {
-                $esc = preg_escape($token['attributes']['ESCAPE']);
-                $this->pattern = "/$start(.*?)" . "(?<!$esc)$end/s";
-            } else {
-                $this->pattern = "/$start(.*?)$end/s";
-            }
+        $start = isset($token['attributes']['START']) ? preg_escape($token['attributes']['START']) : '';
+        $end = isset($token['attributes']['END']) ? preg_escape($token['attributes']['END']) : '';
+
+        if ($start && $end) {
+            $esc = isset($token['attributes']['ESCAPE']) ? preg_escape($token['attributes']['ESCAPE']) : '';
+            $this->pattern = "/$start(.*?)" . ($esc ? "(?<!$esc)" : "") . "$end/s";
         } elseif (isset($token['attributes']['ANY'])) {
             $this->pattern = "/" . preg_escape($token['value']) . "/";
         } else {
             $this->pattern = "/\\b(" . preg_escape($token['value']) . ")\\b/";
         }
 
-        if (isset($token['attributes']['LINK'])) {
-            $this->link = $token['attributes']['LINK'];
-        }
-
-        if (isset($token['attributes']['TIP'])) {
-            $this->tip = $token['attributes']['TIP'];
-        }
-
+        $this->link = $token['attributes']['LINK'] ?? "";
+        $this->tip = $token['attributes']['TIP'] ?? "";
         $this->token = $token['value'];
     }
 
     function apply($text) {
-        return $this->start_tag . $text . $this->end_tag;
+        return $this->start_tag . htmlspecialchars($text, ENT_QUOTES, 'UTF-8') . $this->end_tag;
     }
 
     function get_matches($text) {
-        $raw_matches = array();
-        $matches = array();
-        preg_match_all($this->pattern, $text, $raw_matches, PREG_OFFSET_CAPTURE);
-        $raw_matches = $raw_matches[0];
-
-        foreach ($raw_matches as $match) {
-            $ret = array();
-            $ret['strlen'] = strlen($match[0]);
-            $ret['replace'] = $this->apply($match[0]);
-            $ret['offset'] = $match[1];
-            $ret['link'] = $this->link;
-            $ret['token'] = $this->token;
-            $ret['tip'] = $this->tip;
-
-            $matches[] = $ret;
+        $raw_matches = [];
+        if (preg_match_all($this->pattern, $text, $raw_matches, PREG_OFFSET_CAPTURE)) {
+            $raw_matches = $raw_matches[0];
+        } else {
+            return [];
         }
+
+        $matches = [];
+        foreach ($raw_matches as $match) {
+            $matches[] = [
+                'strlen' => strlen($match[0]),
+                'replace' => $this->apply($match[0]),
+                'offset' => $match[1],
+                'link' => $this->link,
+                'token' => $this->token,
+                'tip' => $this->tip
+            ];
+        }
+
+        // Ejecutar la expresión regular y depurar el resultado
+        preg_match_all($this->pattern, $text, $raw_matches, PREG_OFFSET_CAPTURE);
+
+        /* echo "<h3>Depuración en CToken:</h3>";
+        echo "<p>Patrón usado: " . htmlspecialchars($this->pattern) . "</p>";
+        echo "<p>Texto analizado: " . htmlspecialchars($text) . "</p>";
+        echo "<pre>Coincidencias encontradas:</pre>";
+        var_dump($raw_matches);
+        exit; */
 
         return $matches;
     }
@@ -71,100 +71,93 @@ class CToken {
 class CClass {
     var $start_tag;
     var $end_tag;
-    var $tokens = array();
+    var $tokens = [];
     var $linkbase = false;
 
     function __construct($class) {
-        $this->start_tag = "<span"; // Cambiado de <font> a <span>
+        $styles = [];
+        if (isset($class['attributes']['COLOR'])) {
+            $styles[] = "color:" . htmlspecialchars($class['attributes']['COLOR']);
+        }
+        if (isset($class['attributes']['STYLE'])) {
+            if ($class['attributes']['STYLE'] === 'bold') {
+                $styles[] = "font-weight: bold";
+            } elseif ($class['attributes']['STYLE'] === 'italic') {
+                $styles[] = "font-style: italic";
+            }
+        }
+
+        $this->start_tag = "<span>"; 
         $this->end_tag = "</span>";
 
         if (isset($class['attributes']['COLOR'])) {
-            $this->start_tag .= " style=\"color:" . $class['attributes']['COLOR'] . ";\"";
+            $this->start_tag = "<span style='color: " . $class['attributes']['COLOR'] . ";'>";
         }
-
-        if (isset($class['attributes']['STYLE'])) {
-            if ($class['attributes']['STYLE'] == 'bold') {
-                $this->start_tag .= " style=\"font-weight: bold;\"";
-            }
-            if ($class['attributes']['STYLE'] == 'italic') {
-                $this->start_tag .= " style=\"font-style: italic;\"";
-            }
-        }
-
-        $this->start_tag .= ">";
-
-        if (isset($class['attributes']['LINKBASE'])) {
-            $this->linkbase = $class['attributes']['LINKBASE'];
-        }
-
-        if (isset($class['TOKEN'])) {
-            foreach ($class['TOKEN'] as $tok) {
-                $this->tokens[] = new CToken($tok);
-            }
-        }
-
-        if (isset($class['RANGE'])) {
-            foreach ($class['RANGE'] as $ran) {
-                $this->tokens[] = new CToken($ran);
-            }
+        /* 
+        // Depuración: Verificar si la clase tiene tokens
+        echo "<h3>Depuración en CClass:</h3>";
+        echo "<p>Clase cargada: " . htmlspecialchars(print_r($class, true)) . "</p>";
+        exit;
+         */
+        foreach ($class['TOKEN'] ?? [] as $tok) {
+            $this->tokens[] = new CToken($tok);
         }
     }
 
     function get_matches($text) {
-        $matches = array();
+        $matches = [];
         foreach ($this->tokens as $token) {
             $matches = array_merge($matches, $token->get_matches($text));
         }
-
-        foreach ($matches as $i => $match) {
-            $matches[$i] = $this->apply($match);
-        }
-
         return $matches;
-    }
-
-    function apply($match) {
-        $start_tag = $this->start_tag;
-        $end_tag = $this->end_tag;
-
-        if ($this->linkbase !== false || $match['link']) {
-            $link = $this->linkbase !== false ? str_replace("TOKEN", $match['token'], $this->linkbase) : $match['link'];
-
-            $start_tag .= "<a href=\"$link\"";
-            if ($match['tip']) {
-                $start_tag .= " title=\"" . htmlentities($match['tip']) . "\"";
-            }
-            $start_tag .= ">";
-            $end_tag .= "</a>";
-        }
-
-        $match['replace'] = $start_tag . $match['replace'] . $end_tag;
-        return $match;
     }
 }
 
+/* class CRule {
+    var $classes = [];
+
+    function __construct($rule) {
+        foreach ($rule['CLASS'] ?? [] as $class) {
+            $this->classes[] = new CClass($class);
+        }
+    }
+
+    function get_matches($text) {
+        $matches = [];
+        foreach ($this->classes as $class) {
+            $matches = array_merge($matches, $class->get_matches($text));
+        }
+
+        var_dump($this->classes); // Verificar si las reglas se cargaron
+        
+        return $matches;
+    }
+} */
 class CRule {
     var $classes = array();
 
     function __construct($rule) {
-        if (isset($rule['CLASS'])) {
-            foreach ($rule['CLASS'] as $class) {
+        if (!empty($rule['class'])) {
+            foreach ($rule['class'] as $class) {
                 $this->classes[] = new CClass($class);
             }
         }
     }
 
     function get_matches($text) {
-        $matches = array();
+        $matches = [];
         foreach ($this->classes as $class) {
             $matches = array_merge($matches, $class->get_matches($text));
         }
-
-        foreach ($matches as $i => $match) {
-            $matches[$i]['index'] = $i;
-        }
-
+/* 
+        // Depuración: Ver si hay coincidencias
+        echo "<pre>";
+        var_dump($matches);
+        echo "</pre>";
+        exit;
+ */
         return $matches;
     }
 }
+
 ?>
