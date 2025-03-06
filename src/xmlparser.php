@@ -1,9 +1,7 @@
-<?php/*
-	xmlparser.php
-	A relatively generic XML parser.
-*/?>
-
 <?php
+	// xmlparser.php
+	// A relatively generic XML parser
+    
     class CXmlParser {
         var $current;
         var $top;
@@ -22,7 +20,7 @@
                 die ( "XML parsing error: " . xml_error_string ( xml_get_error_code ( $xml_parser ) ) );
             }
             xml_parser_free ( $xml_parser );
-            return $this->current ['ROOT'][0];
+            return $this->current ['RULES'][0];
         }
 
         function start_handler ( $parser, $name, $attributes )
