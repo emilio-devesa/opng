@@ -1,7 +1,14 @@
 <?php
 require_once('login.php'); // Asegura que el usuario esté autenticado
+session_start();
 
-// Generar un token CSRF
+// Verificar si el usuario está autenticado
+if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
+    header("Location: login.php");
+    exit;
+}
+
+// Generar un token CSRF para proteger formularios
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
