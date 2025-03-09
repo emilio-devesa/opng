@@ -15,12 +15,13 @@ if (empty($_SESSION['csrf_token'])) {
 $csrf_token = $_SESSION['csrf_token'];
 ?>
 
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml">
+<!DOCTYPE html>
+<html lang="es">
 <head>
-    <meta http-equiv="content-type" content="text/html; charset=iso-8859-1">
-    <title>Pastebin Admin</title>
-    <style type="text/css" media="all">@import "../main.css";</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administración - Open Pastebin</title>
+    <link rel="stylesheet" href="../main.css">
 </head>
 <body>
     <div id="Content">
