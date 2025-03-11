@@ -10,13 +10,19 @@ function database_connect() {
     if ($conn->connect_error) {
         die("Error de conexión: " . $conn->connect_error);
     }
-
-    // Seleccionar la base de datos, o crearla si no existe
-    if (!$conn->select_db($mysql_dbname)) {
+    
+    // Verificar si la base de datos existe
+    $db_exists = $conn->query("SHOW DATABASES LIKE '$mysql_dbname'");
+    if ($db_exists->num_rows === 0) {
+        // Si no existe, crear la base de datos
         if (!$conn->query("CREATE DATABASE $mysql_dbname CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")) {
             die("Error al crear la base de datos: " . $conn->error);
         }
-        $conn->select_db($mysql_dbname);
+    }
+
+    // Seleccionar la base de datos
+    if (!$conn->select_db($mysql_dbname)) {
+        die("Error al seleccionar la base de datos: " . $conn->error);
     }
 
     // Crear la tabla `Entries` si no existe
@@ -24,7 +30,7 @@ function database_connect() {
         CREATE TABLE IF NOT EXISTS Entries (
             ID VARCHAR(255) PRIMARY KEY, 
             Date DATETIME DEFAULT CURRENT_TIMESTAMP,
-            Language VARCHAR(10), 
+            Language VARCHAR(20), 
             Text TEXT, 
             Topic TEXT
         ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
