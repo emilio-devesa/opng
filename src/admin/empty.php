@@ -1,8 +1,8 @@
 <?php
 session_start();
 require_once('login.php'); // Asegura autenticación antes de ejecutar acciones críticas
-require_once('config.php');
-require_once('database.php');
+require_once('../config.php');
+require_once('../database.php');
 
 // Verificar token CSRF
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {

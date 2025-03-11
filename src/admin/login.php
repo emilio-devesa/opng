@@ -1,6 +1,6 @@
 <?php
 session_start();
-require("config.php"); // Cargar configuración
+require("../config.php"); // Cargar configuración
 
 // Contraseña encriptada (usa password_hash() en lugar de texto plano)
 $PasswordHash = password_hash('demo', PASSWORD_BCRYPT);
