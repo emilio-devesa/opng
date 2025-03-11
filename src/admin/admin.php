@@ -20,8 +20,16 @@ $csrf_token = $_SESSION['csrf_token'];
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Administración - Open Pastebin</title>
+    <title>Administration - Open Pastebin</title>
     <link rel="stylesheet" href="../main.css">
+    <script>
+        function redirectToEmpty() {
+            window.location.href = 'empty.php';
+        }
+        function confirmDropID() {
+            return confirm("Are you sure you want to drop this entry? This action cannot be undone.");
+        }
+    </script>
 </head>
 <body>
     <div id="Content">
@@ -29,17 +37,16 @@ $csrf_token = $_SESSION['csrf_token'];
 
         <fieldset>
             <legend>Database Actions</legend>
-            <form action="empty.php" method="post" onsubmit="return confirm('Are you sure you want to empty the database? This action cannot be undone.');">
-                <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
-                <button type="submit" title="Empty">Empty Database</button>
+            <form action="empty.php" method="get">
+                <button type="button" title="Empty" onclick="return redirectToEmpty()">Empty Database</button>
             </form>
         </fieldset>
 
         <fieldset>
             <legend>Manage Entries</legend>
-            <form action="drop.php" method="post">
-                <label for="entry_id">Drop an entry by ID number:</label><br>
-                <input type="text" id="entry_id" name="entry_id" required>
+            <form method="post" action="drop_id.php" onsubmit="return confirmDropID();">
+                <label for="input_ID">ID to remove:</label>
+                <input type="text" id="input_ID" name="input_ID" required>
                 <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
                 <button type="submit" title="Drop">Drop Entry</button>
             </form>
