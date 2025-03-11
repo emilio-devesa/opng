@@ -28,7 +28,7 @@ $csrf_token = $_SESSION['csrf_token'];
         <form method="post" action="drop_id.php" onsubmit="return confirmDeletion();">
             <label for="input_ID">ID to remove:</label>
             <input type="text" id="input_ID" name="input_ID" required>
-            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
+            <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
             <br /><br />
             <input type="submit" value="Submit">
         </form>

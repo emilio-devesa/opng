@@ -1,5 +1,4 @@
 <?php
-session_start();
 require("../config.php"); // Cargar configuración
 
 // Contraseña encriptada (usa password_hash() en lugar de texto plano)
@@ -7,8 +6,11 @@ $PasswordHash = password_hash('demo', PASSWORD_BCRYPT);
 
 // Si el usuario ya está autenticado, redirigir a la página de administración
 if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
-    header('Location: admin.php');
-    exit();
+    if (basename($_SERVER['PHP_SELF']) === 'login.php') {
+        header('Location: admin.php');
+        exit();
+    }
+    return; // Evita ejecutar más código en páginas autenticadas
 }
 
 // Generar token CSRF si no existe
@@ -44,7 +46,7 @@ function showForm($error="LOGIN") {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Administración - Pastebin</title>
+    <title>Administración - Open Pastebin</title>
     <link rel="stylesheet" href="../main.css">
 </head>
 <body>
