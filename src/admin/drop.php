@@ -1,14 +1,6 @@
 <?php
+session_start();
 require_once('login.php'); // Asegura que el usuario esté autenticado
-require_once('../config.php');
-
-// Conectar a la base de datos usando MySQLi
-$conn = new mysqli($mysql_server, $mysql_username, $mysql_password, $mysql_dbname);
-
-// Verificar la conexión
-if ($conn->connect_error) {
-    die("Error de conexión: " . $conn->connect_error);
-}
 
 // Generar un token CSRF para proteger el formulario
 if (empty($_SESSION['csrf_token'])) {
@@ -17,24 +9,30 @@ if (empty($_SESSION['csrf_token'])) {
 $csrf_token = $_SESSION['csrf_token'];
 ?>
 
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml">
+<!DOCTYPE html>
+<html lang="es">
 <head>
-    <meta http-equiv="content-type" content="text/html; charset=iso-8859-1">
-    <title>Pastebin - Remove Entry</title>
-    <style type="text/css" media="all">@import "../main.css";</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Open Pastebin - Remove Entry</title>
+    <link rel="stylesheet" href="../main.css">
+    <script>
+        function confirmDeletion() {
+            return confirm("Confirm deletion?");
+        }
+    </script>
 </head>
 <body>
     <div id="Content">
         <h1>Remove Entry</h1>
-        <form method="post" action="drop_id.php" onsubmit="return confirm('Are you sure you want to remove this entry?');">
+        <form method="post" action="drop_id.php" onsubmit="return confirmDeletion();">
             <label for="input_ID">ID to remove:</label>
-            <input type="text" id="input_ID" name="input_ID" required><br /><br />
-            <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
+            <input type="text" id="input_ID" name="input_ID" required>
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
+            <br /><br />
             <input type="submit" value="Submit">
         </form>
-        <br /><br />
-        <p>Return to the <a href="../index.php">index</a></p><br />
+        <p>Return to the <a href="../index.php">index</a></p>
     </div>
 </body>
 </html>
