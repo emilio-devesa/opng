@@ -77,7 +77,7 @@ $lines = explode("\n", $array['text']);
                     <pre><?php echo implode("\n", range(1, count($lines))); ?></pre>
                 </td>
                 <td nowrap align="left">
-                    <pre><code class="language-<?php echo htmlspecialchars($language); ?>"><?php echo htmlspecialchars($array['text'], ENT_QUOTES, 'UTF-8'); ?>
+                    <pre><code class="language-<?php echo htmlspecialchars($language); ?>"><?php echo $array['text']; ?>
                     </code></pre>
                 </td>
             </tr>
@@ -98,7 +98,8 @@ $lines = explode("\n", $array['text']);
             </select><br>
 
             <label>Texto:</label><br>
-            <textarea name="input_text" rows="25" cols="80"><?php echo htmlspecialchars($array['text'], ENT_QUOTES, 'UTF-8'); ?></textarea>
+            <textarea name="input_text" rows="25" cols="80"><?php echo $array['text']; ?>
+            </textarea>
             <br><br>
             <input type="submit" value="Guardar Cambios">
         </form>
