@@ -1,63 +1,81 @@
-<?php/*
-	submit.php
-    This is the script that submits the text to the database.
-	It then gives the user a link to the entry.
-*/?>
+<?php
+require("config.php");
+require("database.php");
 
-<html>
-    <head>
-        <title>Open Pastebin</title>
-    </head>
-    <body>
-        <?php
-            
-            //function from David Walsh to get the data from a URL
-            //originally posted @ http://davidwalsh.name/isgd-url-php
-            function short_url($url){
-                //get content
-                $ch = curl_init();
-                $timeout = 5;
+// Inicializar el array de errores
+$errors = [];
 
-                curl_setopt($ch,CURLOPT_URL,'http://is.gd/api.php?longurl='.$url);
-                curl_setopt($ch,CURLOPT_RETURNTRANSFER,1);
-                curl_setopt($ch,CURLOPT_CONNECTTIMEOUT,$timeout);
+// Validar los datos enviados en el formulario
+if (empty($_POST['input_text'])) {
+    $errors[] = "El texto no puede estar vacío.";
+}
+if (empty($_POST['input_language'])) {
+    $errors[] = "El lenguaje es obligatorio.";
+}
+if (empty($_POST['input_topic'])) {
+    $errors[] = "El tema es obligatorio.";
+}
 
-                $content = curl_exec($ch);
-                curl_close($ch);
+// Si hay errores, los mostramos y detenemos el script
+if (!empty($errors)) {
+    echo "<p style='color: red;'><strong>Error:</strong></p><ul>";
+    foreach ($errors as $error) {
+        echo "<li>" . htmlspecialchars($error) . "</li>";
+    }
+    echo "</ul><p><a href='pastebin.php'>Volver</a></p>";
+    exit;
+}
 
-                //return the data
-                return $content;
-            }
-            
-            require ( "config.php" );            
-            require ( "database.php" );
-            require ( "highlight.php" );
-            require ( "sanitize.php" );
+// Obtener valores y limpiar entradas
+$text = htmlspecialchars(trim($_POST['input_text']), ENT_QUOTES, 'UTF-8');
+$topic = htmlspecialchars(trim($_POST['input_topic']), ENT_QUOTES, 'UTF-8');
+$language = htmlspecialchars(trim($_POST['input_language']), ENT_QUOTES, 'UTF-8');
 
-            $text = $_POST ['input_text'];
-            $lang = $_POST ['input_language'];
-            $topic = $_POST ['input_topic'];
-            if ( !isset ( $_POST ['input_text'] ) ) die ( "Input text is not set!" );
-            if ( !isset ( $_POST ['input_language'] ) ) die ( "Input language is not set!" );
-            if ( !isset ( $_POST ['input_topic'] ) ) die ( "Input topic is not set!" );
+// Cargar rules.xml usando DOMDocument
+$dom = new DOMDocument();
+if (!$dom->load(__DIR__ . "/rules.xml")) {
+    die("<p style='color: red;'>Error: No se pudo cargar rules.xml.</p>");
+}
 
-            database_connect ();
-            $id = md5 ($text); // Using md5() instead of crypt() to avoid some characters in resulting string
+// Convertir XML a array (solo nombres de lenguajes)
+$rules = [];
+foreach ($dom->getElementsByTagName('RULE') as $rule) {
+    $rules[trim($rule->getAttribute('name'))] = true;
+}
 
-            // Using mysql_real_escape_string() instead of plain text to avoid mysql injections
-            database_insert ( $id, sanitize($lang), mysql_real_escape_string($text), sanitize($topic));
-            print ( "Entry added.<br>" );
-            $url  = "http://" . $_SERVER['HTTP_HOST'] . dirname ( $_SERVER['PHP_SELF'] );
-            $url .= "view.php?id=" . $id;
-            print ( "Link:<br><a href=\"" . $url . "\">" . $url . "</a>" );
-            
-            if ($short_url_enable == "yes") {
-                // Now give the short URL using David Walsh function
-                print ("<br>");
-                $short_url = short_url ($url);
-                print ("Short link:<br><a href=\"" . $short_url . "\">" . $short_url . "</a>" );
-            }
-        ?>
-        <p>Return to <a href="index.php">index</a></p>
-    </body>
-</html>
+// Verificar si el lenguaje existe en `rules.xml`
+if (!isset($rules[$language])) {
+    echo "<p style='color: red;'>Error: El lenguaje seleccionado ('" . htmlspecialchars($language) . "') no es válido.</p>";
+    echo "<p><a href='pastebin.php'>Volver</a></p>";
+    exit;
+}
+
+// Conectar a la base de datos
+$db = database_connect();
+if (!$db) {
+    die("<p style='color: red;'>Error: No se pudo conectar a la base de datos.</p>");
+}
+
+// Generar un ID único
+$id = bin2hex(random_bytes(8));
+
+// Consulta preparada para insertar la entrada
+$stmt = $db->prepare("INSERT INTO entries (id, language, text, topic) VALUES (?, ?, ?, ?)");
+if (!$stmt) {
+    die("<p style='color: red;'>Error en la preparación de la consulta: " . $db->error . "</p>");
+}
+
+$stmt->bind_param("ssss", $id, $language, $text, $topic);
+$stmt->execute();
+$stmt->close();
+$db->close();
+
+/* 
+// Redireccionar automáticamente a la nueva entrada
+header("Location: view.php?id=" . urlencode($id));
+ */
+
+// Redireccionar a la página principal
+header("Location: index.php");
+exit;
+?>

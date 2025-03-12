@@ -1,59 +1,55 @@
+<?php
+require("config.php");
+require("database.php");
 
-<?php/*
-	index.php
-	Index Page
-*/?>
+// Conectar a la base de datos
+$db = database_connect();
+if (!$db) {
+    die("Error de conexión con la base de datos.");
+}
 
+// Consulta para obtener las entradas
+$sql = "SELECT id, topic, date FROM entries ORDER BY date DESC";
+$result = $db->query($sql);
 
-<?      
-	require ( "config.php" );
-	$sql_connection = @mysql_connect ( $mysql_server, $mysql_username, $mysql_password );
-	if ( !$sql_connection ) {
-	    die ( "Could not connect to MySQL server!" );
-	}
-	$tbl_name="Entries"; // Table name
-	mysql_select_db("$mysql_dbname")or die("cannot select DB");
-	$sql="SELECT * FROM $tbl_name ORDER BY ID DESC";
-	$result=mysql_query($sql);
-	//End connect block
+if (!$result) {
+    die("Error en la consulta: " . $db->error);
+}
 ?>
-
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml">
+<!DOCTYPE html>
+<html lang="es">
 <head>
-	<meta http-equiv="content-type" content="text/html; charset=iso-8859-1">
-	<title>Open Pastebin</title>
-	<style type="text/css" media="all">@import "main.css";</style>
+    <meta charset="UTF-8">
+    <title>Open Pastebin</title>
+    <link rel="stylesheet" href="main.css">
 </head>
 <body>
-	<div id="Content">
-		<!-- HTML table -->
-		<table width="50%" border="0" align="center" cellpadding="3" cellspacing="1" bgcolor="#CCCCCC">
-			<tr>
-				<td colspan="5" align="right" bgcolor="#E6E6E6"><a href="pastebin.php"><strong>Create New Topic</strong></a></td>
-			</tr>
-			<tr>
-				<td width="6%" align="center" bgcolor="#E6E6E6"><strong><font color="#000">ID#</font></strong></td>
-				<td width="53%" align="center" bgcolor="#E6E6E6"><strong><font color="#000">Topic</font></strong></td>
-				<td width="13%" align="center" bgcolor="#E6E6E6"><strong><font color="#000">Date</font></strong></td>
-			</tr>
-			<?php
-				while($rows=mysql_fetch_array($result)){ // Start looping table row
-			?>
-			<tr>
-				<td bgcolor="#E6E6E6"><? echo $rows['ID']; ?></td>
-				<td bgcolor="#E6E6E6"><a href="view.php?id=<? echo $rows['ID']; ?>"><? echo $rows['Topic']; ?></a><BR></td>
-				<td align="center" bgcolor="#E6E6E6"><? echo $rows['Date']; ?></td>
-			</tr>
-			<?php
-			// Exit looping and close connection
-			}
-			mysql_close();
-			?>
-			<tr>
-				<td colspan="5" align="right" bgcolor="#E6E6E6"><a href="pastebin.php"><strong>Create New Topic</strong> </a></td>
-			</tr>
-		</table>
-	</div>
+    <div id="Content">
+        <h2>Lista de Entradas</h2>
+        <table border="1" cellpadding="5">
+            <tr>
+                <th>ID</th>
+                <th>Tema</th>
+                <th>Fecha</th>
+            </tr>
+            <?php while ($row = $result->fetch_assoc()): ?>
+            <tr>
+                <td><?php echo htmlspecialchars($row['id']); ?></td>
+                <td>
+                    <a href="view.php?id=<?php echo urlencode($row['id']); ?>">
+                        <?php echo htmlspecialchars($row['topic']); ?>
+                    </a>
+                </td>
+                <td><?php echo htmlspecialchars($row['date']); ?></td>
+            </tr>
+            <?php endwhile; ?>
+        </table>
+        <br>
+        <a href="pastebin.php">Crear Nueva Entrada</a>
+    </div>
 </body>
 </html>
+<?php
+// Cerrar conexión
+$db->close();
+?>

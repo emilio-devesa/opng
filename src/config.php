@@ -1,15 +1,11 @@
-<?php/*
-	config.php
-	Configuration file
-*/?>
-
 <?php
-    // MySQL variables
-    $mysql_server = "SERVER_NAME";
-    $mysql_username = "USERNAME";
-    $mysql_password = "PASSWORD";
-    $mysql_dbname = "DB_NAME";
+    // config.php
+	// Configuration file
 
-    // Automatic Short URLs
-    $short_url_enable="yes";
+    // MySQL variables
+    $mysql_server = "localhost:8889";
+    $mysql_username = "root";
+    $mysql_password = "root";
+    $mysql_dbname = "opng";
+
 ?>

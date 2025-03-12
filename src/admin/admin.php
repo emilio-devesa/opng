@@ -1,19 +1,58 @@
-<?php require_once('login.php'); ?>
-<?php/*
-	admin.php
-	This is the admin page for ALL secure items in OpenPastebin. These include Drop.php, empty.php, and admin.php
-*/?>
+<?php
+session_start();
+require_once('login.php'); // Asegura que el usuario esté autenticado
 
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml">
+// Verificar si el usuario está autenticado correctamente
+if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
+    header("Location: login.php");
+    exit;
+}
+
+// Generar un token CSRF si no existe
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+$csrf_token = $_SESSION['csrf_token'];
+?>
+
+<!DOCTYPE html>
+<html lang="es">
 <head>
-	<meta http-equiv="content-type" content="text/html; charset=iso-8859-1">
-	<title>Pastebin</title>
-	<style type="text/css" media="all">@import "main.css";</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administration - Open Pastebin</title>
+    <link rel="stylesheet" href="../main.css">
+    <script>
+        function redirectToEmpty() {
+            window.location.href = 'empty.php';
+        }
+        function confirmDropID() {
+            return confirm("Are you sure you want to drop this entry? This action cannot be undone.");
+        }
+    </script>
 </head>
 <body>
-	<div id="Content">
-		<a href="empty.php" title="Empty">Empty</a> - Empty the database. <br />
-		<a href="drop.php" title="Drop">Drop</a> - Drop an entry based on ID number. <br /><br />
-	</div>
-</body>       
+    <div id="Content">
+        <h1>Admin Panel</h1>
+
+        <fieldset>
+            <legend>Database Actions</legend>
+            <form action="empty.php" method="get">
+                <button type="button" title="Empty" onclick="return redirectToEmpty()">Empty Database</button>
+            </form>
+        </fieldset>
+
+        <fieldset>
+            <legend>Manage Entries</legend>
+            <form method="post" action="drop_id.php" onsubmit="return confirmDropID();">
+                <label for="input_ID">ID to remove:</label>
+                <input type="text" id="input_ID" name="input_ID" required>
+                <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
+                <button type="submit" title="Drop">Drop Entry</button>
+            </form>
+        </fieldset>
+
+        <p><a href="../index.php">Return to Home</a></p>
+    </div>
+</body>
+</html>

@@ -1,65 +1,122 @@
+/* ========================= */
+/* CONFIGURACIÓN GENERAL */
+/* ========================= */
+
+/* Estilos generales del cuerpo de la página */
 body {
-	margin:0px;
-	padding:0px;
-	font-family:verdana, arial, helvetica, sans-serif;
-	color:#333;
-	background-color:white;
-	}
-	
+    margin: 0;
+    padding: 0;
+    font-family: Verdana, Arial, Helvetica, sans-serif;
+    color: #333; /* Color de texto principal */
+    background-color: white;
+}
+
+/* ========================= */
+/* MENÚ LATERAL */
+/* ========================= */
 #Menu {
-	position:absolute;
-	top:100px;
-	left:20px;
-	width:172px;
-	padding:10px;
-	background-color:#eee;
-	border:1px #999;
-	line-height:17px;
-	voice-family: "\"}\"";
-	voice-family:inherit;
-	width:150px;
-	}
-	
-h1 {
-	margin:0px 0px 15px 0px;
-	padding:0px;
-	font-size:28px;
-	line-height:28px;
-	font-weight:900;
-	color:#ccc;
-	}
-p {
-	font:11px/20px verdana, arial, helvetica, sans-serif;
-	margin:0px 0px 16px 0px;
-	padding:0px;
-	}
-#Content&gt;p {margin:0px;}
-#Content&gt;p+p {text-indent:30px;}
+    position: absolute;
+    top: 100px;
+    left: 20px;
+    width: 150px; /* Se ajustó el width para evitar conflictos */
+    padding: 10px;
+    background-color: #eee; /* Fondo gris claro */
+    border: 1px solid #999; /* Se agregó 'solid' para definir bien el borde */
+    line-height: 17px;
+}
 
-a {
-	color:#09c;
-	font-size:11px;
-	text-decoration:none;
-	font-weight:600;
-	font-family:verdana, arial, helvetica, sans-serif;
-	}
-a:link {color:#09c;}
-a:visited {color:#07a;}
-a:hover {background-color:#eee;}
-
+/* ========================= */
+/* ENCABEZADO (HEADER) */
+/* ========================= */
 #Header {
-	margin:50px 0px 10px 0px;
-	padding:17px 0px 0px 20px;
-	height:33px; 
-	border-style:solid;
-	border-color:#eee;
-	border-width:1px 0px; 
-	line-height:11px;
-	background-color:#eee;
-	height:14px; 
-	}
+    margin: 50px 0 10px 0;
+    padding: 17px 0 0 20px;
+    border: 1px solid #eee; /* Se unificó la propiedad 'border' */
+    background-color: #eee;
+    height: 33px; /* Se mantiene la altura correcta */
+    line-height: 11px;
+}
 
+/* ========================= */
+/* CONTENIDO PRINCIPAL */
+/* ========================= */
 #Content {
-	margin:0px 50px 50px 200px;
-	padding:10px;
-	}
+    margin: 0 50px 50px 200px;
+    padding: 10px;
+}
+
+/* ========================= */
+/* ENCABEZADOS */
+/* ========================= */
+h1 {
+    margin: 0 0 15px 0;
+    padding: 0;
+    font-size: 28px;
+    line-height: 28px;
+    font-weight: 900;
+    color: #ccc; /* Texto gris claro */
+}
+
+/* ========================= */
+/* PÁRRAFOS */
+/* ========================= */
+p {
+    font-size: 11px;
+    line-height: 20px;
+    margin: 0 0 16px 0;
+    padding: 0;
+}
+
+/* Evita margen en el primer párrafo dentro de #Content */
+#Content > p { margin: 0; }
+
+/* Indentación en párrafos consecutivos */
+#Content > p + p { text-indent: 30px; }
+
+/* ========================= */
+/* ENLACES */
+/* ========================= */
+a {
+    color: #09c;
+    font-size: 11px;
+    text-decoration: none;
+    font-weight: 600;
+    font-family: Verdana, Arial, Helvetica, sans-serif;
+}
+
+/* Estilos específicos para enlaces */
+a:link { color: #09c; } /* Azul claro para enlaces no visitados */
+a:visited { color: #07a; } /* Azul oscuro para enlaces visitados */
+a:hover { background-color: #eee; } /* Fondo gris claro al pasar el cursor */
+
+/* ========================= */
+/* REGLAS PARA RESALTADO DE SINTAXIS */
+/* ========================= */
+
+/* Palabras clave (keywords) */
+span.keyword {
+    color: blue;
+    font-weight: bold;
+}
+
+/* Cadenas de texto (strings) */
+span.string {
+    color: purple;
+}
+
+/* Comentarios */
+span.comment {
+    color: green;
+    font-style: italic; /* Opcional: cursiva para comentarios */
+}
+
+/* Números */
+span.number {
+    color: orange;
+}
+
+/* Operadores */
+span.operator {
+    color: red;
+    font-weight: bold;
+}

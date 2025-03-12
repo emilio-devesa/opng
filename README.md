@@ -1,130 +1,160 @@
 # Open Pastebin NG
 
-Open Pastebin NG is an easy-to-use utility for sharing text and code through the web. It can handle normal plain text (text without format), Php, Ruby, bash, Python, Java/C/C++ and Pascal source code syntax highlight at this moment. See a feature list below for more details.
-It’s based on [Open Pastebin](http://sourceforge.net/projects/openpastebin/). All you need is a web hosting with PHP and MySQL.
-Open Pastebin NG is free software released under the GNU GPL license (see details [here](LICENSE)).
-This software is a BETA release, wich means it’s still on development. Use it at your own risk.
+**Open Pastebin NG** is an easy-to-use utility for sharing text and code through the web. It supports plain text as well as syntax highlighting for **PHP, Ruby, Bash, Python, Java/C/C++ and more**. See the feature list below for more details.
 
-## Features
+This project is based on **[Open Pastebin](http://sourceforge.net/projects/openpastebin/)**. All you need is a **web server with PHP and MySQL**.
+Open Pastebin NG is **free software** released under the **[GNU GPL license](LICENSE)**.
 
-- Simple and clean user interface
-- Stores data in a MySQL database
-- No installation needed and very simple configuration
-- URLs are really long and harder to type, but it also gives you a short-URL using is.gd service
-- Fast performance, no heavy images or media is transferred, just text
-- Various programming languages syntax hightlihting supported
-- Clean and simple PHP, HTML and XML code
-- Easy to add new syntax support
+⚠️ **This software is in BETA stage**, wich means it is still under development. Use it at your own risk.
 
-## Screenshots
+---
 
-![Pastebin](https://raw.githubusercontent.com/emiliodevesadrums/opng/main/res/pastebin.png)
+## ✨ Features
+- ✅ Simple and clean user interface
+- ⚡️ Fast performance (no heavy images or media, just text)
+- 🎨 Syntax highlighting for multiple programming languages
+- 🔓 Secure authentication system for administrative actions
+- 📂 Entries are stored in a **MySQL database**
 
-![Submit](https://raw.githubusercontent.com/emiliodevesadrums/opng/main/res/submit.png)
+---
 
-![Viewer](https://raw.githubusercontent.com/emiliodevesadrums/opng/main/res/view.png)
+## 🖼️ Screenshots
 
-## Requirements
+### 📌 Homepage (List of Pastes)
+![Homepage](screenshots/homepage.png)
 
-Open Pastebin-NG only requires a MySQL database and a PHP capable hosting.
-It only needs about 46 Kb of storage.
+### 📌 Create a New Paste
+![New Paste](screenshots/create_paste.png)
 
-## Installation
+### 📌 View a Paste with Syntax Highlighting
+![View Paste](screenshots/view_paste.png)
 
-Download the ZIP file (look for it in the [Releases](https://github.com/emiliodevesadrums/opng/releases) section) and extract it to an empty directory.
-Edit the config.php file and set your hosting details, for example:
+### 📌 Edit a Paste
+![View Paste](screenshots/edit_paste.png)
 
-	$ mysql_server = "localhost:3306";
-	$ mysql_username = "anon";
-	$ mysql_password = "";
-	$ mysql_dbname = "opbdb";
+### 📌 Admin Panel
+![Admin Panel](screenshots/admin_panel.png)
 
-Optionally, you can turn off the short url fetching as well (on v0.4 or higher), by setting this:
+---
 
-	$ short_url_enable="no"
+## 🛠️ Requirements
+To run Open Pastebin NG, you need:
 
-Now, upload the files to your server.
+- **PHP 7.4** or higher
+- **MySQL 5.7** or MariaDB
+- A web server (**Apache, Nginx or similar**)
 
-## Usage
-Load (http://www.example.com/index.php) on your browser changing the example domain for yours.
-Select your type of text (plain or any source code) and type the text.
-Press the «Submit» button. You’ll see the URLs where you can now read what you sent. You can also copy&paste the links into a email, chat, forum, IM…
-After that you can send modifications to the code using the text box below the viewer.
+---
 
-## FAQ
+## 🚀 Installation
+Follow this steps to install Open Pastebin NG:
 
-*What is Open Pastebin NG?*
+1️⃣ **Clone the repository**
 
-> It’s a software running on a server to let you share text. It’s intended to be used to share the source code that programmers write and it allows other people to debug it in a simple way.
+	git clone https://github.com/yourusername/open-pastebin-ng.git
+	cd open-pastebin-ng
 
-*Can I use it to share plain text or anotations?*
+2️⃣ **Configure the database**
+Edit config.php and set your database credentials, for example:
 
-> Yes, of course you can. Just select «Plain text» on the «Language» menu of the form.
+	$mysql_server = "localhost";
+	$mysql_username = "root";
+	$mysql_password = "yourpassword";
+	$mysql_dbname = "opng";
 
-*And what about .doc Microsoft Word files and such stuff?*
+3️⃣ **Run the application**
+- If using **Apache**, place the project in `htdocs` or configure a virtual host.
+- If using **Nginx**, configure the root directory in your Nginx config.
+- Open `http://localhost/` in your browser.
 
-> I’m sorry, but Open Pastebin NG is not intended to allow users to upload files, just publish plain text or code.
+---
 
-*Not even images?*
+## 📌 Usage
+From the homepage you can:
 
-> Nope.
+- 📝 **Create a new paste**: Enter your text or code, select a language and submit.
+- 🔍 **View and edit a paste**: Click on the topic you want to view/edit
+- 🛠️ **Manage pastes (Admin panel)**: Log in to `admin/admin.php` to drop entries or delete the entire database.
 
-*What is Open Pastebin NG like?*
+For security reasons, access to **admin features** is password-protected.
+Default password: `demo` (you should change it in `login.php`)
 
-> Open Pastebin NG may look like another pastebin.com clone, but your submissions are not listed in any site and only you will know the link where you can read it. Then you can share that link with the people you want, being shure that virtually no one else will see it.
+---
 
-*Virtually?*
+## ❓FAQ
 
->The URL that Open Pastebin NG will create for your submission is generated by some parameters that make it unique. Although the resulting URL is a really complex combination of random characters, it’s possible to reach a submission just trying different combinations of characters, but the posibilites are really low. As there usually are 256 different characters in any computer you would have to match a 34 characters-long id, wich makes a total of ( 256! / (256-34)! ) posibilities, actually: 765561793147593718096708780828290677223225202861182400491079923306332160000000000 posibilities. Would you really spend time trying? Good luck =). Optionally, you can use the «is.gd» short-url, wich will be really shorter.
+### 🔷 Is it possible to share files, images, or binary files?
+No, **Open Pastebin NG** is designed to share plain text and source code only. It does not support file uploads, images, or binary files.
 
-*Ok, and where is my data stored?*
+### 🔷 How many pastes can I create? Is there any limitation?
+There is no built-in limit on the number of pastes you can create. However, limitations may exist depending on:
 
-> In a MySQL database. It’s safe for three reasons:
->
->– Only admins can access it
->
->– Data is stored in binary mode
->
->– Data is stored by md5 hash, so admins won’t have too many clues to find a particular submission (see question above)
+- Your **server storage capacity**
+- **Database size restrictions** set by your hosting provider
 
+### 🔷 Where is my data stored? Is it private and safe?
+Your pastes are stored in a **MySQL database** on your web server. Security depends on:
 
-*What do I need to use Open Pastebin NG? Should I pay for a hosting plan?*
+- Your **server configuration** (firewalls, database access, etc.)
+- Proper use of **server permissions**
+- Whether you enable **HTTPS** for secure connections
 
-> You don’t really need it, you can use an existing public installation of Open Pastebin NG (search for them). You may want to download Open Pastebin NG and then upload it to your server in the case you want to make an intensive usage or use it for a long period of time (any installation may clean it’s database if admins want to make maintenance, it does not depend directly on Open Pastebin NG).
+By default, **pastes are public** and **Open Pastebin NG does not support password-protected pastes** at the moment.
+If this is an essential feature, consider submitting a **feature request**.
 
-*Is Open Pastebin NG available in other languages?*
+### 🔷 Is Open Pastebin NG available in more languages?
+Currently, the interface is available in Spanish (for users) and English (administration panel).
 
-> Not yet, maybe in the future. Check for newer versions periodically or modify your OPNG files if you want to translate it. If you do, let me know and share it with the rest of us =).
+### 🔷 Can I download, fork, modify, and/or share again Open Pastebin NG?
+Yes! **Open Pastebin NG** is **free and open-source software**, licensed under the **[GNU GPL](LICENSE)**.
+You can:
 
-*Can I download, modify and share again Open Pastebin NG?*
+- **Download** and install it on your server
+- **Modify** it to fit your needs
+- **Fork** the project and contribute improvements
+- **Share** your version with the community
 
-> Yes you can. Again, read the details of the GNU GPL license wich OPNG is released under. There’s an online copy of the license [here](LICENSE).
+### 🔷 I found a bug and I lost my work!
+I'm sorry to hear that! Please note that **OPNG is still in BETA stage and under development**. Please report the issue so we can fix it.
 
-*I found a bug on Open Pastebin NG. Would you pay me any compensation? I lost my work!*
+### 🔷 How can I uninstall OPNG and/or delete all data stored?
+To completely remove Open Pastebin NG, follow these steps:
 
-> No, I won’t. As highlighted at the top of this page, this software is BETA wich means it can still contain bugs or crash for any reason at some point. Known bugs are listed below this FAQ. If you find one, please send me your feedback.
+1. **Empty the database** from the administration panel
+2. **Delete all files** from your server
+3. **Clear your browser cache** if neccesary
 
-*How can I add more code syntax highlight?*
+This will remove **all pastes and files permanently**.
 
-> Edit rules.xml file. It’s really easy.
+🚀 **Need more help?** Feel free to open an issue or reach out.
 
-*Can I protect my entries with a password?*
+---
 
->I’m sorry but, at this moment, Open Pastebin NG does not support password protected entries. This feature might be implemented in future versions.
+## ✅ Known Issues
+Currently, there are no known issues. However, as this is a **BETA release**, some unexpected bugs may still exist.
 
-*How do I clean the database?*
+---
 
-> You can doing using the admin panel. Password is hard-coded in the file login.php. The default password is 'demo' but you should change it to one of your own.
+🔷 **Found a bug?**
+If you encounter any issue, please report it by:
 
-## Known Issues
+- Opening an issue on Github
+- Submitting a pull request with a fix
 
-There are zero known issues at this moment, but your feedback is really appreciated.
+Your feedback is highly appreciated!
 
-Based on Open Pastebin by
-Ville Särkkälä - villeveikko@users.sourceforge.net
+---
 
-Released under GNU GENERAL PUBLIC LICENSE
+## 📜 License
+Released under [GNU GENERAL PUBLIC LICENSE](LICENSE)
 Version 2, June 1991 -  or later
 
+You are free to use, modify, and distribute this software under the terms of the GPL.
 NOTE! THIS IS EXPERIMENTAL SOFTWARE MEANT ONLY FOR TESTING! USE AT YOUR OWN RISK!
 I assume no responsibility for any damages if you choose to ignore the abovementioned warning
+
+---
+
+## 🛠️ Credits & Acknowledgments
+This project is based on **Open Pastebin**, originally developed by:
+**Ville Särkkälä** - villeveikko@users.sourceforge.net
