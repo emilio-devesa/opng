@@ -51,8 +51,8 @@ Follow this steps to install Open Pastebin NG:
 
 1️⃣ **Clone the repository**
 
-	git clone https://github.com/yourusername/open-pastebin-ng.git
-	cd open-pastebin-ng
+	git clone https://github.com/emilio-devesa/opng.git
+	cd opng
 
 2️⃣ **Configure the database**
 Edit config.php and set your database credentials, for example:
