@@ -2,8 +2,6 @@
 session_start();
 require("config.php");
 require("database.php");
-require("xmlparser.php");
-require("sanitize.php");
 
 // Generar un token CSRF si no existe
 if (empty($_SESSION['csrf_token'])) {
