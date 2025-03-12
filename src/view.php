@@ -1,8 +1,6 @@
 <?php
 require("config.php");
 require("database.php");
-require("highlight.php");
-require("sanitize.php");
 
 // Verificar y obtener el ID
 if (!isset($_GET['id']) || empty($_GET['id'])) {
@@ -33,99 +31,26 @@ if (!$array) {
     exit;
 }
 
-// Obtener el lenguaje de la entrada
-$language = trim($array['language']);
-
-// Cargar rules.xml usando DOMDocument
+// Cargar reglas desde rules.xml
 $dom = new DOMDocument();
 if (!$dom->load(__DIR__ . "/rules.xml")) {
-    header("Location: error.php?msg=" . urlencode("No se pudo cargar rules.xml"));
-    exit;
+    die("<p style='color: red;'>Error: No se pudo cargar rules.xml.</p>");
 }
 
-// Convertir XML a array manualmente
+// Convertir XML a array
 $rules = [];
 foreach ($dom->getElementsByTagName('RULE') as $rule) {
-    $name = $rule->getAttribute('name');
-    $rules[$name] = $rule;
+    $name = trim($rule->getAttribute('name'));
+    $rules[$name] = $name; // Solo almacenar el nombre del lenguaje
 }
 
-// Verificar si el lenguaje existe en `rules.xml`
-if (!isset($rules[$language])) {
-    header("Location: error.php?msg=" . urlencode("Lenguaje no encontrado: " . $language));
-    exit;
-}
+// Obtener y normalizar el lenguaje
+$language = trim($array['language']);
 
-// Aplicar resaltado de sintaxis
-/* $highlighted_text = apply_rule($rules[$language], $array['text']); */
-function domElementToArray(DOMElement $element) {
-    $array = ['attributes' => []];
-
-    // Convertir atributos a array
-    foreach ($element->attributes as $attr) {
-        $array['attributes'][$attr->name] = $attr->value;
-    }
-
-/*     // Convertir nodos hijos a array
-    foreach ($element->childNodes as $child) {
-        if ($child->nodeType === XML_ELEMENT_NODE) {
-            $array[$child->nodeName][] = domElementToArray($child);
-        } elseif ($child->nodeType === XML_TEXT_NODE && trim($child->nodeValue) !== '') {
-            $array['value'] = trim($child->nodeValue);
-        }
-    } */
-
-       // Obtener hijos
-       foreach ($element->childNodes as $node) {
-        if ($node instanceof DOMText) {
-            $text = trim($node->textContent);
-            if ($text !== '') {
-                $array['value'] = $text;
-            }
-        } elseif ($node instanceof DOMElement) {
-            $array[$node->tagName][] = domElementToArray($node);
-        }
-    }
-
-    return $array;
-}
-
-// Convertir el DOMElement del lenguaje a un array antes de pasarlo a apply_rule()
-$ruleArray = domElementToArray($rules[$language]);
+// Contar lineas para el resaltado
+$lines = explode("\n", $array['text']);
 
 
-$root = $dom->documentElement; // Obtener el nodo raíz
-$rules = domElementToArray($root); // Convertir XML a array
-
-
-$rules = [];
-foreach ($dom->getElementsByTagName('RULE') as $rule) {
-    $name = $rule->getAttribute('name');
-    $rules[$name] = [];
-
-    foreach ($rule->getElementsByTagName('class') as $class) {
-        $className = $class->getAttribute('style') ?: 'default';
-        $rules[$name][$className] = [];
-
-        foreach ($class->getElementsByTagName('token') as $token) {
-            $rules[$name][$className][] = $token->nodeValue;
-        }
-    }
-}
-
-
-// Aplicar resaltado de sintaxis
-$highlighted_text = apply_rule($ruleArray, $array['text']);
-
-$lines = explode("\n", $highlighted_text);
-
-/* // Debug resaltado de sintaxis
-echo "<h3>Depuración:</h3>";
-echo "<p>Lenguaje detectado: " . htmlspecialchars($language) . "</p>";
-echo "<pre>Regla cargada: " . print_r($rules[$language], true) . "</pre>";
-echo "<p>Texto original:</p><pre>" . htmlspecialchars($array['text']) . "</pre>";
-echo "<p>Texto resaltado:</p><pre>" . $highlighted_text . "</pre>";
-exit; */
 
 ?>
 <!DOCTYPE html>
@@ -134,6 +59,9 @@ exit; */
     <meta charset="UTF-8">
     <title>Ver Entrada - Open Pastebin</title>
     <link rel="stylesheet" href="main.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script>hljs.highlightAll();</script>
 </head>
 <body>
     <div id="Content">
@@ -148,9 +76,9 @@ exit; */
                 <td align="right">
                     <pre><?php echo implode("\n", range(1, count($lines))); ?></pre>
                 </td>
-                <td>&nbsp;&nbsp;&nbsp;</td>
                 <td nowrap align="left">
-                    <pre><?php echo $highlighted_text; ?></pre>
+                    <pre><code class="language-<?php echo htmlspecialchars($language); ?>"><?php echo htmlspecialchars($array['text'], ENT_QUOTES, 'UTF-8'); ?>
+                    </code></pre>
                 </td>
             </tr>
         </table>
@@ -160,11 +88,11 @@ exit; */
             <label>Tema:</label>
             <input type="text" name="input_topic" value="RE: <?php echo htmlspecialchars($array['topic']); ?>"><br>
 
-            <label>Selecciona un lenguaje:</label><br>
-            <select name="input_language">
-                <?php foreach ($rules as $name => $rule): ?>
-                    <option value="<?php echo htmlspecialchars($name); ?>" <?php echo ($name === $language) ? "selected" : ""; ?>>
-                        <?php echo htmlspecialchars($name); ?>
+            <label for="input_language">Selecciona un lenguaje:</label><br>
+            <select id="input_language" name="input_language" required>
+                <?php foreach ($rules as $rule_name => $rule): ?>
+                    <option value="<?php echo htmlspecialchars($rule_name); ?>" <?php echo ($rule_name === $language) ? "selected" : ""; ?>>
+                        <?php echo htmlspecialchars($rule_name); ?>
                     </option>
                 <?php endforeach; ?>
             </select><br>
