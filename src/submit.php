@@ -70,7 +70,12 @@ $stmt->execute();
 $stmt->close();
 $db->close();
 
+/* 
 // Redireccionar automáticamente a la nueva entrada
 header("Location: view.php?id=" . urlencode($id));
+ */
+
+// Redireccionar a la página principal
+header("Location: index.php");
 exit;
 ?>
