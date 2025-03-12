@@ -8,6 +8,4 @@
     $mysql_password = "root";
     $mysql_dbname = "opng";
 
-    // Automatic Short URLs
-    $short_url_enable="yes";
 ?>
