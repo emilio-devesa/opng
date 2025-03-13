@@ -46,6 +46,9 @@ if (!$result) {
         </table>
         <br>
         <a href="pastebin.php">Crear Nueva Entrada</a>
+        <br><br>
+        <button id="theme-toggle">🌙 Modo Oscuro</button>
+        <script src="assets/js/dark-mode.js"></script>
     </div>
 </body>
 </html>

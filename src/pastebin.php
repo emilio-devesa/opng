@@ -60,6 +60,9 @@ foreach ($dom->getElementsByTagName('RULE') as $rule) {
         </form>
         <br>
         <p><a href="index.php">Volver al inicio</a></p>
+        <br><br>
+        <button id="theme-toggle">🌙 Modo Oscuro</button>
+        <script src="assets/js/dark-mode.js"></script>
     </div>
 </body>
 </html>
