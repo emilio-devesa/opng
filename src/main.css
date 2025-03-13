@@ -2,28 +2,50 @@
 /* CONFIGURACIÓN GENERAL */
 /* ========================= */
 
+/* ===== MODO CLARO (DEFAULT) ===== */
+:root {
+    --background-color: #ffffff;
+    --text-color: #333;
+    --link-color: #007bff;
+    --border-color: #ccc;
+}
+
+/* ===== MODO OSCURO ===== */
+.dark-mode {
+    --background-color: #121212;
+    --text-color: #e0e0e0;
+    --link-color: #1e90ff;
+    --border-color: #444;
+}
+
+
 /* Estilos generales del cuerpo de la página */
 body {
     margin: 0;
     padding: 0;
-    font-family: Verdana, Arial, Helvetica, sans-serif;
-    color: #333; /* Color de texto principal */
-    background-color: white;
+    font-family: Arial, sans-serif;
+    background-color: var(--background-color);
+    color: var(--text-color);
+    transition: background-color 0.3s, color 0.3s;
 }
 
-/* ========================= */
-/* MENÚ LATERAL */
-/* ========================= */
-#Menu {
-    position: absolute;
-    top: 100px;
-    left: 20px;
-    width: 150px; /* Se ajustó el width para evitar conflictos */
-    padding: 10px;
-    background-color: #eee; /* Fondo gris claro */
-    border: 1px solid #999; /* Se agregó 'solid' para definir bien el borde */
-    line-height: 17px;
+a {
+    color: var(--link-color);
+    font-size: 11px;
+    text-decoration: none;
+    font-weight: 600;
+    font-family: Verdana, Arial, Helvetica, sans-serif;
 }
+
+/* Estilos específicos para enlaces */
+a:link { color: #09c; } /* Azul claro para enlaces no visitados */
+a:visited { color: #07a; } /* Azul oscuro para enlaces visitados */
+a:hover { background-color: #eee; } /* Fondo gris claro al pasar el cursor */
+
+table {
+    border: 1px solid var(--border-color);
+}
+
 
 /* ========================= */
 /* ENCABEZADO (HEADER) */
@@ -55,68 +77,4 @@ h1 {
     line-height: 28px;
     font-weight: 900;
     color: #ccc; /* Texto gris claro */
-}
-
-/* ========================= */
-/* PÁRRAFOS */
-/* ========================= */
-p {
-    font-size: 11px;
-    line-height: 20px;
-    margin: 0 0 16px 0;
-    padding: 0;
-}
-
-/* Evita margen en el primer párrafo dentro de #Content */
-#Content > p { margin: 0; }
-
-/* Indentación en párrafos consecutivos */
-#Content > p + p { text-indent: 30px; }
-
-/* ========================= */
-/* ENLACES */
-/* ========================= */
-a {
-    color: #09c;
-    font-size: 11px;
-    text-decoration: none;
-    font-weight: 600;
-    font-family: Verdana, Arial, Helvetica, sans-serif;
-}
-
-/* Estilos específicos para enlaces */
-a:link { color: #09c; } /* Azul claro para enlaces no visitados */
-a:visited { color: #07a; } /* Azul oscuro para enlaces visitados */
-a:hover { background-color: #eee; } /* Fondo gris claro al pasar el cursor */
-
-/* ========================= */
-/* REGLAS PARA RESALTADO DE SINTAXIS */
-/* ========================= */
-
-/* Palabras clave (keywords) */
-span.keyword {
-    color: blue;
-    font-weight: bold;
-}
-
-/* Cadenas de texto (strings) */
-span.string {
-    color: purple;
-}
-
-/* Comentarios */
-span.comment {
-    color: green;
-    font-style: italic; /* Opcional: cursiva para comentarios */
-}
-
-/* Números */
-span.number {
-    color: orange;
-}
-
-/* Operadores */
-span.operator {
-    color: red;
-    font-weight: bold;
 }
