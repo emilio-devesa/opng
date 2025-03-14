@@ -27,24 +27,24 @@ foreach ($dom->getElementsByTagName('RULE') as $rule) {
 
 ?>
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Open Pastebin - Crear Nueva Entrada</title>
+    <title data-i18n="title_pastebin">Open Pastebin NG - Create New Entry</title>
     <link rel="stylesheet" href="main.css">
 </head>
 <body>
     <div id="Content">
-        <h2>Crear Nueva Entrada</h2>
+        <h2 data-i18n="create_new">Create New Entry</h2>
         <form method="post" action="submit.php">
             <!-- Protección CSRF -->
             <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
 
-            <label for="input_topic">Tema:</label>
+            <label data-i18n="topic:" for="input_topic">Topic:</label>
             <input type="text" id="input_topic" name="input_topic" required><br>
 
-            <label for="input_language">Selecciona un lenguaje:</label><br>
+            <label data-i18n="select_language:" for="input_language">Select Language:</label>
             <select id="input_language" name="input_language" required>
                 <?php
                 foreach ($rules as $rule_name) {
@@ -53,16 +53,25 @@ foreach ($dom->getElementsByTagName('RULE') as $rule) {
                 ?>
             </select><br>
 
-            <label for="input_text">Introduce tu código:</label><br>
+            <label data-i18n="text" for="input_text">Enter your text here</label><br>
             <textarea id="input_text" name="input_text" rows="25" cols="80" required></textarea>
             <br><br>
-            <input type="submit" value="Enviar">
+            <button data-i18n="submit" id="submit" type="submit">Submit</button>
         </form>
-        <br>
-        <p><a href="index.php">Volver al inicio</a></p>
+        <a href="index.php" data-i18n="return">Return to Home</a>
         <br><br>
-        <button id="theme-toggle">🌙 Modo Oscuro</button>
+        <button id="theme-toggle" data-i18n="dark_mode">Dark Mode</button>
         <script src="assets/js/dark-mode.js"></script>
+        <br><br>
+        <select id="language-selector">
+            <option value="en">🇬🇧 English</option>
+            <option value="es">🇪🇸 Español</option>
+            <option value="de">🇩🇪 Deutsch</option>
+            <option value="fr">🇫🇷 Français</option>
+            <option value="pt">🇵🇹 Português</option>
+            <option value="zh">🇨🇳 中文</option>
+        </select>
+        <script src="assets/js/language.js"></script>
     </div>
 </body>
 </html>
