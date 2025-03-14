@@ -1,0 +1,22 @@
+{
+    "title_index": "Open Pastebin NG",
+    "welcome": "欢迎使用 Open Pastebin NG！",
+    "list_all": "条目列表",
+    "id": "ID",
+    "topic": "主题",
+    "date": "日期",
+    "create_new": "创建新条目",
+    "dark_mode": "🌙 深色模式",
+    "light_mode": "☀️ 浅色模式",
+
+    "title_pastebin": "Open Pastebin NG - 创建新条目",
+    "topic:": "主题：",
+    "select_language:": "选择语言：",
+    "text": "在此输入您的文本",
+    "submit": "提交",
+    "return": "返回首页",
+
+    "language:": "语言：",
+    "code:": "代码：",
+    "edit:": "编辑："
+}

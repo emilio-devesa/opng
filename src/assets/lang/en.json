@@ -1,0 +1,22 @@
+{
+    "title_index": "Open Pastebin NG",
+    "welcome": "Welcome to Open Pastebin NG!",
+    "list_all": "List of Entries",
+    "id": "ID",
+    "topic": "Topic",
+    "date": "Date",
+    "create_new": "Create New Entry",
+    "dark_mode": "🌙 Dark Mode",
+    "light_mode": "☀️ Light Mode",
+
+    "title_pastebin": "Open Pastebin NG - Create New Entry",
+    "topic:": "Topic:",
+    "select_language:": "Select Language:",
+    "text": "Enter your text here",
+    "submit": "Submit",
+    "return": "Return to Home",
+
+    "language:": "Language:",
+    "code:": "Code:",
+    "edit:": "Edit:"
+}
