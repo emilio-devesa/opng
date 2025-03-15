@@ -76,10 +76,14 @@ $lines = explode("\n", $array['text']);
                             <pre><?php echo implode("\n", range(1, count($lines))); ?></pre>
                         </td>
                         <td nowrap align="left">
-                            <pre><code class="language-<?php echo htmlspecialchars($language); ?>"><?php echo $array['text']; ?></code></pre>
+                            <div style="position: relative;">
+                                <pre><code id="code-block" class="language-<?php echo htmlspecialchars($language); ?>"><?php echo $array['text']; ?></code></pre>
+                                <button id="copy-button" data-i18n="copy" class="copy-button" onclick="copyToClipboard()">📋 Copy</button>
+                            </div>
                         </td>
                     </tr>
                 </table>
+                <br>
             </div>
             <div class="box">
                 <h3 data-i18n="edit:">Edit:</h3>
@@ -99,13 +103,13 @@ $lines = explode("\n", $array['text']);
                         <?php endforeach; ?>
                     </select><br>
                     <br><br>
-                    <textarea name="input_text" rows="<?php echo (max(count($lines), 10)+1); ?>" cols="80"><?php echo $array['text']; ?>
-                    </textarea>
+                    <textarea name="input_text" rows="<?php echo (max(count($lines), 10)+1); ?>" cols="80"><?php echo $array['text']; ?></textarea>
                     <br><br>
-                    <input data-i18n="submit" id="submit" type="submit">
+                    <button data-i18n="submit" id="submit" type="submit">Submit</button>
                 </form>
             </div>
         </div>
+        <br>
         <a href="index.php" data-i18n="return">Return to Home</a>
         <br><br>
         <button id="theme-toggle" data-i18n="dark_mode">Dark Mode</button>
@@ -120,6 +124,7 @@ $lines = explode("\n", $array['text']);
             <option value="zh">🇨🇳 中文</option>
         </select>
         <script src="assets/js/language.js"></script>
+        <script src="assets/js/copy.js"></script>
     </div>
 </body>
 </html>
