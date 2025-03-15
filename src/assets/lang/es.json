@@ -17,6 +17,9 @@
     "return": "Volver al inicio",
 
     "language:": "Lenguaje:",
-    "code:": "Codigo:",
-    "edit:": "Editar:"
+    "code:": "Código:",
+    "edit:": "Editar:",
+    "copy": "Copiar",
+    "copied": "¡Copiado!"
+    
 }

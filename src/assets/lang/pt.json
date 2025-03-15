@@ -18,5 +18,7 @@
 
     "language:": "Idioma:",
     "code:": "Código:",
-    "edit:": "Editar:"
+    "edit:": "Editar:",
+    "copy": "Copiar",
+    "copied": "Copiado!"
 }
