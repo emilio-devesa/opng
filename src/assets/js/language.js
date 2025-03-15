@@ -23,6 +23,8 @@ document.addEventListener("DOMContentLoaded", function () {
                     const key = el.getAttribute("data-i18n");
                     if (data[key]) el.innerHTML = data[key];
                 });
+                // Disparar evento de cambio de idioma
+                document.dispatchEvent(new Event("languageChanged"));
             })
             .catch(error => console.error("Error cargando traducciones:", error));
     }
