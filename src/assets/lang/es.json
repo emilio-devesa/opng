@@ -1,0 +1,25 @@
+{
+    "title_index": "Open Pastebin NG",
+    "welcome": "¡Bienvenido a Open Pastebin NG!",
+    "list_all": "Lista de Entradas",
+    "id": "ID",
+    "topic": "Tema",
+    "date": "Fecha",
+    "create_new": "Crear Nueva Entrada",
+    "dark_mode": "🌙 Modo Oscuro",
+    "light_mode": "☀️ Modo Claro",
+
+    "title_pastebin": "Open Pastebin NG - Crear Nueva Entrada",
+    "topic:": "Tema:",
+    "select_language:": "Seleccionar Lenguaje:",
+    "text": "Introduce tu texto aquí",
+    "submit": "Enviar",
+    "return": "Volver al inicio",
+
+    "language:": "Lenguaje:",
+    "code:": "Código:",
+    "edit:": "Editar:",
+    "copy": "Copiar",
+    "copied": "¡Copiado!"
+    
+}
