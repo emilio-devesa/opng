@@ -25,6 +25,21 @@ function database_connect() {
         die("Error al seleccionar la base de datos: " . $conn->error);
     }
 
+    // Crear la table `Users` si no existe
+    $query = "
+        CREATE TABLE IF NOT EXISTS Users (
+            ID INT AUTO_INCREMENT PRIMARY KEY,
+            Username VARCHAR(50) UNIQUE NOT NULL,
+            Email VARCHAR(100) UNIQUE NOT NULL,
+            Password_hash VARCHAR(255) NOT NULL,
+            Created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+    ";
+
+    if (!$conn->query($query)) {
+        die("Error al crear la tabla: " . $conn->error);
+    }
+
     // Crear la tabla `Entries` si no existe
     $query = "
         CREATE TABLE IF NOT EXISTS Entries (
