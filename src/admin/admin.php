@@ -1,10 +1,10 @@
 <?php
 session_start();
-require_once('login.php'); // Asegura que el usuario esté autenticado
+require_once('../auth/login.php'); // Asegura que el usuario esté autenticado
 
 // Verificar si el usuario está autenticado correctamente
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
-    header("Location: login.php");
+    header("Location: ../auth/login.php");
     exit;
 }
 
