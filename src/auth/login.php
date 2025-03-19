@@ -20,6 +20,16 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
     return; // Evita ejecutar más código en páginas autenticadas
 }
 
+if (!isset($_SESSION["login_attempts"])) {
+    $_SESSION["login_attempts"] = 0;
+    $_SESSION["last_attempt_time"] = time();
+}
+
+// Si hay más de 5 intentos en 10 minutos, bloquear
+if ($_SESSION["login_attempts"] >= 5 && (time() - $_SESSION["last_attempt_time"] < 600)) {
+    die("Demasiados intentos de inicio de sesión. Intenta nuevamente en 10 minutos.");
+}
+
 // Generar un token CSRF si no existe
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -49,6 +59,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $stmt->fetch();
 
         if (password_verify($password, $passwordHash)) {
+            // Autenticación exitosa, restablecer intentos fallidos
+            $_SESSION["login_attempts"] = 0;
+
             $_SESSION["user_id"] = $id;
             $_SESSION["username"] = $username;
             
@@ -58,9 +71,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             unset($_SESSION['redirect_after_login']); // Eliminar variable de sesión
             exit;
         } else {
+            $_SESSION["login_attempts"]++;
+            $_SESSION["last_attempt_time"] = time();
             $error_message = "Contraseña incorrecta.";
         }
     } else {
+        $_SESSION["login_attempts"]++;
+        $_SESSION["last_attempt_time"] = time();
         $error_message = "Usuario no encontrado.";
     }
     $stmt->close();
