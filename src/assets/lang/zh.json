@@ -8,6 +8,9 @@
     "create_new": "创建新条目",
     "dark_mode": "🌙 深色模式",
     "light_mode": "☀️ 浅色模式",
+    "login": "登录",
+    "logout": "登出",
+    "register": "注册",
 
     "title_pastebin": "Open Pastebin NG - 创建新条目",
     "topic:": "主题：",

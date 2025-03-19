@@ -8,6 +8,9 @@
     "create_new": "Crear Nueva Entrada",
     "dark_mode": "🌙 Modo Oscuro",
     "light_mode": "☀️ Modo Claro",
+    "login": "Iniciar sesión",
+    "logout": "Cerrar sesión",
+    "register": "Registrarse",
 
     "title_pastebin": "Open Pastebin NG - Crear Nueva Entrada",
     "topic:": "Tema:",
