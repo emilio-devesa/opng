@@ -2,6 +2,11 @@
 require("config.php");
 require("database.php");
 
+// Iniciar sesión si no está iniciada
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 // Conectar a la base de datos
 $db = database_connect();
 if (!$db) {
@@ -63,6 +68,18 @@ if (!$result) {
         </select>
         <script src="assets/js/language.js"></script>
     </div>
+    <footer>
+        <nav>
+            <ul>
+                <?php if (isset($_SESSION['user_id'])): ?>
+                    <li><a data-i18n="logout" href="/auth/logout.php">Logout</a></li>
+                <?php else: ?>
+                    <li><a data-i18n="login" href="/auth/login.php">Login</a></li>
+                    <li><a data-i18n="register" href="/auth/register.php">Register</a></li>
+                <?php endif; ?>
+            </ul>
+        </nav>
+    </footer>
 </body>
 </html>
 <?php
