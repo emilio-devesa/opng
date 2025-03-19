@@ -1,10 +1,10 @@
 <?php
 session_start();
-require_once('../auth/login.php'); // Asegura que el usuario esté autenticado
 
-// Verificar si el usuario está autenticado correctamente
-if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
-    header("Location: ../auth/login.php");
+// Si el usuario no está autenticado, guardar la URL y redirigir al login
+if (!isset($_SESSION['user_id'])) {
+    $_SESSION['redirect_after_login'] = $_SERVER['REQUEST_URI']; // Guardar la URL actual
+    header("Location: /auth/login.php");
     exit;
 }
 
