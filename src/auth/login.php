@@ -1,9 +1,37 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 require("../config.php");
 require("../database.php");
 
+// Obtener la URL de redirección o establecer index.php como predeterminado
+$redirect_url = isset($_SESSION['redirect_after_login']) ? $_SESSION['redirect_after_login'] : '/index.php';
+
+$error_message = "";
+
+// Si el usuario ya está autenticado, redirigir a la página de inicio
+if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
+    if (basename($_SERVER['PHP_SELF']) === 'login.php') {
+        header('Location: ../index.php');
+        exit();
+    }
+    return; // Evita ejecutar más código en páginas autenticadas
+}
+
+// Generar un token CSRF si no existe
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+$csrf_token = $_SESSION['csrf_token'];
+
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    // Verificar si el token CSRF existe y es válido
+    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+        die("<p style='color: red;'>Error: CSRF token inválido.</p>");
+    }
+    
     $email = trim($_POST["email"]);
     $password = $_POST["password"];
 
@@ -23,13 +51,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if (password_verify($password, $passwordHash)) {
             $_SESSION["user_id"] = $id;
             $_SESSION["username"] = $username;
-            header("Location: ../index.php"); // Redirigir al usuario
+            
+            // Redirigir al usuario a la página de origen después del login
+            header("Location: " . htmlspecialchars($redirect_url, ENT_QUOTES, 'UTF-8'));
+
+            unset($_SESSION['redirect_after_login']); // Eliminar variable de sesión
             exit;
         } else {
-            echo "Contraseña incorrecta.";
+            $error_message = "Contraseña incorrecta.";
         }
     } else {
-        echo "Usuario no encontrado.";
+        $error_message = "Usuario no encontrado.";
     }
     $stmt->close();
     $db->close();
@@ -44,12 +76,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 </head>
 <body>
     <h2>Iniciar Sesión</h2>
+
+    <?php if (!empty($error_message)) {
+        header("Location: error.php?msg=" . urlencode(htmlspecialchars($error_message, ENT_QUOTES, 'UTF-8')));
+        exit;
+    }
+    ?>
+
     <form method="POST">
+        <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
         <label>Email:</label>
-        <input type="email" name="email" required><br>
+        <input type="email" name="email" value="<?php echo htmlspecialchars($_POST['email'] ?? '', ENT_QUOTES, 'UTF-8'); ?>" required><br>
         <label>Contraseña:</label>
         <input type="password" name="password" required><br>
         <button type="submit">Iniciar sesión</button>
     </form>
+
+    <a href="register.php">¿No tienes cuenta? Regístrate aquí</a>    
 </body>
 </html>
