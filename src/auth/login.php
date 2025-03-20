@@ -49,13 +49,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $db = database_connect();
 
     // Buscar el usuario
-    $stmt = $db->prepare("SELECT id, username, password_hash FROM users WHERE email = ?");
+    $stmt = $db->prepare("SELECT id, username, password_hash, role FROM users WHERE email = ?");
     $stmt->bind_param("s", $email);
     $stmt->execute();
     $stmt->store_result();
     
     if ($stmt->num_rows == 1) {
-        $stmt->bind_result($id, $username, $passwordHash);
+        $stmt->bind_result($id, $username, $passwordHash, $role);
         $stmt->fetch();
 
         if (password_verify($password, $passwordHash)) {
@@ -64,6 +64,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
             $_SESSION["user_id"] = $id;
             $_SESSION["username"] = $username;
+            $_SESSION["role"] = $role;
             
             // Redirigir al usuario a la página de origen después del login
             header("Location: " . htmlspecialchars($redirect_url, ENT_QUOTES, 'UTF-8'));
