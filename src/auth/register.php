@@ -30,7 +30,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $passwordHash = password_hash($password, PASSWORD_BCRYPT);
 
     // Insertar usuario
-    $stmt = $db->prepare("INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)");
+    $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, 'user')");
     $stmt->bind_param("sss", $username, $email, $passwordHash);
     if ($stmt->execute()) {
         echo "Registro exitoso. <a href='login.php'>Iniciar sesión</a>";
