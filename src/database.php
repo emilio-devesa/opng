@@ -33,6 +33,7 @@ function database_connect() {
             Email VARCHAR(100) UNIQUE NOT NULL,
             Password_hash VARCHAR(255) NOT NULL,
             Created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            role ENUM('admin', 'user') NOT NULL DEFAULT 'user',
             reset_token VARCHAR(255) NULL,
             reset_token_expires DATETIME NULL
         ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
