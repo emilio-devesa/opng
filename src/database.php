@@ -32,7 +32,9 @@ function database_connect() {
             Username VARCHAR(50) UNIQUE NOT NULL,
             Email VARCHAR(100) UNIQUE NOT NULL,
             Password_hash VARCHAR(255) NOT NULL,
-            Created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            Created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            reset_token VARCHAR(255) NULL,
+            reset_token_expires DATETIME NULL
         ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
     ";
 
