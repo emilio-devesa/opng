@@ -14,7 +14,10 @@ if (!$db) {
 }
 
 // Consulta para obtener las entradas
-$sql = "SELECT id, topic, date FROM entries ORDER BY date DESC";
+$sql = "SELECT entries.id, entries.user_id, users.username, entries.topic, entries.language, entries.date 
+        FROM entries 
+        LEFT JOIN users ON entries.user_id = users.id 
+        ORDER BY date DESC";
 $result = $db->query($sql);
 
 if (!$result) {
@@ -38,6 +41,8 @@ if (!$result) {
             <tr>
                 <th data-i18n="id">ID</th>
                 <th data-i18n="topic">Topic</th>
+                <th>Author</th>
+                <th>Language</th>
                 <th data-i18n="date">Date</th>
             </tr>
             <?php while ($row = $result->fetch_assoc()): ?>
@@ -48,6 +53,8 @@ if (!$result) {
                         <?php echo htmlspecialchars($row['topic']); ?>
                     </a>
                 </td>
+                <td><?php echo htmlspecialchars($row['username'] ?? "Guest"); ?></td>
+                <td><?php echo htmlspecialchars($row['language']); ?></td>
                 <td><?php echo htmlspecialchars($row['date']); ?></td>
             </tr>
             <?php endwhile; ?>

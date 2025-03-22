@@ -1,9 +1,19 @@
 <?php
+session_start(); // Iniciar sesión antes de usar $_SESSION
 require("config.php");
 require("database.php");
 
 // Inicializar el array de errores
 $errors = [];
+
+// Verificar y obtener el ID
+/* if (!isset($_GET['id']) || empty($_GET['id'])) {
+    header("Location: error.php?msg=" . urlencode("ID no válido"));
+    exit;
+} */
+
+// Obtener ID del usuario autenticado
+$user_id = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : null;
 
 // Validar los datos enviados en el formulario
 if (empty($_POST['input_text'])) {
@@ -60,20 +70,15 @@ if (!$db) {
 $id = bin2hex(random_bytes(8));
 
 // Consulta preparada para insertar la entrada
-$stmt = $db->prepare("INSERT INTO entries (id, language, text, topic) VALUES (?, ?, ?, ?)");
+$stmt = $db->prepare("INSERT INTO entries (id, user_id, language, text, topic) VALUES (?, ?, ?, ?, ?)");
 if (!$stmt) {
     die("<p style='color: red;'>Error en la preparación de la consulta: " . $db->error . "</p>");
 }
 
-$stmt->bind_param("ssss", $id, $language, $text, $topic);
+$stmt->bind_param("sisss", $id, $user_id, $language, $text, $topic);
 $stmt->execute();
 $stmt->close();
 $db->close();
-
-/* 
-// Redireccionar automáticamente a la nueva entrada
-header("Location: view.php?id=" . urlencode($id));
- */
 
 // Redireccionar a la página principal
 header("Location: index.php");

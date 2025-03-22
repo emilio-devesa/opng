@@ -46,7 +46,8 @@ function database_connect() {
     // Crear la tabla `Entries` si no existe
     $query = "
         CREATE TABLE IF NOT EXISTS Entries (
-            ID VARCHAR(255) PRIMARY KEY, 
+            ID VARCHAR(255) PRIMARY KEY,
+            user_id INT,
             Date DATETIME DEFAULT CURRENT_TIMESTAMP,
             Language VARCHAR(20), 
             Text TEXT, 
