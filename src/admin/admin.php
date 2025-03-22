@@ -1,10 +1,11 @@
 <?php
 session_start();
-require_once('login.php'); // Asegura que el usuario esté autenticado
 
-// Verificar si el usuario está autenticado correctamente
-if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
-    header("Location: login.php");
+// Si el usuario no está autenticado o no es administrador, guardar la URL y redirigir
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
+    // $_SESSION['error_message'] = "Access denied. You don't have permission to view this page.";
+    // $_SESSION['redirect_after_login'] = $_SERVER['REQUEST_URI']; // Guardar la URL actual
+    header("Location: /error.php?msg=" . urlencode("Access denied. You don't have permission to view this page."));
     exit;
 }
 

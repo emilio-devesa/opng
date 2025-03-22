@@ -8,6 +8,9 @@
     "create_new": "Neuen Eintrag erstellen",
     "dark_mode": "🌙 Dunkelmodus",
     "light_mode": "☀️ Hellmodus",
+    "login": "Anmelden",
+    "logout": "Abmelden",
+    "register": "Registrieren",
 
     "title_pastebin": "Open Pastebin NG - Neuen Eintrag erstellen",
     "topic:": "Thema:",

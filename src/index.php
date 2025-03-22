@@ -2,6 +2,11 @@
 require("config.php");
 require("database.php");
 
+// Iniciar sesión si no está iniciada
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 // Conectar a la base de datos
 $db = database_connect();
 if (!$db) {
@@ -9,7 +14,10 @@ if (!$db) {
 }
 
 // Consulta para obtener las entradas
-$sql = "SELECT id, topic, date FROM entries ORDER BY date DESC";
+$sql = "SELECT entries.id, entries.user_id, users.username, entries.topic, entries.language, entries.date 
+        FROM entries 
+        LEFT JOIN users ON entries.user_id = users.id 
+        ORDER BY date DESC";
 $result = $db->query($sql);
 
 if (!$result) {
@@ -33,6 +41,8 @@ if (!$result) {
             <tr>
                 <th data-i18n="id">ID</th>
                 <th data-i18n="topic">Topic</th>
+                <th>Author</th>
+                <th>Language</th>
                 <th data-i18n="date">Date</th>
             </tr>
             <?php while ($row = $result->fetch_assoc()): ?>
@@ -43,6 +53,8 @@ if (!$result) {
                         <?php echo htmlspecialchars($row['topic']); ?>
                     </a>
                 </td>
+                <td><?php echo htmlspecialchars($row['username'] ?? "Guest"); ?></td>
+                <td><?php echo htmlspecialchars($row['language']); ?></td>
                 <td><?php echo htmlspecialchars($row['date']); ?></td>
             </tr>
             <?php endwhile; ?>
@@ -63,6 +75,18 @@ if (!$result) {
         </select>
         <script src="assets/js/language.js"></script>
     </div>
+    <footer>
+        <nav>
+            <ul>
+                <?php if (isset($_SESSION['user_id'])): ?>
+                    <li><a data-i18n="logout" href="/auth/logout.php">Logout</a></li>
+                <?php else: ?>
+                    <li><a data-i18n="login" href="/auth/login.php">Login</a></li>
+                    <li><a data-i18n="register" href="/auth/register.php">Register</a></li>
+                <?php endif; ?>
+            </ul>
+        </nav>
+    </footer>
 </body>
 </html>
 <?php

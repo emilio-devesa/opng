@@ -1,6 +1,13 @@
 <?php
+session_start(); // Iniciar sesión antes de usar $_SESSION
 require("config.php");
 require("database.php");
+
+// Obtener el rol y el ID del usuario (si está autenticado)
+// Definir valores predeterminados si el usuario no ha iniciado sesión
+$role = $_SESSION['role'] ?? 'guest';  // Si no hay sesión, será 'guest'
+$user_id = $_SESSION['user_id'] ?? null; // Si no hay sesión, será null
+
 
 // Verificar y obtener el ID
 if (!isset($_GET['id']) || empty($_GET['id'])) {
@@ -18,7 +25,7 @@ if (!$db) {
 }
 
 // Obtener la entrada desde la base de datos
-$stmt = $db->prepare("SELECT id, language, text, topic, date FROM entries WHERE id = ?");
+$stmt = $db->prepare("SELECT id, user_id, language, text, topic, date FROM entries WHERE id = ?");
 $stmt->bind_param("s", $id);
 $stmt->execute();
 $result = $stmt->get_result();
@@ -49,6 +56,15 @@ $language = trim($array['language']);
 
 // Contar lineas para el resaltado
 $lines = explode("\n", $array['text']);
+
+// Determinar si el usuario tiene permisos para eliminar la entrada
+$can_delete = ($role === "admin" || ($user_id && $user_id === $array['user_id']));
+
+// Generar un token CSRF si no existe
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+$csrf_token = $_SESSION['csrf_token'];
 
 ?>
 <!DOCTYPE html>
@@ -84,6 +100,13 @@ $lines = explode("\n", $array['text']);
                     </tr>
                 </table>
                 <br>
+                <?php if ($can_delete): ?>  <!-- ✅ USAMOS `$can_delete` EN LUGAR DE `$_SESSION` -->
+                    <form method="post" action="admin/drop_id.php">
+                        <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
+                        <input type="hidden" name="input_ID" value="<?php echo htmlspecialchars($array['id']); ?>">
+                        <button type="submit" onclick="return confirm('¿Seguro que deseas eliminar este paste?');">Eliminar Paste</button>
+                    </form>
+                <?php endif; ?>
             </div>
             <div class="box">
                 <h3 data-i18n="edit:">Edit:</h3>
