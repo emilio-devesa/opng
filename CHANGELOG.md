@@ -21,11 +21,11 @@
 - Fixed session-related errors in view.php and drop_id.php.
 
 ### 🛠️ Bug Fixes & Improvements
-🐛 Fix: "user_id cannot be null" error in submit.php
-🐛 Fix: CSRF validation errors in drop_id.php
-🐛 Fix: "Invalid ID" error when creating a paste
-🐛 Fix: Database connection errors in drop_id.php
-🐛 Fix: Prevented session warnings in view.php
+- 🐛 Fix: "user_id cannot be null" error in submit.php
+- 🐛 Fix: CSRF validation errors in drop_id.php
+- 🐛 Fix: "Invalid ID" error when creating a paste
+- 🐛 Fix: Database connection errors in drop_id.php
+- 🐛 Fix: Prevented session warnings in view.php
 
 ✨ New Features & UI Improvements
 - Pastes now display the author and programming language in the entry list.
