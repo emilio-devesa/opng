@@ -13,7 +13,9 @@ Open Pastebin NG is **free software** released under the **[GNU GPL license](LIC
 - ✅ Simple and clean user interface
 - ⚡️ Fast performance (no heavy images or media, just text)
 - 🎨 Syntax highlighting for multiple programming languages
-- 🔓 Secure authentication system for administrative actions
+- 🔓 Secure authentication system for administrative actions and role-based access control
+- 👤 User management: **Admin**, **Registered User**, and **Guest**  
+- 🛡️ CSRF protection for sensitive actions
 - 📂 Entries are stored in a **MySQL database**
 
 ---
@@ -81,6 +83,24 @@ Default password: `demo` (you should change it in `login.php`)
 
 ---
 
+## 🔒 User Roles & Permissions
+👤 Guest
+- Can view public pastes
+- Can create pastes (anonymous pastes)
+- Cannot delete any pastes
+
+📝 Registered User
+- Can create and manage their own pastes
+- Can delete only their own pastes
+- Cannot access the admin panel
+
+🛠️ Administrator
+- Has full control over the system
+- Can delete any paste (even from other users)
+- Can empty the database via the admin panel
+
+---
+
 ## ❓FAQ
 
 ### 🔷 Is it possible to share files, images, or binary files?
@@ -101,9 +121,17 @@ Your pastes are stored in a **MySQL database** on your web server. Security depe
 
 By default, **pastes are public** and **Open Pastebin NG does not support password-protected pastes** at the moment.
 If this is an essential feature, consider submitting a **feature request**.
+However, **registered users** can manage and delete their own pastes.
 
 ### 🔷 Is Open Pastebin NG available in more languages?
-Currently, the interface is available in Spanish (for users) and English (administration panel).
+Yes! Open Pastebin NG supports multiple languages.
+Currently available:
+- 🇬🇧 English
+- 🇪🇸 Spanish
+- 🇩🇪 German
+- 🇫🇷 French
+- 🇵🇹 Portuguese
+- 🇨🇳 Chinese
 
 ### 🔷 Can I download, fork, modify, and/or share again Open Pastebin NG?
 Yes! **Open Pastebin NG** is **free and open-source software**, licensed under the **[GNU GPL](LICENSE)**.
