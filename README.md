@@ -78,8 +78,7 @@ From the homepage you can:
 - 🔍 **View and edit a paste**: Click on the topic you want to view/edit
 - 🛠️ **Manage pastes (Admin panel)**: Log in to `admin/admin.php` to drop entries or delete the entire database.
 
-For security reasons, access to **admin features** is password-protected.
-Default password: `demo` (you should change it in `login.php`)
+For security reasons, access to **admin features** is restricted to administrators.
 
 ---
 
