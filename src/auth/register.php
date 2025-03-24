@@ -8,6 +8,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $email = trim($_POST["email"]);
     $password = $_POST["password"];
 
+    // CAPTCHA Validation
     $captcha_answer = trim($_POST["captcha_answer"]);
     if (!isset($_SESSION['captcha']) || strtoupper($captcha_answer) !== $_SESSION['captcha']) {
         die("Incorrect CAPTCHA. Try again.");
@@ -53,20 +54,25 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <head>
     <meta charset="UTF-8">
     <title>Registro</title>
+    <link rel="stylesheet" href="main.css">
 </head>
 <body>
     <h2>Registro</h2>
     <form method="POST">
-        <label>Usuario:</label>
+        <p><label>Usuario:</label>
         <input type="text" name="username" required><br>
         <label>Email:</label>
         <input type="email" name="email" required><br>
         <label>Contraseña:</label>
-        <input type="password" name="password" required><br>
+        <input type="password" name="password" required></p>
         <!-- Imagen CAPTCHA -->
-        <img src="captcha.php" alt="CAPTCHA"><br>
+        <p><label>Please enter captcha text:</label>
         <input type="text" name="captcha_answer" required><br>
-        <button type="submit">Registrarse</button>
+        <img src="captcha.php" alt="CAPTCHA" class="captcha-image"><br>
+        <button type="button" class="refresh-captcha">🔄 Refresh</button></p>
+        <br>
+        <p><button type="submit">Registrarse</button></p>
     </form>
+    <script src="../assets/js/refresh-captcha.js"></script>
 </body>
 </html>
