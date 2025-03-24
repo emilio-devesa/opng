@@ -8,6 +8,12 @@ $message = ""; // Variable para almacenar el mensaje de respuesta
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $email = trim($_POST["email"]);
 
+    $captcha_answer = trim($_POST["captcha_answer"]);
+    if (!isset($_SESSION['captcha']) || strtoupper($captcha_answer) !== $_SESSION['captcha']) {
+        die("Incorrect CAPTCHA. Try again.");
+    }
+    unset($_SESSION['captcha']); // Evita reutilización del CAPTCHA
+
     $db = database_connect();
     $stmt = $db->prepare("SELECT id FROM users WHERE email = ?");
     $stmt->bind_param("s", $email);
@@ -48,6 +54,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         #reset-form { display: <?php echo $message ? 'none' : 'block'; ?>; }
         #message { display: <?php echo $message ? 'block' : 'none'; ?>; }
     </style>
+    <link rel="stylesheet" href="main.css">
 </head>
 <body>
     <h2>Request Password Reset</h2>
@@ -55,9 +62,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     <div id="message"><?php echo $message; ?></div>
 
     <form method="POST" id="reset-form">
-        <label>Email:</label>
-        <input type="email" name="email" required>
-        <button type="submit">Send Reset Link</button>
+        <p><label>Email:</label>
+        <input type="email" name="email" required></p>
+        <!-- Imagen CAPTCHA -->
+        <p><label>Please enter captcha text:</label>
+        <input type="text" name="captcha_answer" required><br>
+        <img src="captcha.php" alt="CAPTCHA" class="captcha-image"><br>
+        <button type="button" class="refresh-captcha">🔄 Refresh</button></p>
+        <br>
+        <p><button type="submit">Send Reset Link</button></p>
     </form>
+    <script src="../assets/js/refresh-captcha.js"></script>
 </body>
 </html>

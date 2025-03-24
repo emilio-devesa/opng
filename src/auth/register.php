@@ -8,6 +8,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $email = trim($_POST["email"]);
     $password = $_POST["password"];
 
+    // CAPTCHA Validation
+    $captcha_answer = trim($_POST["captcha_answer"]);
+    if (!isset($_SESSION['captcha']) || strtoupper($captcha_answer) !== $_SESSION['captcha']) {
+        die("Incorrect CAPTCHA. Try again.");
+    }
+    unset($_SESSION['captcha']); // Evita reutilización del CAPTCHA
+
     // Validación básica
     if (empty($username) || empty($email) || empty($password)) {
         die("Todos los campos son obligatorios.");
@@ -47,17 +54,25 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <head>
     <meta charset="UTF-8">
     <title>Registro</title>
+    <link rel="stylesheet" href="main.css">
 </head>
 <body>
     <h2>Registro</h2>
     <form method="POST">
-        <label>Usuario:</label>
+        <p><label>Usuario:</label>
         <input type="text" name="username" required><br>
         <label>Email:</label>
         <input type="email" name="email" required><br>
         <label>Contraseña:</label>
-        <input type="password" name="password" required><br>
-        <button type="submit">Registrarse</button>
+        <input type="password" name="password" required></p>
+        <!-- Imagen CAPTCHA -->
+        <p><label>Please enter captcha text:</label>
+        <input type="text" name="captcha_answer" required><br>
+        <img src="captcha.php" alt="CAPTCHA" class="captcha-image"><br>
+        <button type="button" class="refresh-captcha">🔄 Refresh</button></p>
+        <br>
+        <p><button type="submit">Registrarse</button></p>
     </form>
+    <script src="../assets/js/refresh-captcha.js"></script>
 </body>
 </html>
