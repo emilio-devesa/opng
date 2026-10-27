@@ -1,6 +1,21 @@
 # Open Pastebin NG - Changelog
 ============================
 
+## Unreleased (branch v0.8-development)
+### 🚨 Security — PHP engine vulnerabilities ("PHP2Shell", October 2026)
+- Updated requirements: passing from "PHP 7.4+" to patched PHP releases only (**8.2.35 / 8.3.36 / 8.4.27 / 8.5.12 or higher**), due to:
+    - **CVE-2026-109618** — PHP use-after-free in OOM/`longjmp()` handling, leading to RCE (patched 2026-10-21, actively exploited).
+    - **CVE-2026-109619** — PHP use-after-free via stale global request state, leading to RCE (patched 2026-10-21, actively exploited).
+    - **CVE-2026-115560** — PHP RCE via `session.upload_progress` + runtime `serialize_handler` change (unpatched at the time of writing).
+- Added official mitigation for CVE-2026-109619 / CVE-2026-115560 in the docs: `session.upload_progress.enabled = 0` (administratively via `php_admin_flag` when using PHP-FPM). OPNG does not use file uploads, so the feature is disposable at zero cost.
+- Shipped hardened `src/.htaccess` for Apache:
+    - Blocks direct HTTP access to `config.php`, `database.php` and `rules.xml`.
+    - Disables `session.upload_progress` automatically under mod_php.
+- Added Nginx equivalent snippet in the README, plus server-side verification commands (`php-fpm -v`, `php-fpm -i`).
+- Added a server-admin migration checklist covering branch v0.8 work in the security audit report (`opng_audit_0.7.md`).
+
+---
+
 ## Version 0.7 (2025)
 ### 🔒 Security & Access Control
 - Implemented user roles:

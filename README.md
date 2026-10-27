@@ -42,9 +42,44 @@ Open Pastebin NG is **free software** released under the **[GNU GPL license](LIC
 ## 🛠️ Requirements
 To run Open Pastebin NG, you need:
 
-- **PHP 7.4** or higher
+- **PHP 8.2.35**, **8.3.36**, **8.4.27** or **8.5.12** or higher ⚠️ *(updated in v0.8 — see the "PHP security releases" note below)*
 - **MySQL 5.7** or MariaDB
 - A web server (**Apache, Nginx or similar**)
+
+### 🔐 PHP security releases note (October 2026 — "PHP2Shell")
+
+In October 2026 the PHP project disclosed several critical vulnerabilities affecting the **PHP engine itself**, which impact any Open Pastebin NG deployment running an affected PHP version:
+
+| CVE | Type | Status | Fixed versions |
+|---|---|---|---|
+| **CVE-2026-109618** | Use-after-free (OOM/`longjmp()` handling) → **RCE** | Patched (2026-10-21), actively exploited | 8.2.35 / 8.3.36 / 8.4.27 / 8.5.12 |
+| **CVE-2026-109619** | Use-after-free (stale global state) → **RCE** | Patched (2026-10-21), actively exploited | 8.2.35 / 8.3.36 / 8.4.27 / 8.5.12 |
+| **CVE-2026-115560** | **RCE** via `session.upload_progress` + runtime `serialize_handler` change | **Unpatched** at time of writing | TBD |
+
+**You must run a patched PHP version before exposing OPNG to the internet.** Additionally apply the official mitigation for CVE-2026-109619/115560 (Open Pastebin NG does **not** use file uploads or upload progress, so this can be disabled at no cost):
+
+```ini
+; php.ini (or, preferred, administratively via php-fpm pool / Apache)
+session.upload_progress.enabled = 0
+```
+
+Examples for your server:
+
+- **PHP-FPM** (recommended, not overridable by `ini_set()`): in your pool config:
+  `php_admin_flag[session.upload_progress.enabled] = off` — then perform a **full restart** of the workers (not a reload).
+- **Apache with mod_php**: OPNG ships a hardened `src/.htaccess` that disables `session.upload_progress` automatically.
+- **Nginx + PHP-FPM**: set the pool flag above; block direct access to sensitive files with:
+  ```nginx
+  location ~ /(?:config\.php|database\.php|rules\.xml)$ { deny all; }
+  ```
+
+**Verification** (do it against the HTTP SAPI, not the CLI — `php -i` reads a different config):
+
+```bash
+php-fpm -v                          # confirm the patched binary actually serving traffic
+php-fpm -i | grep session.upload_progress.enabled   # should print "0"
+grep -Rn "ini_set.*serialize_handler" src/           # expected: no matches in OPNG
+```
 
 ---
 
