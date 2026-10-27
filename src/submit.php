@@ -37,8 +37,10 @@ if (!empty($errors)) {
 }
 
 // Obtener valores y limpiar entradas
-$text = htmlspecialchars(trim($_POST['input_text']), ENT_QUOTES, 'UTF-8');
-$topic = htmlspecialchars(trim($_POST['input_topic']), ENT_QUOTES, 'UTF-8');
+// (fix S3: se almacenan el texto y el topic CRUDOS; el escapado se realiza
+// en la capa de presentación, concretamente en view.php)
+$text = trim($_POST['input_text']);
+$topic = trim($_POST['input_topic']);
 $language = htmlspecialchars(trim($_POST['input_language']), ENT_QUOTES, 'UTF-8');
 
 // Cargar rules.xml usando DOMDocument
@@ -70,12 +72,21 @@ if (!$db) {
 $id = bin2hex(random_bytes(8));
 
 // Consulta preparada para insertar la entrada
-$stmt = $db->prepare("INSERT INTO entries (id, user_id, language, text, topic) VALUES (?, ?, ?, ?, ?)");
-if (!$stmt) {
-    die("<p style='color: red;'>Error en la preparación de la consulta: " . $db->error . "</p>");
+// (fix R3: `user_id` se enlaza explícitamente según exista sesión;
+// así el guardián invitado queda como NULL garantizado)
+if ($user_id === null) {
+    $stmt = $db->prepare("INSERT INTO entries (id, user_id, language, text, topic) VALUES (?, NULL, ?, ?, ?)");
+    if (!$stmt) {
+        die("<p style='color: red;'>Error en la preparación de la consulta: " . $db->error . "</p>");
+    }
+    $stmt->bind_param("ssss", $id, $language, $text, $topic);
+} else {
+    $stmt = $db->prepare("INSERT INTO entries (id, user_id, language, text, topic) VALUES (?, ?, ?, ?, ?)");
+    if (!$stmt) {
+        die("<p style='color: red;'>Error en la preparación de la consulta: " . $db->error . "</p>");
+    }
+    $stmt->bind_param("sisss", $id, $user_id, $language, $text, $topic);
 }
-
-$stmt->bind_param("sisss", $id, $user_id, $language, $text, $topic);
 $stmt->execute();
 $stmt->close();
 $db->close();

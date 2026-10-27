@@ -13,6 +13,18 @@
     - Disables `session.upload_progress` automatically under mod_php.
 - Added Nginx equivalent snippet in the README, plus server-side verification commands (`php-fpm -v`, `php-fpm -i`).
 - Added a server-admin migration checklist covering branch v0.8 work in the security audit report (`opng_audit_0.7.md`).
+### 🔒 Security — Application fixes (Phase 1 of the audit)
+- **`admin/empty.php` rewritten** (critical, fixes S1/S2/R1):
+    - Replaced the fragile `require_once('login.php')` guard with an explicit admin role check (`$_SESSION['role'] === 'admin'`).
+    - Replaced the destructive `DROP DATABASE` with `TRUNCATE TABLE entries` — "Empty Database" now only removes pastes and **preserves user accounts**.
+    - Added CSRF verification on the POST action and unified the response pattern (redirect with `?msg=`).
+    - DB errors are now logged via `error_log()` and shown generically to the user (no more schema/driver leaks in this script).
+- **XSS hardening in `view.php`** (fixes S3 / double-escaping):
+    - `submit.php` now stores the paste text and topic **raw**; `view.php` applies `htmlspecialchars(…, ENT_QUOTES, 'UTF-8')` on output (code block and edit textarea).
+    - This is the correct escape-at-output strategy: highlight.js keeps working (it reads the decoded `textContent`) and the content is no longer re-escaped on every "Reply".
+- **`submit.php` — guaranteed `NULL` for guest pastes** (fix R3): the INSERT now binds `user_id` explicitly (`VALUES (?, NULL, …)` for guests) instead of relying on driver behavior for `null` bound as an integer.
+- **`exit` added after every redirect** (fix R5): `admin/drop_id.php` returned HTML after `header("Location: …")`.
+- **`auth/login.php` reordered** (fix H3/U5): authentication failures now redirect *before* any HTML output (previously the `header()` was called inside the `<body>`, triggering "headers already sent" and hiding the error). Also removed the double encoding (`urlencode(htmlspecialchars(…))` → `urlencode(…)`).
 
 ---
 

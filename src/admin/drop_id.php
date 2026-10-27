@@ -50,8 +50,10 @@ $stmt->execute();
 // Verificar si la eliminación fue exitosa
 if ($stmt->affected_rows === 1) {
     header("Location: ../index.php?msg=" . urlencode("Paste eliminado correctamente"));
+    exit;
 } else {
     header("Location: ../error.php?msg=" . urlencode("No tienes permiso para eliminar este paste"));
+    exit;
 }
 
 // Cerrar la conexión

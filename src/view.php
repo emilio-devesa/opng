@@ -93,7 +93,7 @@ $csrf_token = $_SESSION['csrf_token'];
                         </td>
                         <td nowrap align="left">
                             <div style="position: relative;">
-                                <pre><code id="code-block" class="language-<?php echo htmlspecialchars($language); ?>"><?php echo $array['text']; ?></code></pre>
+                                <pre><code id="code-block" class="language-<?php echo htmlspecialchars($language); ?>"><?php echo htmlspecialchars($array['text'], ENT_QUOTES, 'UTF-8'); ?></code></pre>
                                 <button id="copy-button" data-i18n="copy" class="copy-button" onclick="copyToClipboard()">📋 Copy</button>
                             </div>
                         </td>
@@ -126,7 +126,7 @@ $csrf_token = $_SESSION['csrf_token'];
                         <?php endforeach; ?>
                     </select><br>
                     <br><br>
-                    <textarea name="input_text" rows="<?php echo (max(count($lines), 10)+1); ?>" cols="80"><?php echo $array['text']; ?></textarea>
+                    <textarea name="input_text" rows="<?php echo (max(count($lines), 10)+1); ?>" cols="80"><?php echo htmlspecialchars($array['text'], ENT_QUOTES, 'UTF-8'); ?></textarea>
                     <br><br>
                     <button data-i18n="submit" id="submit" type="submit">Submit</button>
                 </form>

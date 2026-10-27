@@ -83,6 +83,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
     $stmt->close();
     $db->close();
+
+    // Si hubo error de autenticación, redirigir ANTES de emitir cualquier salida
+    // (fix H3/U5: anteriormente el header() se llamaba dentro del <body>,
+    // lo que provocaba "headers already sent" y el error nunca se mostraba)
+    if ($error_message !== "") {
+        header("Location: error.php?msg=" . urlencode($error_message));
+        exit;
+    }
 }
 ?>
 
@@ -94,12 +102,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 </head>
 <body>
     <h2>Iniciar Sesión</h2>
-
-    <?php if (!empty($error_message)) {
-        header("Location: error.php?msg=" . urlencode(htmlspecialchars($error_message, ENT_QUOTES, 'UTF-8')));
-        exit;
-    }
-    ?>
 
     <form method="POST">
         <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">

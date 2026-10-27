@@ -111,7 +111,7 @@ From the homepage you can:
 
 - 📝 **Create a new paste**: Enter your text or code, select a language and submit.
 - 🔍 **View and edit a paste**: Click on the topic you want to view/edit
-- 🛠️ **Manage pastes (Admin panel)**: Log in to `admin/admin.php` to drop entries or delete the entire database.
+- 🛠️ **Manage pastes (Admin panel)**: Log in to `admin/admin.php` to drop entries or empty all pastes (user accounts are preserved).
 
 For security reasons, access to **admin features** is restricted to administrators.
 
@@ -131,7 +131,7 @@ For security reasons, access to **admin features** is restricted to administrato
 🛠️ Administrator
 - Has full control over the system
 - Can delete any paste (even from other users)
-- Can empty the database via the admin panel
+- Can empty all pastes via the admin panel (user accounts are preserved)
 
 ---
 
@@ -182,7 +182,7 @@ I'm sorry to hear that! Please note that **OPNG is still in BETA stage and under
 ### 🔷 How can I uninstall OPNG and/or delete all data stored?
 To completely remove Open Pastebin NG, follow these steps:
 
-1. **Empty the database** from the administration panel
+1. **Empty the pastes** from the administration panel (administrators accounts are preserved)
 2. **Delete all files** from your server
 3. **Clear your browser cache** if neccesary
 
