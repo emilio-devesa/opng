@@ -1,0 +1,11 @@
+# Local configuration (never commit credentials)
+src/config.php
+
+# Dependencies / tooling
+/vendor/
+.phpstan.cache/
+phpstan-result-cache/
+
+# OS / editor noise
+.DS_Store
+*.log

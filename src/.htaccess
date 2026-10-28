@@ -1,0 +1,46 @@
+# Open Pastebin NG — Apache hardening (v0.8, Fases 0 y 3)
+# ------------------------------------------------------------------
+# Bloquea el acceso HTTP directo a ficheros que solo deben cargarse
+# desde PHP (require/include) y nunca servirse a los visitantes.
+# Compatible con Apache 2.4 (mod_authz_host).
+# ------------------------------------------------------------------
+
+<FilesMatch "^(config\.php|config\.example\.php|database\.php|rules\.xml)$">
+    Require all denied
+</FilesMatch>
+
+# ------------------------------------------------------------------
+# Sin listados de directorio (fix R7). Si un directorio no tiene
+# index, Apache devuelve 403 en lugar de mostrar su contenido.
+# ------------------------------------------------------------------
+Options -Indexes
+
+# ------------------------------------------------------------------
+# Cabeceras de seguridad (fix R7). Los recursos se sirven en local y los
+# estilos y scripts inline se han eliminado, por lo que no se necesitan
+# excepciones unsafe-inline.
+# ------------------------------------------------------------------
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
+</IfModule>
+
+# ------------------------------------------------------------------
+# OPNG does not use file uploads or session upload progress, so this
+# optional hardening can be applied when running under mod_php.
+#
+# This directive only applies to mod_php. With PHP-FPM, configure the
+# pool administratively instead:
+#
+#     php_admin_flag[session.upload_progress.enabled] = off
+#
+# Restart PHP-FPM workers after changing the pool configuration.
+# ------------------------------------------------------------------
+<IfModule mod_php7.c>
+    php_flag session.upload_progress.enabled 0
+</IfModule>
+<IfModule mod_php.c>
+    php_flag session.upload_progress.enabled 0
+</IfModule>

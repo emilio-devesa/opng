@@ -1,34 +1,50 @@
 document.addEventListener("DOMContentLoaded", function () {
     const copyButton = document.getElementById("copy-button");
-    const codeBlock = document.querySelector("pre code");
-    if (!copyButton || !codeBlock) return; // Evita errores si no hay código
+    const codeBlock = document.getElementById("code-block");
+    const status = document.getElementById("copy-status");
+    const copiedMessage = document.getElementById("copy-copied-message");
+    const errorMessage = document.getElementById("copy-error-message");
 
-    // Función para copiar el texto al portapapeles
-    function copyToClipboard() {
-        const text = codeBlock.innerText;
-        navigator.clipboard.writeText(text).then(() => {
-            copyButton.textContent = copyButton.dataset.copied; // Mostrar "Copiado"
-            setTimeout(() => updateCopyButtonText(), 2000); // Volver a "Copiar" después de 2s
-        }).catch(err => console.error("Error al copiar:", err));
+    if (!copyButton || !codeBlock || !status || !copiedMessage || !errorMessage) return;
+
+    if (!window.hljs) {
+        console.error("Syntax highlighting library did not load.");
+    } else if (!codeBlock.classList.contains("language-plaintext")) {
+        try {
+            window.hljs.highlightElement(codeBlock);
+        } catch (error) {
+            console.error("Could not highlight paste text:", error);
+        }
     }
 
-    copyButton.addEventListener("click", copyToClipboard);
+    let statusMessageId = null;
+    document.addEventListener("languageChanged", function () {
+        if (statusMessageId) {
+            status.textContent = document.getElementById(statusMessageId).textContent;
+        }
+    });
 
-    // Función para actualizar el texto del botón según el idioma
-    function updateCopyButtonText() {
-        const lang = localStorage.getItem("lang") || "en";
-        fetch(`assets/lang/${lang}.json`)
-            .then(response => response.json())
-            .then(data => {
-                copyButton.textContent = data.copy;
-                copyButton.dataset.copied = data.copied; // Guardar el texto "Copiado"
-            })
-            .catch(error => console.error("Error cargando idioma:", error));
-    }
+    copyButton.addEventListener("click", async function () {
+        status.textContent = "";
+        statusMessageId = null;
+        status.classList.remove("copy-status-error");
 
-    // Cargar el texto correcto al iniciar la página
-    updateCopyButtonText();
+        if (!navigator.clipboard || !window.isSecureContext) {
+            statusMessageId = "copy-error-message";
+            status.textContent = errorMessage.textContent;
+            status.classList.add("copy-status-error");
+            return;
+        }
 
-    // Escuchar el evento de cambio de idioma
-    document.addEventListener("languageChanged", updateCopyButtonText);
+        try {
+            await navigator.clipboard.writeText(codeBlock.textContent || "");
+            statusMessageId = "copy-copied-message";
+            status.textContent = copiedMessage.textContent;
+        } catch (error) {
+            console.error("Could not copy paste text to the clipboard:", error);
+            statusMessageId = "copy-error-message";
+            status.textContent = errorMessage.textContent;
+            status.classList.add("copy-status-error");
+        }
+    });
 });
