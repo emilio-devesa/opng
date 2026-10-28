@@ -13,7 +13,12 @@ $role = $_SESSION['role'] ?? 'guest';
 $user_id = $_SESSION['user_id'] ?? null;
 
 // Verificar y obtener el ID
-if (!isset($_GET['id']) || empty($_GET['id'])) {
+if (
+    !isset($_GET['id'])
+    || !is_string($_GET['id'])
+    || $_GET['id'] === ''
+    || !ctype_alnum($_GET['id'])
+) {
     header("Location: error.php?msg=" . urlencode("Invalid ID"));
     exit;
 }
@@ -44,8 +49,9 @@ if (!$array) {
 // Obtener y normalizar el lenguaje
 $language = trim($array['language']);
 
-// Contar lineas para el resaltado
-$lines = explode("\n", $array['text']);
+// Keep line counting constant-memory for large, newline-heavy pastes.
+$line_count = substr_count($array['text'], "\n") + 1;
+$textarea_rows = min(max($line_count, 10), 50);
 
 // Permisos, separando edición (autor/admin) de borrado (admin o autor)
 $can_edit   = ($role === "admin" || ($user_id !== null && (int)$user_id === (int)$array['user_id'])); // fix R2
@@ -56,10 +62,12 @@ $lang_attr = 'en';
 $page_title = $array['topic'];
 $base = '';
 // Mensajes que llegan vía ?msg= (p. ej. tras editar el paste en update.php)
-$flash = isset($_GET['msg']) ? htmlspecialchars($_GET['msg'], ENT_QUOTES, 'UTF-8') : "";
+$flash = isset($_GET['msg']) && is_string($_GET['msg'])
+    ? htmlspecialchars($_GET['msg'], ENT_QUOTES, 'UTF-8')
+    : "";
 
 // Pestañas de la vista: Ver / Editar / Responder
-$tab = $_GET['tab'] ?? 'view';
+$tab = isset($_GET['tab']) && is_string($_GET['tab']) ? $_GET['tab'] : 'view';
 $valid_tabs = ['view', 'edit', 'reply'];
 if (!in_array($tab, $valid_tabs, true)) { $tab = 'view'; }
 if ($tab === 'edit' && !$can_edit) { $tab = 'view'; }
@@ -86,7 +94,7 @@ require(__DIR__ . "/includes/layout_header.php");
                     <table>
                         <tr>
                             <td nowrap align="right">
-                                <pre><?php echo implode("\n", range(1, count($lines))); ?></pre>
+                                <pre><?php for ($line = 1; $line <= $line_count; $line++) { echo $line . "\n"; } ?></pre>
                             </td>
                             <td nowrap align="left">
                                 <div style="position: relative;">
@@ -115,7 +123,7 @@ require(__DIR__ . "/includes/layout_header.php");
                         <input type="hidden" name="input_ID" value="<?php echo htmlspecialchars($array['id']); ?>">
 
                         <label data-i18n="topic:">Topic:</label>
-                        <input type="text" name="input_topic" value="<?php echo htmlspecialchars($array['topic'], ENT_QUOTES, 'UTF-8'); ?>"><br>
+                        <input type="text" name="input_topic" maxlength="255" value="<?php echo htmlspecialchars($array['topic'], ENT_QUOTES, 'UTF-8'); ?>"><br>
 
                         <label data-i18n="select_language:" for="edit_language">Select language:</label>
                         <select id="edit_language" name="input_language" required>
@@ -126,7 +134,7 @@ require(__DIR__ . "/includes/layout_header.php");
                             <?php endforeach; ?>
                         </select><br>
                         <br><br>
-                        <textarea name="input_text" rows="<?php echo (max(count($lines), 10)+1); ?>" cols="80"><?php echo htmlspecialchars($array['text'], ENT_QUOTES, 'UTF-8'); ?></textarea>
+                        <textarea name="input_text" maxlength="1048576" rows="<?php echo $textarea_rows; ?>" cols="80"><?php echo htmlspecialchars($array['text'], ENT_QUOTES, 'UTF-8'); ?></textarea>
                         <br><br>
                         <button data-i18n="save" id="edit-save" type="submit">Save changes</button>
                     </form>
@@ -140,7 +148,7 @@ require(__DIR__ . "/includes/layout_header.php");
                         <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
 
                         <label data-i18n="topic:">Topic:</label>
-                        <input type="text" name="input_topic" value="RE: <?php echo htmlspecialchars($array['topic']); ?>"><br>
+                        <input type="text" name="input_topic" maxlength="255" value="RE: <?php echo htmlspecialchars($array['topic']); ?>"><br>
 
                         <label data-i18n="select_language:" for="input_language">Select language:</label>
                         <select id="input_language" name="input_language" required>
@@ -151,7 +159,7 @@ require(__DIR__ . "/includes/layout_header.php");
                             <?php endforeach; ?>
                         </select><br>
                         <br><br>
-                        <textarea name="input_text" rows="<?php echo (max(count($lines), 10)+1); ?>" cols="80"><?php echo htmlspecialchars($array['text'], ENT_QUOTES, 'UTF-8'); ?></textarea>
+                        <textarea name="input_text" maxlength="1048576" rows="<?php echo $textarea_rows; ?>" cols="80"><?php echo htmlspecialchars($array['text'], ENT_QUOTES, 'UTF-8'); ?></textarea>
                         <br><br>
                         <button data-i18n="submit" id="submit" type="submit">Submit</button>
                     </form>

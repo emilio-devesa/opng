@@ -18,9 +18,11 @@ function csrf_input() {
 }
 
 // Verifica el token enviado por POST; no ataca el flujo, devuelve bool
-function csrf_valid($token) {
+function csrf_valid($token): bool {
     if (session_status() === PHP_SESSION_NONE) {
         session_start();
     }
-    return isset($token) && hash_equals($_SESSION['csrf_token'] ?? '', $token);
+
+    $known_token = $_SESSION['csrf_token'] ?? null;
+    return is_string($known_token) && is_string($token) && hash_equals($known_token, $token);
 }

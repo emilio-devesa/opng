@@ -41,20 +41,22 @@ if (!csrf_valid($_POST['csrf_token'] ?? null)) {
     exit;
 }
 
-// Conectar a MySQL y vaciar las tablas de entradas
-// (fix S2: se sustituye el antiguo DROP DATABASE por TRUNCATE — vacía los pastes
-// conservando la estructura y las cuentas de usuario)
+// DELETE works with the runtime DML account; TRUNCATE would require DROP privileges.
 $db = database_connect();
 if (!$db) {
     header("Location: ../error.php?msg=" . urlencode("Database connection error."));
     exit;
 }
 
-if ($db->query("TRUNCATE TABLE entries")) {
-    header("Location: ../index.php?msg=" . urlencode("All pastes have been deleted"));
-} else {
-    // Error genérico al usuario; detalle técnico al log del servidor (S6)
-    error_log("OPNG empty.php: failed to truncate 'entries': " . $db->error);
+try {
+    if (!$db->query("DELETE FROM entries")) {
+        error_log("OPNG empty.php: failed to delete entries: " . $db->error);
+        header("Location: ../error.php?msg=" . urlencode("Error while emptying the database"));
+    } else {
+        header("Location: ../index.php?msg=" . urlencode("All pastes have been deleted"));
+    }
+} catch (mysqli_sql_exception $exception) {
+    error_log("OPNG empty.php: failed to delete entries: " . $exception->getMessage());
     header("Location: ../error.php?msg=" . urlencode("Error while emptying the database"));
 }
 

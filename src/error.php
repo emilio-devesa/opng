@@ -1,5 +1,7 @@
 <?php
-$flash = isset($_GET['msg']) ? htmlspecialchars($_GET['msg'], ENT_QUOTES, 'UTF-8') : "";
+$flash = isset($_GET['msg']) && is_string($_GET['msg'])
+    ? htmlspecialchars($_GET['msg'], ENT_QUOTES, 'UTF-8')
+    : "";
 ?>
 <!DOCTYPE html>
 <html lang="en">

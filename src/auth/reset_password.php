@@ -2,6 +2,7 @@
 require("../includes/session.php");
 session_start_secured();
 require("../includes/csrf.php");
+require("../includes/password_validation.php");
 require_once("../includes/password_reset.php");
 require("../database.php");
 
@@ -28,29 +29,25 @@ if (!$simulation_enabled) {
         if (!$db) {
             $error_message = "The password reset service is temporarily unavailable.";
         } else {
-            $stmt = $db->prepare(
-                "SELECT id FROM users WHERE reset_token = ? AND reset_token_expires > NOW()"
-            );
-            if (!$stmt) {
-                error_log("OPNG reset_password.php: " . $db->error);
-                $error_message = "The password reset service is temporarily unavailable.";
-            } else {
+            try {
+                $stmt = $db->prepare(
+                    "SELECT id FROM users WHERE reset_token = ? AND reset_token_expires > NOW()"
+                );
                 $stmt->bind_param("s", $token_hash);
-                if (!$stmt->execute()) {
-                    error_log("OPNG reset_password.php: " . $stmt->error);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                if (!$result) {
+                    error_log("OPNG reset_password.php: could not read token lookup result");
                     $error_message = "The password reset service is temporarily unavailable.";
+                } elseif ($result->fetch_assoc() !== null) {
+                    $show_form = true;
                 } else {
-                    $result = $stmt->get_result();
-                    if (!$result) {
-                        error_log("OPNG reset_password.php: could not read token lookup result");
-                        $error_message = "The password reset service is temporarily unavailable.";
-                    } elseif ($result->fetch_assoc() !== null) {
-                        $show_form = true;
-                    } else {
-                        $error_message = "Invalid or expired reset link.";
-                    }
+                    $error_message = "Invalid or expired reset link.";
                 }
                 $stmt->close();
+            } catch (mysqli_sql_exception $exception) {
+                error_log("OPNG reset_password.php: " . $exception->getMessage());
+                $error_message = "The password reset service is temporarily unavailable.";
             }
             $db->close();
         }
@@ -71,35 +68,33 @@ if (!$simulation_enabled) {
 
         if ($token_hash === null) {
             $error_message = "Invalid or expired reset link.";
-        } elseif (strlen($password) < 12 || strlen($password) > 72) {
-            $error_message = "Choose a password between 12 and 72 bytes long.";
+        } elseif (($password_error = password_validation_error($password)) !== null) {
+            $error_message = $password_error;
             $show_form = true;
         } else {
             $db = database_connect();
             if (!$db) {
                 $error_message = "The password reset service is temporarily unavailable.";
             } else {
-                $password_hash = password_hash($password, PASSWORD_DEFAULT);
-                // The conditional update consumes the token exactly once, including concurrent submissions.
-                $stmt = $db->prepare(
-                    "UPDATE users
-                     SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL
-                     WHERE reset_token = ? AND reset_token_expires > NOW()"
-                );
-                if (!$stmt) {
-                    error_log("OPNG reset_password.php: " . $db->error);
-                    $error_message = "The password reset service is temporarily unavailable.";
-                } else {
+                try {
+                    $password_hash = password_hash($password, PASSWORD_DEFAULT);
+                    // The conditional update consumes the token exactly once, including concurrent submissions.
+                    $stmt = $db->prepare(
+                        "UPDATE users
+                         SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL
+                         WHERE reset_token = ? AND reset_token_expires > NOW()"
+                    );
                     $stmt->bind_param("ss", $password_hash, $token_hash);
-                    if (!$stmt->execute()) {
-                        error_log("OPNG reset_password.php: " . $stmt->error);
-                        $error_message = "The password reset service is temporarily unavailable.";
-                    } elseif ($stmt->affected_rows === 1) {
+                    $stmt->execute();
+                    if ($stmt->affected_rows === 1) {
                         $success_message = "Password updated. You can now sign in.";
                     } else {
                         $error_message = "Invalid or expired reset link.";
                     }
                     $stmt->close();
+                } catch (mysqli_sql_exception $exception) {
+                    error_log("OPNG reset_password.php: " . $exception->getMessage());
+                    $error_message = "The password reset service is temporarily unavailable.";
                 }
                 $db->close();
             }

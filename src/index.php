@@ -11,6 +11,10 @@ if (!$db) {
 }
 
 // ------------------ Búsqueda ------------------
+if (isset($_GET['q']) && !is_string($_GET['q'])) {
+    header("Location: error.php?msg=" . urlencode("Invalid search query."));
+    exit;
+}
 $q = isset($_GET['q']) ? trim($_GET['q']) : "";
 $where_sql  = "";
 $search_param = null;
@@ -25,6 +29,10 @@ const ENTRIES_PER_PAGE = 50;
 
 $page = 1;
 if (isset($_GET['p'])) {
+    if (!is_string($_GET['p']) && !is_int($_GET['p'])) {
+        header("Location: error.php?msg=" . urlencode("Invalid page number."));
+        exit;
+    }
     $page = ctype_digit((string)$_GET['p']) ? max(1, (int)$_GET['p']) : 1;
 }
 
@@ -62,7 +70,9 @@ $stmt->execute();
 $result = $stmt->get_result();
 
 // Mensajes de éxito/información que llegan vía ?msg= (p. ej. tras vaciar/borrar)
-$flash = isset($_GET['msg']) ? htmlspecialchars($_GET['msg'], ENT_QUOTES, 'UTF-8') : "";
+$flash = isset($_GET['msg']) && is_string($_GET['msg'])
+    ? htmlspecialchars($_GET['msg'], ENT_QUOTES, 'UTF-8')
+    : "";
 
 $db->close();
 

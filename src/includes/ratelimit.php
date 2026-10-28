@@ -30,6 +30,16 @@ function client_ip(): string
  */
 function rate_limit_hit(mysqli $db, string $action, string $key, int $limit, int $window): bool
 {
+    try {
+        return record_rate_limit_hit($db, $action, $key, $limit, $window);
+    } catch (mysqli_sql_exception $exception) {
+        error_log('OPNG ratelimit.php: ' . $exception->getMessage());
+        return false;
+    }
+}
+
+function record_rate_limit_hit(mysqli $db, string $action, string $key, int $limit, int $window): bool
+{
     $window_start = intdiv(time(), $window) * $window;
     $key_hash = hash('sha256', $key);
 

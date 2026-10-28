@@ -27,7 +27,7 @@ require(__DIR__ . "/includes/layout_header.php");
         <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
 
         <label data-i18n="topic:" for="input_topic">Topic:</label>
-        <input type="text" id="input_topic" name="input_topic" required><br>
+        <input type="text" id="input_topic" name="input_topic" maxlength="255" required><br>
 
         <label data-i18n="select_language:" for="input_language">Select Language:</label>
         <select id="input_language" name="input_language" required>
@@ -39,7 +39,7 @@ require(__DIR__ . "/includes/layout_header.php");
         </select><br>
 
         <label data-i18n="text" for="input_text">Enter your text here</label><br>
-        <textarea id="input_text" name="input_text" rows="25" cols="80" required></textarea>
+        <textarea id="input_text" name="input_text" rows="25" cols="80" maxlength="1048576" required></textarea>
         <br><br>
         <button data-i18n="submit" id="submit" type="submit">Submit</button>
     </form>

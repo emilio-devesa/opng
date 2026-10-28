@@ -24,7 +24,12 @@ if (!csrf_valid($_POST['csrf_token'] ?? null)) {
 }
 
 // Validar el ID proporcionado
-if (empty($_POST['input_ID']) || !ctype_alnum($_POST['input_ID'])) {
+if (
+    !isset($_POST['input_ID'])
+    || !is_string($_POST['input_ID'])
+    || $_POST['input_ID'] === ''
+    || !ctype_alnum($_POST['input_ID'])
+) {
     header("Location: ../error.php?msg=" . urlencode("Invalid ID"));
     exit;
 }
@@ -76,4 +81,3 @@ $stmt->close();
 $db->close();
 header("Location: ../error.php?msg=" . urlencode("You don't have permission to delete this paste"));
 exit;
-

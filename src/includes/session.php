@@ -13,8 +13,10 @@ function session_start_secured() {
         return; // ya iniciada
     }
 
+    // Trust the web server's HTTPS state only. Forwarded headers are client-
+    // controlled unless a separately configured trusted proxy validates them.
     $is_https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-        || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+        || ((string) ($_SERVER['SERVER_PORT'] ?? '') === '443');
 
     session_set_cookie_params([
         'lifetime' => 0,

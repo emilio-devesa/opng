@@ -6,8 +6,7 @@ session_start_secured();
 require("includes/db.php");
 require("includes/csrf.php");
 require("includes/rules.php");
-
-$errors = [];
+require("includes/paste_validation.php");
 
 // ------------------ Validaciones de seguridad ------------------
 if (!isset($_SESSION['user_id'])) {
@@ -26,30 +25,36 @@ if (!csrf_valid($_POST['csrf_token'] ?? null)) {
 }
 
 // El ID debe ser alfanumérico (mismo formato que genera submit.php)
-if (empty($_POST['input_ID']) || !ctype_alnum($_POST['input_ID'])) {
+if (
+    !isset($_POST['input_ID'])
+    || !is_string($_POST['input_ID'])
+    || $_POST['input_ID'] === ''
+    || !ctype_alnum($_POST['input_ID'])
+) {
     header("Location: error.php?msg=" . urlencode("Invalid ID"));
     exit;
 }
 $id = trim($_POST['input_ID']);
 
 // Validación de campos
-if (empty($_POST['input_text'])) {
-    $errors[] = "The text cannot be empty.";
-}
-if (empty($_POST['input_language'])) {
-    $errors[] = "The language is required.";
-}
-if (empty($_POST['input_topic'])) {
-    $errors[] = "The topic is required.";
-}
-if (!empty($errors)) {
-    header("Location: error.php?msg=" . urlencode(implode(" ", $errors)));
+if (
+    !isset($_POST['input_text'], $_POST['input_language'], $_POST['input_topic'])
+    || !is_string($_POST['input_text'])
+    || !is_string($_POST['input_language'])
+    || !is_string($_POST['input_topic'])
+) {
+    header("Location: error.php?msg=" . urlencode("Invalid paste data."));
     exit;
 }
 
 // Valores
 $text = trim($_POST['input_text']);
 $topic = trim($_POST['input_topic']);
+$validation_error = paste_validation_error($text, $topic);
+if ($validation_error !== null) {
+    header("Location: error.php?msg=" . urlencode($validation_error));
+    exit;
+}
 
 // Lenguaje: allowlist (igual que en submit.php)
 $rules = load_rules();
@@ -67,11 +72,18 @@ if (!$db) {
 }
 
 // Localizar el paste y su propietario
-$stmt = $db->prepare("SELECT id, user_id FROM entries WHERE id = ?");
-$stmt->bind_param("s", $id);
-$stmt->execute();
-$entry = $stmt->get_result()->fetch_assoc();
-$stmt->close();
+try {
+    $stmt = $db->prepare("SELECT id, user_id FROM entries WHERE id = ?");
+    $stmt->bind_param("s", $id);
+    $stmt->execute();
+    $entry = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+} catch (mysqli_sql_exception $exception) {
+    error_log("OPNG update.php: " . $exception->getMessage());
+    $db->close();
+    header("Location: error.php?msg=" . urlencode("Database operation failed."));
+    exit;
+}
 
 if (!$entry) {
     $db->close();
@@ -92,16 +104,18 @@ if ($user_role !== 'admin' && !$is_owner) {
 }
 
 // Ejecutar el UPDATE
-$stmt = $db->prepare("UPDATE entries SET language = ?, text = ?, topic = ? WHERE id = ?");
-if (!$stmt) {
+$ok = false;
+try {
+    $stmt = $db->prepare("UPDATE entries SET language = ?, text = ?, topic = ? WHERE id = ?");
+    $stmt->bind_param("ssss", $language, $text, $topic, $id);
+    $ok = $stmt->execute();
+    $stmt->close();
+} catch (mysqli_sql_exception $exception) {
+    error_log("OPNG update.php: " . $exception->getMessage());
     $db->close();
-    header("Location: error.php?msg=" . urlencode("Error preparing the update query."));
+    header("Location: error.php?msg=" . urlencode("Error updating the paste."));
     exit;
 }
-$stmt->bind_param("ssss", $language, $text, $topic, $id);
-$stmt->execute();
-$ok = ($stmt->affected_rows >= 0); // 0 filas afectadas no es fallo (mismo contenido)
-$stmt->close();
 $db->close();
 
 if ($ok) {

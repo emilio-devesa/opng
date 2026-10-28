@@ -109,18 +109,44 @@ Alternatively, leave the defaults and provide the values through environment var
 	OPNG_DB_PASS=yourpassword
 	OPNG_DB_NAME=opng
 
-3️⃣ **Run the installer (new in v0.8)**
-- Open `http://localhost/install.php` once (or run `php install.php` from the CLI).
-- It creates the database, the `Users`/`Entries`/`rate_limits` tables and the `Entries.Date` index.
-- **Delete `install.php` from the server afterwards.**
+3️⃣ **Create the schema and least-privilege accounts**
 
-> Since v0.8 there is no automatic migration on every request (performance fix). A missing database now returns a connection error instead of being auto-created.
+Create the database and two MySQL accounts using an administrative connection. Replace the example passwords with unique secrets and restrict the host component to the application server:
 
-4️⃣ **Run the application**
+```sql
+CREATE DATABASE opng CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'opng_runtime'@'localhost' IDENTIFIED BY 'REPLACE_WITH_RUNTIME_SECRET';
+GRANT SELECT, INSERT, UPDATE, DELETE ON opng.* TO 'opng_runtime'@'localhost';
+CREATE USER 'opng_migrator'@'localhost' IDENTIFIED BY 'REPLACE_WITH_MIGRATION_SECRET';
+GRANT SELECT, INSERT, CREATE, ALTER, INDEX, DROP ON opng.* TO 'opng_migrator'@'localhost';
+```
+
+The **runtime** account is for normal web requests and has DML access only. The **migration** account is used only from the CLI to install/upgrade schema; revoke or drop it after use. The installer does not create or drop databases.
+
+Set the runtime credentials in `src/config.php` or the `OPNG_DB_*` environment variables. Run the installer from the repository root with the separate migration credentials:
+
+```bash
+OPNG_INSTALL_DB_HOST=localhost \
+OPNG_INSTALL_DB_USER=opng_migrator \
+OPNG_INSTALL_DB_PASS='your-migration-secret' \
+php src/install.php
+```
+
+The CLI installer creates lowercase `users`, `entries` and `rate_limits` tables and the `entries.date` index. It safely renames the legacy `Users`/`Entries` names only when the lowercase destination does not exist; ambiguous case variants stop the migration without deleting data. Existing `entries.text` is widened to `MEDIUMTEXT` for 1 MiB pastes. Back up the database before schema migrations. Remove `install.php` from a public document root after installation even though it refuses web execution.
+
+4️⃣ **Enforce input and request limits**
+
+Paste text is limited to **1 MiB (1,048,576 bytes)** and topics to **255 bytes**. The server validates both limits on create and edit; the Nginx example allows a 4 MiB request body to account for form encoding. Configure PHP `post_max_size` to at least `4M` (and any reverse proxy/body limit accordingly). New and reset passwords must be 12–72 bytes; existing passwords remain valid for login.
+
+> Since v0.8 there is no automatic migration on every request. A missing database now returns a connection error instead of being auto-created.
+
+5️⃣ **Run the application**
 - If using **Apache**, place the project in `htdocs` or configure a virtual host. The shipped `src/.htaccess` blocks direct access to `config.php`/`database.php`/`rules.xml` and the `includes/` directory, disables directory listings, adds security headers and disables `session.upload_progress`.
-- If using **Nginx**, start from [`deploy/nginx.example.conf`](deploy/nginx.example.conf). It blocks the same internal files, denies `includes/`, sets the security headers and disables CAPTCHA caching.
+- If using **Nginx**, start from [`deploy/nginx.example.conf`](deploy/nginx.example.conf). It redirects HTTP to HTTPS, blocks the installer and internal files, denies `includes/`, sets security headers and disables CAPTCHA caching. Configure valid certificates before enabling the TLS server block.
+- The example Nginx configuration terminates TLS directly and sets PHP's HTTPS state explicitly. If a trusted reverse proxy terminates TLS, configure the backend so that only the proxy can set the HTTPS state; do not trust arbitrary client-supplied `X-Forwarded-Proto`.
+- Enable HSTS only after confirming HTTPS works across the entire hostname for the chosen max-age.
 - **Use `src/` as the document root**, not the repository root, so `tools/`, `README.md` and `.git/` are never reachable over HTTP.
-- Open `http://localhost/` in your browser.
+- Open `http://localhost/` for local development or `https://your-host/` in a TLS deployment.
 
 ---
 

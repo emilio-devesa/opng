@@ -47,11 +47,28 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         exit;
     }
     
+    if (
+        !isset($_POST["email"], $_POST["password"])
+        || !is_string($_POST["email"])
+        || !is_string($_POST["password"])
+    ) {
+        header("Location: ../error.php?msg=" . urlencode("Invalid email or password."));
+        exit;
+    }
+
     $email = trim($_POST["email"]);
     $password = $_POST["password"];
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 100) {
+        header("Location: ../error.php?msg=" . urlencode("Invalid email or password."));
+        exit;
+    }
 
     // Conectar a la BD
     $db = database_connect();
+    if (!$db) {
+        header("Location: ../error.php?msg=" . urlencode("Authentication service is temporarily unavailable."));
+        exit;
+    }
 
     // (S5) Rate limit persistente por IP + cuenta. El contador de sesión de
     // arriba se puede saltar borrando la cookie; este no.
@@ -62,14 +79,34 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 
     // Buscar el usuario
-    $stmt = $db->prepare("SELECT id, username, password_hash, role FROM users WHERE email = ?");
-    $stmt->bind_param("s", $email);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $user = $result ? $result->fetch_assoc() : null;
-    $stmt->close();
+    try {
+        $stmt = $db->prepare("SELECT id, username, password_hash, role FROM users WHERE email = ?");
+        $stmt->bind_param("s", $email);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if (!$result) {
+            error_log("OPNG login.php: could not read account lookup result");
+            $stmt->close();
+            $db->close();
+            header("Location: ../error.php?msg=" . urlencode("Authentication service is temporarily unavailable."));
+            exit;
+        }
+        $user = $result->fetch_assoc();
+        $stmt->close();
+        $db->close();
+    } catch (mysqli_sql_exception $exception) {
+        error_log("OPNG login.php: " . $exception->getMessage());
+        $db->close();
+        header("Location: ../error.php?msg=" . urlencode("Authentication service is temporarily unavailable."));
+        exit;
+    }
 
-    if ($user !== null && password_verify($password, $user['password_hash'])) {
+    // Perform the same bcrypt check when no account exists to reduce enumeration timing.
+    $dummy_password_hash = '$2y$10$ROoOfaJDwIVN2F857mUKXurQvjhmsoCwjxC8a8JO8.vTDLK7q7b5y';
+    $password_hash = $user['password_hash'] ?? $dummy_password_hash;
+    $password_is_valid = password_verify($password, $password_hash);
+
+    if ($user !== null && $password_is_valid) {
         // Autenticación exitosa, restablecer intentos fallidos
         $_SESSION["login_attempts"] = 0;
 
@@ -90,9 +127,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Cualquier camino que llegue aquí es un fallo de autenticación.
     $_SESSION["login_attempts"]++;
     $_SESSION["last_attempt_time"] = time();
-    $error_message = $user === null ? "User not found." : "Incorrect password.";
-    $db->close();
-
+    $error_message = "Invalid email or password.";
     // Redirigir ANTES de emitir cualquier salida
     // (fix H3/U5: anteriormente el header() se llamaba dentro del <body>,
     // lo que provocaba "headers already sent" y el error nunca se mostraba)

@@ -6,16 +6,11 @@
 function db_connect() {
     require(__DIR__ . "/../config.php");
 
-    $conn = new mysqli($mysql_server, $mysql_username, $mysql_password);
-
-    if ($conn->connect_error) {
-        // (S6) detalle técnico solo al log; la app lo traduce a mensaje genérico
-        error_log("OPNG db.php: MySQL connection failed: " . $conn->connect_error);
-        return null;
-    }
-
-    if (!$conn->select_db($mysql_dbname)) {
-        error_log("OPNG db.php: could not select database '$mysql_dbname': " . $conn->error);
+    try {
+        $conn = new mysqli($mysql_server, $mysql_username, $mysql_password, $mysql_dbname);
+        $conn->set_charset('utf8mb4');
+    } catch (mysqli_sql_exception $exception) {
+        error_log("OPNG db.php: MySQL connection failed: " . $exception->getMessage());
         return null;
     }
 

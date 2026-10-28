@@ -2,6 +2,15 @@
 ============================
 
 ## Version 0.8 (2026)
+### 🔐 Security and robustness — Phase 1
+- The schema installer is CLI-only, requires a pre-created database, and uses separate `OPNG_INSTALL_DB_*` credentials. Runtime defaults now target a dedicated DML-only account; migration rights can be revoked after installation.
+- The installer creates lowercase table names, safely renames only unambiguous legacy case variants, and stops on ambiguous schemas. Existing `entries.text` is widened to `MEDIUMTEXT` without deleting rows.
+- Replaced `TRUNCATE` with `DELETE` in the admin empty action so the runtime account does not need `DROP`; added Linux/MySQL CI coverage for case-sensitive migration, data preservation, input limits, and DML-only runtime privileges.
+- Nginx's example redirects HTTP to TLS, blocks web execution of the installer, sets PHP's HTTPS state at TLS termination, and documents HSTS and request-size limits. Session cookies no longer trust arbitrary `X-Forwarded-Proto`.
+- Added server-side limits of 1 MiB per paste and 255 bytes per topic, plus a 12–72-byte password policy for registration and reset. Critical auth and paste routes now validate scalar inputs and handle database exceptions without reporting success on failed writes.
+- Large pastes use constant-memory line counting and a bounded editor height instead of allocating one array element per line.
+- Composer and CI now target the documented patched PHP release branches (8.2–8.5).
+
 ### 🔐 Security — password reset hardening
 - **Disabled public password-reset requests by default.** Until real email delivery is configured, a simulated reset link is shown only when `OPNG_DEV_RESET=1` and both the request host and remote address are loopback/local.
 - Reset tokens are now stored as SHA-256 hashes, expire after 10 minutes, and are consumed by a single conditional password update. The local simulation displays a one-time link only; it never exposes or recovers a plaintext password.

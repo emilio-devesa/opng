@@ -25,7 +25,7 @@ if (!$simulation_enabled) {
         $email = trim($_POST["email"]);
         $captcha_answer = strtoupper(trim($_POST["captcha_answer"]));
 
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 100) {
             $message = "Please enter a valid email address.";
         } elseif (
             !isset($_SESSION['captcha'])
@@ -55,48 +55,37 @@ if (!$simulation_enabled) {
                 if (!$ip_allowed || !$account_allowed) {
                     $message = "If an account exists for this address, a reset link has been generated.";
                 } else {
-                    $stmt = $db->prepare("SELECT id FROM users WHERE email = ?");
-                    if (!$stmt) {
-                        error_log("OPNG request_reset.php: " . $db->error);
-                        $message = "The password reset service is temporarily unavailable.";
-                    } else {
+                    try {
+                        $stmt = $db->prepare("SELECT id FROM users WHERE email = ?");
                         $stmt->bind_param("s", $email);
-                        if (!$stmt->execute()) {
-                            error_log("OPNG request_reset.php: " . $stmt->error);
+                        $stmt->execute();
+                        $result = $stmt->get_result();
+                        $user = $result ? $result->fetch_assoc() : null;
+                        if (!$result) {
+                            error_log("OPNG request_reset.php: could not read account lookup result");
                             $message = "The password reset service is temporarily unavailable.";
-                        } else {
-                            $result = $stmt->get_result();
-                            $user = $result ? $result->fetch_assoc() : null;
-                            if (!$result) {
-                                error_log("OPNG request_reset.php: could not read account lookup result");
+                        } elseif ($user !== null) {
+                            $token = bin2hex(random_bytes(32));
+                            $token_hash = hash('sha256', $token);
+                            $user_id = (int) $user['id'];
+                            $update = $db->prepare(
+                                "UPDATE users
+                                 SET reset_token = ?, reset_token_expires = NOW() + INTERVAL 10 MINUTE
+                                 WHERE id = ?"
+                            );
+                            $update->bind_param("si", $token_hash, $user_id);
+                            if (!$update->execute()) {
+                                error_log("OPNG request_reset.php: " . $update->error);
                                 $message = "The password reset service is temporarily unavailable.";
-                            } elseif ($user !== null) {
-                                $token = bin2hex(random_bytes(32));
-                                $token_hash = hash('sha256', $token);
-                                $user_id = (int) $user['id'];
-                                $update = $db->prepare(
-                                    "UPDATE users
-                                     SET reset_token = ?, reset_token_expires = NOW() + INTERVAL 10 MINUTE
-                                     WHERE id = ?"
-                                );
-
-                                if (!$update) {
-                                    error_log("OPNG request_reset.php: " . $db->error);
-                                    $message = "The password reset service is temporarily unavailable.";
-                                } else {
-                                    $update->bind_param("si", $token_hash, $user_id);
-                                    if (!$update->execute()) {
-                                        error_log("OPNG request_reset.php: " . $update->error);
-                                        $message = "The password reset service is temporarily unavailable.";
-                                    } elseif ($update->affected_rows === 1) {
-                                        // This preview is available only in explicitly enabled local development.
-                                        $reset_link = "reset_password.php?token=" . urlencode($token);
-                                    }
-                                    $update->close();
-                                }
+                            } elseif ($update->affected_rows === 1) {
+                                $reset_link = "reset_password.php?token=" . urlencode($token);
                             }
+                            $update->close();
                         }
                         $stmt->close();
+                    } catch (mysqli_sql_exception $exception) {
+                        error_log("OPNG request_reset.php: " . $exception->getMessage());
+                        $message = "The password reset service is temporarily unavailable.";
                     }
                 }
 

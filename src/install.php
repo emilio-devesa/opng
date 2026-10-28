@@ -1,127 +1,206 @@
 <?php
-// install.php
-// Instalación de Open Pastebin NG v0.8.
-//
-// Crea la base de datos, las tablas y los índices necesarios.
-// Reemplaza la antigua migración automática de database_connect()
-// (que ejecutaba DDL en cada visita — hallazgos P1/P3 del audit v0.7).
-//
-// Uso:
-//   1. Edita config.php con tus credenciales de MySQL.
-//   2. Ejecuta este fichero UNA SOLA VEZ:  http://localhost/install.php
-//      (o desde CLI:  php install.php)
-//   3. BORRA este fichero del servidor al terminar la instalación.
-//
-// Es idempotente (puede re-ejecutarse sin dañar datos): usa
-// CREATE TABLE IF NOT EXISTS y comprueba los índices antes de crearlos.
-
-require(__DIR__ . "/config.php");
-
-header('Content-Type: text/plain; charset=utf-8');
-echo "Open Pastebin NG - installer\n============================\n";
-
-$conn = new mysqli($mysql_server, $mysql_username, $mysql_password);
-
-if ($conn->connect_error) {
-    echo "ERROR: MySQL connection: " . $conn->connect_error . "\n";
-    exit(1);
+// CLI-only schema installer. Create the target database and migration account
+// before running this script; runtime credentials are never used for DDL.
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit;
 }
 
-// 1. Base de datos
-$db_exists = $conn->query("SELECT SCHEMA_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = '" .
-    $conn->real_escape_string($mysql_dbname) . "' LIMIT 1");
-if ($db_exists === false || $db_exists->num_rows === 0) {
-    if (!$conn->query("CREATE DATABASE `" . $conn->real_escape_string($mysql_dbname) .
-        "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")) {
-        echo "ERROR creating the database: " . $conn->error . "\n";
-        exit(1);
+require __DIR__ . '/config.php';
+$database_name = getenv('OPNG_DB_NAME') ?: $mysql_dbname;
+
+function install_fail(string $message, ?string $detail = null): never
+{
+    if ($detail !== null) {
+        error_log('OPNG installer: ' . $detail);
     }
-    echo "OK: database created ('$mysql_dbname')\n";
-} else {
-    echo "OK: database already exists ('$mysql_dbname')\n";
-}
 
-if (!$conn->select_db($mysql_dbname)) {
-    echo "ERROR selecting the database: " . $conn->error . "\n";
+    fwrite(STDERR, "ERROR: {$message}\n");
     exit(1);
 }
 
-// 2. Tabla Users
-$query = "
-    CREATE TABLE IF NOT EXISTS Users (
-        ID INT AUTO_INCREMENT PRIMARY KEY,
-        Username VARCHAR(50) UNIQUE NOT NULL,
-        Email VARCHAR(100) UNIQUE NOT NULL,
-        Password_hash VARCHAR(255) NOT NULL,
-        Created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        role ENUM('admin', 'user') NOT NULL DEFAULT 'user',
-        reset_token VARCHAR(255) NULL,
-        reset_token_expires DATETIME NULL
-    ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
-";
-if (!$conn->query($query)) {
-    echo "ERROR creating table Users: " . $conn->error . "\n";
-    exit(1);
-}
-echo "OK: table Users\n";
+function install_table_names(mysqli $conn): array
+{
+    $result = $conn->query(
+        "SELECT TABLE_NAME
+         FROM information_schema.TABLES
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE'"
+    );
 
-// 3. Tabla Entries
-$query = "
-    CREATE TABLE IF NOT EXISTS Entries (
-        ID VARCHAR(255) PRIMARY KEY,
-        user_id INT,
-        Date DATETIME DEFAULT CURRENT_TIMESTAMP,
-        Language VARCHAR(20),
-        Text TEXT,
-        Topic TEXT
-    ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
-";
-if (!$conn->query($query)) {
-    echo "ERROR creating table Entries: " . $conn->error . "\n";
-    exit(1);
-}
-echo "OK: table Entries\n";
+    $names = [];
+    while ($row = $result->fetch_assoc()) {
+        $names[] = $row['TABLE_NAME'];
+    }
+    $result->free();
 
-// 4. Tabla Rate_limits (S5/R8: rate limiting persistente por IP/cuenta).
-//    La clave se guarda hasheada (SHA-256), nunca la IP/email en claro.
-$query = "
-    CREATE TABLE IF NOT EXISTS rate_limits (
-        action VARCHAR(32) NOT NULL,
-        key_hash CHAR(64) NOT NULL,
-        window_start INT UNSIGNED NOT NULL,
-        hits INT UNSIGNED NOT NULL DEFAULT 0,
-        PRIMARY KEY (action, key_hash),
-        KEY idx_rate_window (window_start)
-    ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
-";
-if (!$conn->query($query)) {
-    echo "ERROR creating table rate_limits: " . $conn->error . "\n";
-    exit(1);
+    return $names;
 }
-echo "OK: table rate_limits\n";
 
-// 5. Índice sobre Entries.Date (P2: listado ORDER BY date DESC sin filesort).
-//    MySQL no soporta CREATE INDEX IF NOT EXISTS: comprobar information_schema.
-$idx_name = 'idx_entries_date';
-$idx_exists = $conn->query("SELECT INDEX_NAME FROM information_schema.STATISTICS " .
-    "WHERE TABLE_SCHEMA = '" . $conn->real_escape_string($mysql_dbname) . "' " .
-    "AND TABLE_NAME = 'Entries' AND INDEX_NAME = '" . $idx_name . "' LIMIT 1");
-if ($idx_exists === false || $idx_exists->num_rows === 0) {
-    if (!$conn->query("CREATE INDEX `" . $idx_name . "` ON Entries (Date)")) {
-        echo "WARNING: could not create index $idx_name: " . $conn->error . "\n";
+function normalize_table_name(mysqli $conn, string $target, string $legacy): bool
+{
+    $matches = array_values(array_filter(
+        install_table_names($conn),
+        static fn (string $name): bool => strcasecmp($name, $target) === 0
+    ));
+
+    if ($matches === []) {
+        return false;
+    }
+
+    if (count($matches) === 1 && $matches[0] === $target) {
+        return true;
+    }
+
+    if (count($matches) !== 1 || $matches[0] !== $legacy) {
+        install_fail(
+            "Ambiguous table names for '{$target}'. No tables were renamed.",
+            'Unexpected case variants found: ' . implode(', ', $matches)
+        );
+    }
+
+    $temporary = '__opng_migrate_' . $target . '_' . bin2hex(random_bytes(6));
+    $conn->query("RENAME TABLE `{$legacy}` TO `{$temporary}`");
+
+    try {
+        $conn->query("RENAME TABLE `{$temporary}` TO `{$target}`");
+    } catch (mysqli_sql_exception $exception) {
+        try {
+            $conn->query("RENAME TABLE `{$temporary}` TO `{$legacy}`");
+        } catch (mysqli_sql_exception $rollback_exception) {
+            error_log(
+                'OPNG installer: table rename rollback failed; data remains in ' .
+                $temporary . ': ' . $rollback_exception->getMessage()
+            );
+        }
+
+        install_fail(
+            "Could not safely rename '{$legacy}' to '{$target}'.",
+            $exception->getMessage()
+        );
+    }
+
+    return true;
+}
+
+if (!preg_match('/\A[A-Za-z0-9_]+\z/', $database_name)) {
+    install_fail('The configured database name is invalid.');
+}
+
+$migration_user = getenv('OPNG_INSTALL_DB_USER');
+$migration_password = getenv('OPNG_INSTALL_DB_PASS');
+if ($migration_user === false || $migration_user === '') {
+    install_fail('Set OPNG_INSTALL_DB_USER and OPNG_INSTALL_DB_PASS for the migration account.');
+}
+
+$migration_host = getenv('OPNG_INSTALL_DB_HOST') ?: $mysql_server;
+$migration_port_value = getenv('OPNG_INSTALL_DB_PORT');
+$migration_port = $migration_port_value === false
+    ? (int) ini_get('mysqli.default_port')
+    : filter_var($migration_port_value, FILTER_VALIDATE_INT);
+
+if ($migration_port === false || $migration_port < 1 || $migration_port > 65535) {
+    install_fail('The configured migration database port is invalid.');
+}
+
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+
+try {
+    $conn = new mysqli(
+        $migration_host,
+        $migration_user,
+        $migration_password === false ? '' : $migration_password,
+        $database_name,
+        $migration_port
+    );
+    $conn->set_charset('utf8mb4');
+
+    foreach ([
+        'users' => 'Users',
+        'entries' => 'Entries',
+        'rate_limits' => 'Rate_limits',
+    ] as $target => $legacy) {
+        normalize_table_name($conn, $target, $legacy);
+    }
+
+    $conn->query("
+        CREATE TABLE IF NOT EXISTS users (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            username VARCHAR(50) UNIQUE NOT NULL,
+            email VARCHAR(100) UNIQUE NOT NULL,
+            password_hash VARCHAR(255) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            role ENUM('admin', 'user') NOT NULL DEFAULT 'user',
+            reset_token VARCHAR(255) NULL,
+            reset_token_expires DATETIME NULL
+        ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+    ");
+    echo "OK: table users\n";
+
+    $conn->query("
+        CREATE TABLE IF NOT EXISTS entries (
+            id VARCHAR(255) PRIMARY KEY,
+            user_id INT,
+            date DATETIME DEFAULT CURRENT_TIMESTAMP,
+            language VARCHAR(20),
+            text MEDIUMTEXT,
+            topic TEXT
+        ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+    ");
+    echo "OK: table entries\n";
+
+    $text_type = $conn->query(
+        "SELECT DATA_TYPE
+         FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'entries'
+           AND COLUMN_NAME = 'text'"
+    )->fetch_assoc();
+
+    if ($text_type === null) {
+        install_fail("The 'entries.text' column is missing; schema migration stopped.");
+    }
+    if ($text_type['DATA_TYPE'] === 'text') {
+        $conn->query('ALTER TABLE entries MODIFY `text` MEDIUMTEXT');
+        echo "OK: widened entries.text to MEDIUMTEXT\n";
+    } elseif ($text_type['DATA_TYPE'] !== 'mediumtext') {
+        install_fail(
+            "Unsupported type for 'entries.text'; schema migration stopped.",
+            'Found column type: ' . $text_type['DATA_TYPE']
+        );
+    }
+
+    $conn->query("
+        CREATE TABLE IF NOT EXISTS rate_limits (
+            action VARCHAR(32) NOT NULL,
+            key_hash CHAR(64) NOT NULL,
+            window_start INT UNSIGNED NOT NULL,
+            hits INT UNSIGNED NOT NULL DEFAULT 0,
+            PRIMARY KEY (action, key_hash),
+            KEY idx_rate_window (window_start)
+        ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+    ");
+    echo "OK: table rate_limits\n";
+
+    $index = $conn->query(
+        "SELECT INDEX_NAME
+         FROM information_schema.STATISTICS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'entries'
+           AND INDEX_NAME = 'idx_entries_date'
+         LIMIT 1"
+    );
+
+    if ($index->num_rows === 0) {
+        $conn->query('CREATE INDEX `idx_entries_date` ON entries (`date`)');
+        echo "OK: index idx_entries_date\n";
     } else {
-        echo "OK: index $idx_name creado\n";
+        echo "OK: index idx_entries_date already exists\n";
     }
-} else {
-    echo "OK: index $idx_name ya existe\n";
+
+    echo "\nSchema installation complete.\n";
+    echo "The target database was not created or dropped by this installer.\n";
+    echo "Revoke the migration account when installation is complete.\n";
+    $conn->close();
+} catch (mysqli_sql_exception $exception) {
+    install_fail('Database operation failed; check the configured migration account and server log.', $exception->getMessage());
 }
-
-// 6. Registros de usuarios (opcional, NO automático)
-echo "\nPost-install notes:\n";
-echo " - New registrations are created with the 'user' role\n";
-echo " - To create an administrator:\n";
-echo "   1) Register on the website (auth/register.php)\n";
-echo "   2) Promote the account: UPDATE Users SET role='admin' WHERE Email='your_email';\n";
-echo "\nRemember to delete install.php from the server!\n";
-
-$conn->close();
