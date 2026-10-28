@@ -11,6 +11,7 @@
 - **Pagination:** restyled as pill-shaped chips (navigation links + current page).
 - **Header:** theme toggle and language selector kept on the same line; auth buttons (Login/Register/Logout) as right-aligned chips; new admin chip (when the logged-in user is admin) linking to the admin panel.
 - **Index:** "Create New Entry" button now left-aligned; search form made smaller and right-aligned; theme toggle and language selector kept in line with the title, aligned right.
+- **Index:** list toolbar row with "Create" (left) + pagination (center) + search form (right); added "Back to top" link.
 
 ## Version 0.8 (2026)
 ### 🚨 Security — PHP engine vulnerabilities ("PHP2Shell", October 2026)
