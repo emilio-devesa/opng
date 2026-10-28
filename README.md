@@ -13,6 +13,9 @@ Open Pastebin NG is **free software** released under the **[GNU GPL license](LIC
 - ✅ Simple and clean user interface
 - ⚡️ Fast performance (no heavy images or media, just text)
 - 🎨 Syntax highlighting for multiple programming languages
+- 🌗 Light/dark theme with persistent toggle (no external fonts or frameworks)
+- 🌐 Internationalization in 6 languages (English, Spanish, German, French, Portuguese, Chinese)
+- 📱 Responsive layout (mobile-friendly tables, `prefers-reduced-motion` support)
 - 🔓 Secure authentication system for administrative actions and role-based access control
 - 👤 User management: **Admin**, **Registered User**, and **Guest**  
 - 🛡️ CSRF protection for sensitive actions
@@ -125,7 +128,7 @@ Alternatively, leave the defaults and provide the values through environment var
 From the homepage you can:
 
 - 📝 **Create a new paste**: Enter your text or code, select a language and submit.
-- 🔍 **View and edit a paste**: Click on the topic you want to view/edit
+- 🔍 **View, edit and reply to a paste**: Click on the topic you want to view. The view page uses tabs — **View** (code), **Edit** (author or admin only) and **Reply** (creates a new paste). Includes syntax highlighting, line numbers and one-click copy.
 - 🛠️ **Manage pastes (Admin panel)**: Log in to `admin/admin.php` to drop entries or empty all pastes (user accounts are preserved).
 
 For security reasons, access to **admin features** is restricted to administrators.
@@ -174,6 +177,8 @@ For security reasons, access to **admin features** is restricted to administrato
 - **Rate limiting** — persisted in the `rate_limits` table (created by `install.php`) and keyed by a SHA-256 hash of IP (and IP+account for login). Limits: login 5/10 min, paste creation 5/min, registration and password-reset requests 5/hour.
 
 - **CAPTCHA** — generated locally with GD (160×60, noise, per-character rotation) and served with `Cache-Control: no-store`. No external service or API key is required.
+
+- **Design** — `src/main.css` uses CSS design tokens (`:root` / `body.dark-mode`) for both light and dark themes, a responsive layout and `prefers-reduced-motion` support. The shared layout lives in `includes/layout_header.php` / `includes/layout_footer.php` (header with title, theme toggle, language selector, auth chips and search; footer with copyright and links). The view page presents *View / Edit / Reply* as tabs.
 
 ---
 
