@@ -77,6 +77,7 @@
     - `phpstan.neon` at **level 5** over `src/` and `tools/`; no baseline needed.
     - `.github/workflows/ci.yml`: matrix **PHP 8.3/8.4** running `php -l` on every file and PHPStan.
     - Fixed the real issues PHPStan surfaced: `bind_result()` variables that might not be defined (replaced with `get_result()` + `fetch_assoc()` in login/reset flows) and a redundant always-true comparison in `login.php`.
+- **New visual style:** complete rewrite of `src/main.css` (design tokens in `:root` / `body.dark-mode`, modern typography, cards for auth forms, modern tables, dark code blocks, responsive layout and `prefers-reduced-motion`). Light and dark modes share the token mechanism; no external fonts or frameworks.
 - **Verification:** rate limits exercised over HTTP (6th attempt blocked for login, paste creation, registration and reset), full register → captcha → reset → login flow, and CAPTCHA headers/image checked (160×60 PNG, `no-store`). `php -l` and PHPStan level 5 pass.
 
 ---
