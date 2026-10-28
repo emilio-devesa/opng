@@ -47,5 +47,12 @@
     "empty_warning": "This action will permanently delete all stored pastes.",
     "empty_confirm": "Are you sure you want to continue?",
     "empty_yes": "Yes, empty it",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "admin_title": "Admin Panel",
+    "admin_db_actions": "Database Actions",
+    "empty_pastes": "Empty Pastes",
+    "admin_manage_entries": "Manage Entries",
+    "id_to_remove": "ID to remove:",
+    "drop_entry": "Drop Entry",
+    "drop_confirm": "Are you sure you want to drop this entry? This action cannot be undone."
 }

@@ -47,5 +47,12 @@
     "empty_warning": "Esta ação eliminará permanentemente todos os pastes armazenados.",
     "empty_confirm": "Tem a certeza de que quer continuar?",
     "empty_yes": "Sim, esvaziar",
-    "cancel": "Cancelar"
+    "cancel": "Cancelar",
+    "admin_title": "Painel de Administração",
+    "admin_db_actions": "Ações do Banco de Dados",
+    "empty_pastes": "Esvaziar Entradas",
+    "admin_manage_entries": "Gerenciar Entradas",
+    "id_to_remove": "ID para remover:",
+    "drop_entry": "Excluir Entrada",
+    "drop_confirm": "Tem certeza de que deseja excluir esta entrada? Esta ação não pode ser desfeita."
 }

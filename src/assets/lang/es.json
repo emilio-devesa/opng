@@ -47,5 +47,12 @@
     "empty_warning": "Esta acción eliminará permanentemente todos los pastes almacenados.",
     "empty_confirm": "¿Seguro que quieres continuar?",
     "empty_yes": "Sí, vaciar",
-    "cancel": "Cancelar"
+    "cancel": "Cancelar",
+    "admin_title": "Panel de Administración",
+    "admin_db_actions": "Acciones de Base de Datos",
+    "empty_pastes": "Vaciar Pastes",
+    "admin_manage_entries": "Gestionar Entradas",
+    "id_to_remove": "ID a eliminar:",
+    "drop_entry": "Eliminar Paste",
+    "drop_confirm": "¿Seguro que quieres eliminar esta entrada? Esta acción no se puede deshacer."
 }

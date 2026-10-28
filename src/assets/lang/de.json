@@ -47,5 +47,12 @@
     "empty_warning": "Diese Aktion löscht alle gespeicherten Pastes dauerhaft.",
     "empty_confirm": "Möchtest du wirklich fortfahren?",
     "empty_yes": "Ja, leeren",
-    "cancel": "Abbrechen"
+    "cancel": "Abbrechen",
+    "admin_title": "Admin-Panel",
+    "admin_db_actions": "Datenbankaktionen",
+    "empty_pastes": "Pastes leeren",
+    "admin_manage_entries": "Einträge verwalten",
+    "id_to_remove": "ID zum Entfernen:",
+    "drop_entry": "Eintrag löschen",
+    "drop_confirm": "Bist du sicher, dass du diesen Eintrag löschen willst? Diese Aktion kann nicht rückgängig gemacht werden."
 }

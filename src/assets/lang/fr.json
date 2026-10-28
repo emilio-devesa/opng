@@ -47,5 +47,12 @@
     "empty_warning": "Cette action supprimera définitivement tous les pastes enregistrés.",
     "empty_confirm": "Voulez-vous vraiment continuer ?",
     "empty_yes": "Oui, vider",
-    "cancel": "Annuler"
+    "cancel": "Annuler",
+    "admin_title": "Panneau d'administration",
+    "admin_db_actions": "Actions Base de Données",
+    "empty_pastes": "Vider les pastes",
+    "admin_manage_entries": "Gérer les entrées",
+    "id_to_remove": "ID à supprimer :",
+    "drop_entry": "Supprimer l'entrée",
+    "drop_confirm": "Es-tu sûr de vouloir supprimer cette entrée ? Cette action est irréversible."
 }

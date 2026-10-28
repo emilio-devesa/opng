@@ -47,5 +47,12 @@
     "empty_warning": "此操作将永久删除所有已存储的 paste。",
     "empty_confirm": "确定要继续吗？",
     "empty_yes": "是，清空",
-    "cancel": "取消"
+    "cancel": "取消",
+    "admin_title": "管理面板",
+    "admin_db_actions": "数据库操作",
+    "empty_pastes": "清空粘贴",
+    "admin_manage_entries": "管理条目",
+    "id_to_remove": "要删除的 ID:",
+    "drop_entry": "删除条目",
+    "drop_confirm": "你确定要删除此条目吗？此操作无法撤销。"
 }
