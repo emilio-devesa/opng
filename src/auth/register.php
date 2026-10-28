@@ -2,6 +2,7 @@
 require("../includes/session.php");
 session_start_secured();
 require("../includes/csrf.php");
+require("../includes/ratelimit.php");
 require("../database.php");
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
@@ -15,6 +16,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $email = trim($_POST["email"]);
     $password = $_POST["password"];
 
+    // Conectar a la BD
+    $db = database_connect();
+
+    // (R8/S5) Rate limit de registro por IP: 5 por hora.
+    if (!rate_limit_hit($db, 'register', client_ip(), 5, 3600)) {
+        $db->close();
+        header("Location: ../error.php?msg=" . urlencode("Too many registration attempts. Please try again later."));
+        exit;
+    }
+
     // CAPTCHA Validation
     $captcha_answer = trim($_POST["captcha_answer"]);
     if (!isset($_SESSION['captcha']) || strtoupper($captcha_answer) !== $_SESSION['captcha']) {
@@ -26,9 +37,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (empty($username) || empty($email) || empty($password)) {
         die("All fields are required.");
     }
-
-    // Conectar a la BD
-    $db = database_connect();
 
     // Verificar si el usuario ya existe
     $stmt = $db->prepare("SELECT id FROM users WHERE email = ?");

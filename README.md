@@ -43,6 +43,7 @@ Open Pastebin NG is **free software** released under the **[GNU GPL license](LIC
 To run Open Pastebin NG, you need:
 
 - **PHP 8.2.35**, **8.3.36**, **8.4.27** or **8.5.12** or higher ⚠️ *(updated in v0.8 — see the "PHP security releases" note below)*
+- **PHP extensions:** `mysqli` (database) and `gd` (CAPTCHA image)
 - **MySQL 5.7** or MariaDB
 - A web server (**Apache, Nginx or similar**)
 
@@ -92,26 +93,30 @@ Follow this steps to install Open Pastebin NG:
 	cd opng
 
 2️⃣ **Configure the database**
-Edit config.php and set your database credentials, for example:
+Copy the example configuration and set your credentials:
 
-	$mysql_server = "localhost";
-	$mysql_username = "root";
-	$mysql_password = "yourpassword";
-	$mysql_dbname = "opng";
+	cp src/config.example.php src/config.php
+
+`config.php` is **git-ignored** and must never be committed: it holds your database password. It is also blocked from HTTP access by `src/.htaccess` (and by the Nginx example).
+
+Alternatively, leave the defaults and provide the values through environment variables (handy for Docker/CI):
+
+	OPNG_DB_HOST=localhost
+	OPNG_DB_USER=opng
+	OPNG_DB_PASS=yourpassword
+	OPNG_DB_NAME=opng
 
 3️⃣ **Run the installer (new in v0.8)**
 - Open `http://localhost/install.php` once (or run `php install.php` from the CLI).
-- It creates the database, the `Users`/`Entries` tables and the `Entries.Date` index.
+- It creates the database, the `Users`/`Entries`/`rate_limits` tables and the `Entries.Date` index.
 - **Delete `install.php` from the server afterwards.**
 
 > Since v0.8 there is no automatic migration on every request (performance fix). A missing database now returns a connection error instead of being auto-created.
 
 4️⃣ **Run the application**
-- If using **Apache**, place the project in `htdocs` or configure a virtual host (the shipped `src/.htaccess` provides hardening: it blocks direct access to `config.php`/`database.php`/`rules.xml` and disables `session.upload_progress`).
-- If using **Nginx**, configure the root directory and block sensitive files:
-  ```nginx
-  location ~ /(?:config\.php|database\.php|rules\.xml)$ { deny all; }
-  ```
+- If using **Apache**, place the project in `htdocs` or configure a virtual host. The shipped `src/.htaccess` blocks direct access to `config.php`/`database.php`/`rules.xml` and the `includes/` directory, disables directory listings, adds security headers and disables `session.upload_progress`.
+- If using **Nginx**, start from [`deploy/nginx.example.conf`](deploy/nginx.example.conf). It blocks the same internal files, denies `includes/`, sets the security headers and disables CAPTCHA caching.
+- **Use `src/` as the document root**, not the repository root, so `tools/`, `README.md` and `.git/` are never reachable over HTTP.
 - Open `http://localhost/` in your browser.
 
 ---
@@ -155,6 +160,20 @@ For security reasons, access to **admin features** is restricted to administrato
   ```
 
   It is re-runnable: it only deletes its own data (`seed%` IDs and `@example.test` emails). Seeded accounts share the password `Password123!` (e.g. `lucia@example.test` for a normal user, `maria@example.test` for an admin).
+
+- **Static analysis and linting** — the repo ships `composer.json`, `phpstan.neon` (level 5) and a GitHub Actions workflow (PHP 8.3/8.4).
+
+  ```bash
+  composer install
+  composer lint      # php -l on every PHP file
+  composer phpstan   # PHPStan level 5
+  ```
+
+  `src/config.php` is excluded from the analysis and the CI installs no local configuration: the analysis is identical with and without credentials.
+
+- **Rate limiting** — persisted in the `rate_limits` table (created by `install.php`) and keyed by a SHA-256 hash of IP (and IP+account for login). Limits: login 5/10 min, paste creation 5/min, registration and password-reset requests 5/hour.
+
+- **CAPTCHA** — generated locally with GD (160×60, noise, per-character rotation) and served with `Cache-Control: no-store`. No external service or API key is required.
 
 ---
 
@@ -216,7 +235,8 @@ This will remove **all pastes and files permanently**.
 ---
 
 ## ✅ Known Issues
-Currently, there are no known issues. However, as this is a **BETA release**, some unexpected bugs may still exist.
+- **Pastes created before v0.8** may show literal HTML entities (for example `&lt;` or `&amp;lt;`). Older versions escaped the text *before* storing it; v0.8 stores raw text and escapes at render time. Legacy content is intentionally left untouched — editing a paste and replacing the affected characters corrects it.
+- Otherwise, there are no known issues. However, as this is a **BETA release**, some unexpected bugs may still exist.
 
 ---
 

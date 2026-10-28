@@ -82,7 +82,25 @@ if (!$conn->query($query)) {
 }
 echo "OK: table Entries\n";
 
-// 4. Índice sobre Entries.Date (P2: listado ORDER BY date DESC sin filesort).
+// 4. Tabla Rate_limits (S5/R8: rate limiting persistente por IP/cuenta).
+//    La clave se guarda hasheada (SHA-256), nunca la IP/email en claro.
+$query = "
+    CREATE TABLE IF NOT EXISTS rate_limits (
+        action VARCHAR(32) NOT NULL,
+        key_hash CHAR(64) NOT NULL,
+        window_start INT UNSIGNED NOT NULL,
+        hits INT UNSIGNED NOT NULL DEFAULT 0,
+        PRIMARY KEY (action, key_hash),
+        KEY idx_rate_window (window_start)
+    ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+";
+if (!$conn->query($query)) {
+    echo "ERROR creating table rate_limits: " . $conn->error . "\n";
+    exit(1);
+}
+echo "OK: table rate_limits\n";
+
+// 5. Índice sobre Entries.Date (P2: listado ORDER BY date DESC sin filesort).
 //    MySQL no soporta CREATE INDEX IF NOT EXISTS: comprobar information_schema.
 $idx_name = 'idx_entries_date';
 $idx_exists = $conn->query("SELECT INDEX_NAME FROM information_schema.STATISTICS " .
@@ -98,7 +116,7 @@ if ($idx_exists === false || $idx_exists->num_rows === 0) {
     echo "OK: index $idx_name ya existe\n";
 }
 
-// 5. Registros de usuarios (opcional, NO automático)
+// 6. Registros de usuarios (opcional, NO automático)
 echo "\nPost-install notes:\n";
 echo " - New registrations are created with the 'user' role\n";
 echo " - To create an administrator:\n";

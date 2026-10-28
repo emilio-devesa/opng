@@ -17,17 +17,16 @@ if ($_SERVER["REQUEST_METHOD"] === "GET" && isset($_GET["token"])) {
     $stmt = $db->prepare("SELECT id FROM users WHERE reset_token = ? AND reset_token_expires > NOW()");
     $stmt->bind_param("s", $token);
     $stmt->execute();
-    $stmt->store_result();
+    $result = $stmt->get_result();
+    $user = $result ? $result->fetch_assoc() : null;
+    $stmt->close();
 
-    if ($stmt->num_rows === 1) {
-        $stmt->bind_result($user_id);
-        $stmt->fetch();
+    if ($user !== null) {
         $show_form = true; // Mostrar el formulario si el token es válido
     } else {
         $error_message = "<p style='color: red;'>Invalid or expired token.</p>";
     }
 
-    $stmt->close();
     $db->close();
 
 } elseif ($_SERVER["REQUEST_METHOD"] === "POST") {
@@ -51,24 +50,24 @@ if ($_SERVER["REQUEST_METHOD"] === "GET" && isset($_GET["token"])) {
     $stmt = $db->prepare("SELECT id FROM users WHERE reset_token = ? AND reset_token_expires > NOW()");
     $stmt->bind_param("s", $token);
     $stmt->execute();
-    $stmt->store_result();
+    $result = $stmt->get_result();
+    $user = $result ? $result->fetch_assoc() : null;
+    $stmt->close();
 
-    if ($stmt->num_rows === 1) {
-        $stmt->bind_result($user_id);
-        $stmt->fetch();
-        $stmt->close();
+    if ($user !== null) {
+        $user_id = (int) $user['id'];
 
         // Actualizar la contraseña y limpiar el token
         $stmt = $db->prepare("UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?");
         $stmt->bind_param("si", $new_password, $user_id);
         $stmt->execute();
+        $stmt->close();
 
         echo "<p style='color: green;'>Password updated successfully. You can now <a href='login.php'>log in</a>.</p>";
     } else {
         echo "<p style='color: red;'>Invalid or expired token.</p>";
     }
 
-    $stmt->close();
     $db->close();
     exit; // Salir para evitar mostrar el formulario después de cambiar la contraseña
 }

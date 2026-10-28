@@ -1,13 +1,32 @@
-# Open Pastebin NG — Apache hardening (v0.8, Fase 0)
+# Open Pastebin NG — Apache hardening (v0.8, Fases 0 y 3)
 # ------------------------------------------------------------------
 # Bloquea el acceso HTTP directo a ficheros que solo deben cargarse
 # desde PHP (require/include) y nunca servirse a los visitantes.
 # Compatible con Apache 2.4 (mod_authz_host).
 # ------------------------------------------------------------------
 
-<FilesMatch "^(config\.php|database\.php|rules\.xml)$">
+<FilesMatch "^(config\.php|config\.example\.php|database\.php|rules\.xml)$">
     Require all denied
 </FilesMatch>
+
+# ------------------------------------------------------------------
+# Sin listados de directorio (fix R7). Si un directorio no tiene
+# index, Apache devuelve 403 en lugar de mostrar su contenido.
+# ------------------------------------------------------------------
+Options -Indexes
+
+# ------------------------------------------------------------------
+# Cabeceras de seguridad (fix R7). No hay recursos externos (JS/CSS
+# se sirven en local), por lo que una CSP estricta es viable; se
+# permite 'unsafe-inline' porque algunas vistas usan onclick y un
+# <style> embebido.
+# ------------------------------------------------------------------
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
+</IfModule>
 
 # ------------------------------------------------------------------
 # CVE-2026-109619 / CVE-2026-115560 (PHP "PHP2Shell", Oct 2026)

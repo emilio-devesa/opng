@@ -2,6 +2,7 @@
 require("../includes/session.php");
 session_start_secured();
 require("../includes/csrf.php");
+require("../includes/ratelimit.php");
 require("../database.php");
 
 $message = ""; // Variable para almacenar el mensaje de respuesta
@@ -15,22 +16,30 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     $email = trim($_POST["email"]);
 
+    $db = database_connect();
+
+    // (R8/S5) Rate limit de solicitudes de reset por IP: 5 por hora.
+    if (!rate_limit_hit($db, 'request_reset', client_ip(), 5, 3600)) {
+        $db->close();
+        header("Location: ../error.php?msg=" . urlencode("Too many password reset requests. Please try again later."));
+        exit;
+    }
+
     $captcha_answer = trim($_POST["captcha_answer"]);
     if (!isset($_SESSION['captcha']) || strtoupper($captcha_answer) !== $_SESSION['captcha']) {
         die("Incorrect CAPTCHA. Try again.");
     }
     unset($_SESSION['captcha']); // Evita reutilización del CAPTCHA
 
-    $db = database_connect();
     $stmt = $db->prepare("SELECT id FROM users WHERE email = ?");
     $stmt->bind_param("s", $email);
     $stmt->execute();
-    $stmt->store_result();
+    $result = $stmt->get_result();
+    $user = $result ? $result->fetch_assoc() : null;
+    $stmt->close();
 
-    if ($stmt->num_rows === 1) {
-        $stmt->bind_result($user_id);
-        $stmt->fetch();
-        $stmt->close();
+    if ($user !== null) {
+        $user_id = (int) $user['id'];
 
         // Generar token
         $token = bin2hex(random_bytes(32));
@@ -48,6 +57,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     <p><a href='" . htmlspecialchars($reset_link) . "'>Click here to reset your password</a></p>
                     <p><strong>Note:</strong> This link is only valid for 10 minutes.</p>";
     } else {
+        $db->close();
         $message = "<p style='color: red;'>No account was found with this email address.</p>";
     }
 }

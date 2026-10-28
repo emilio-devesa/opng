@@ -2,6 +2,7 @@
 require("../includes/session.php");
 session_start_secured();
 require("../includes/csrf.php");
+require("../includes/ratelimit.php");
 
 require("../database.php");
 
@@ -52,52 +53,51 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Conectar a la BD
     $db = database_connect();
 
+    // (S5) Rate limit persistente por IP + cuenta. El contador de sesión de
+    // arriba se puede saltar borrando la cookie; este no.
+    if (!rate_limit_hit($db, 'login', client_ip() . '|' . strtolower($email), 5, 600)) {
+        $db->close();
+        header("Location: ../error.php?msg=" . urlencode("Too many login attempts. Please try again in 10 minutes."));
+        exit;
+    }
+
     // Buscar el usuario
     $stmt = $db->prepare("SELECT id, username, password_hash, role FROM users WHERE email = ?");
     $stmt->bind_param("s", $email);
     $stmt->execute();
-    $stmt->store_result();
-    
-    if ($stmt->num_rows == 1) {
-        $stmt->bind_result($id, $username, $passwordHash, $role);
-        $stmt->fetch();
-
-        if (password_verify($password, $passwordHash)) {
-            // Autenticación exitosa, restablecer intentos fallidos
-            $_SESSION["login_attempts"] = 0;
-
-            // (S10) Regenerar el ID de sesión para evitar session fixation
-            session_regenerate_id(true);
-
-            $_SESSION["user_id"] = $id;
-            $_SESSION["username"] = $username;
-            $_SESSION["role"] = $role;
-            
-            // Redirigir al usuario a la página de origen después del login
-            header("Location: " . $redirect_url);
-
-            unset($_SESSION['redirect_after_login']); // Eliminar variable de sesión
-            exit;
-        } else {
-            $_SESSION["login_attempts"]++;
-            $_SESSION["last_attempt_time"] = time();
-            $error_message = "Incorrect password.";
-        }
-    } else {
-        $_SESSION["login_attempts"]++;
-        $_SESSION["last_attempt_time"] = time();
-        $error_message = "User not found.";
-    }
+    $result = $stmt->get_result();
+    $user = $result ? $result->fetch_assoc() : null;
     $stmt->close();
-    $db->close();
 
-    // Si hubo error de autenticación, redirigir ANTES de emitir cualquier salida
-    // (fix H3/U5: anteriormente el header() se llamaba dentro del <body>,
-    // lo que provocaba "headers already sent" y el error nunca se mostraba)
-    if ($error_message !== "") {
-        header("Location: ../error.php?msg=" . urlencode($error_message));
+    if ($user !== null && password_verify($password, $user['password_hash'])) {
+        // Autenticación exitosa, restablecer intentos fallidos
+        $_SESSION["login_attempts"] = 0;
+
+        // (S10) Regenerar el ID de sesión para evitar session fixation
+        session_regenerate_id(true);
+
+        $_SESSION["user_id"] = $user['id'];
+        $_SESSION["username"] = $user['username'];
+        $_SESSION["role"] = $user['role'];
+
+        // Redirigir al usuario a la página de origen después del login
+        header("Location: " . $redirect_url);
+
+        unset($_SESSION['redirect_after_login']); // Eliminar variable de sesión
         exit;
     }
+
+    // Cualquier camino que llegue aquí es un fallo de autenticación.
+    $_SESSION["login_attempts"]++;
+    $_SESSION["last_attempt_time"] = time();
+    $error_message = $user === null ? "User not found." : "Incorrect password.";
+    $db->close();
+
+    // Redirigir ANTES de emitir cualquier salida
+    // (fix H3/U5: anteriormente el header() se llamaba dentro del <body>,
+    // lo que provocaba "headers already sent" y el error nunca se mostraba)
+    header("Location: ../error.php?msg=" . urlencode($error_message));
+    exit;
 }
 ?>
 

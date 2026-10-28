@@ -58,6 +58,26 @@
     - **Language selector fixed**: `dark-mode.js` and `language.js` both declared `const basePath` in the global scope. Classic scripts share the same scope, so the second file failed with `SyntaxError: Identifier 'basePath' has already been declared` and never ran (the selector did nothing). Both scripts are now wrapped in IIFEs and translations are applied with `textContent`.
     - Added **`tools/seed.php`** (CLI-only, re-runnable): seeds 10 users (8 normal + 2 admins), 60 pastes and 12 replies (72 entries) to exercise pagination, search and role permissions.
     - Every PHP file passes `php -l` (PHP 8.3.30) and the main flows (create, view, edit, reply, delete, pagination, search, login/logout, register, password reset pages, admin panel, empty DB) were exercised end-to-end against a local MySQL instance.
+### 🛡️ Hardening & maturity (Phase 3 of the audit)
+- **Configuration no longer versioned (fix S4):**
+    - `src/config.php` was removed from git (`git rm --cached`; the local file is kept) and added to `.gitignore`.
+    - New `src/config.example.php` to copy (`cp src/config.example.php src/config.php`), with optional `OPNG_DB_HOST` / `OPNG_DB_USER` / `OPNG_DB_PASS` / `OPNG_DB_NAME` environment-variable overrides for Docker/CI.
+    - `config.php` and `config.example.php` are blocked by `src/.htaccess`; the README now explains the copy step.
+- **Persistent rate limiting (fixes S5/R8):**
+    - New `rate_limits` table created by `install.php`; keys are stored as SHA-256 hashes (no IPs or emails in clear).
+    - New `src/includes/ratelimit.php` (`client_ip()`, `rate_limit_hit()`) with opportunistic cleanup of old windows and fail-open behavior on DB errors (logged).
+    - Applied limits: login **5 attempts / 10 min per IP+account** (the old session counter could be bypassed by deleting the cookie), paste creation **5/min per IP**, registration and password-reset requests **5/hour per IP**.
+- **Stronger local CAPTCHA (fix S7):** `auth/captcha.php` rewritten — 160×60 truecolor image, background/foreground noise, random colour/size/offset/rotation per character, soft row distortion, `Cache-Control: no-store`, and a GD bitmap fallback when no TTF font is available. Still self-hosted, no API keys.
+- **Web-server hardening (fix R7):**
+    - `src/.htaccess`: `Options -Indexes`, security headers (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, CSP) and denial of `config.example.php`.
+    - New `src/includes/.htaccess` denying HTTP access to the internal layer.
+    - New `deploy/nginx.example.conf` with the equivalent rules (internal files, `includes/`, hidden files, CAPTCHA no-cache, security headers).
+- **CI and static analysis (fix H7):**
+    - `composer.json` + `composer.lock` (requires PHP ≥ 8.2, `ext-gd`, `ext-mysqli`; dev dependency `phpstan/phpstan`).
+    - `phpstan.neon` at **level 5** over `src/` and `tools/`; no baseline needed.
+    - `.github/workflows/ci.yml`: matrix **PHP 8.3/8.4** running `php -l` on every file and PHPStan.
+    - Fixed the real issues PHPStan surfaced: `bind_result()` variables that might not be defined (replaced with `get_result()` + `fetch_assoc()` in login/reset flows) and a redundant always-true comparison in `login.php`.
+- **Verification:** rate limits exercised over HTTP (6th attempt blocked for login, paste creation, registration and reset), full register → captcha → reset → login flow, and CAPTCHA headers/image checked (160×60 PNG, `no-store`). `php -l` and PHPStan level 5 pass.
 
 ---
 

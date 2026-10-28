@@ -5,6 +5,7 @@ session_start_secured();
 require("includes/csrf.php");
 require("includes/rules.php");
 require("includes/db.php");
+require("includes/ratelimit.php");
 
 // Protección CSRF (rechaza el POST sin token válido)
 if (!csrf_valid($_POST['csrf_token'] ?? null)) {
@@ -57,6 +58,13 @@ if (!isset($rules[$language])) {
 $db = db_connect();
 if (!$db) {
     header("Location: error.php?msg=" . urlencode("Error: No se pudo conectar a la base de datos."));
+    exit;
+}
+
+// (R8) Rate limit de creación de pastes por IP: 5 por minuto.
+if (!rate_limit_hit($db, 'submit', client_ip(), 5, 60)) {
+    $db->close();
+    header("Location: error.php?msg=" . urlencode("Too many pastes created. Please wait a minute and try again."));
     exit;
 }
 
