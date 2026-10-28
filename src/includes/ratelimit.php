@@ -11,9 +11,8 @@
 //   if (!rate_limit_hit($db, 'login', client_ip() . '|' . $email, 5, 600)) { ... }
 //
 // `$limit` es el número máximo de intentos permitidos dentro de `$window`
-// segundos. Si la tabla no existe o hay un error de BD, se permite la acción
-// (fail-open) para no bloquear el sitio por un problema de infraestructura; el
-// error queda en el log.
+// segundos. Si la tabla no existe o hay un error de BD, se deniega la acción
+// (fail-closed) y se registra el error para no omitir silenciosamente el límite.
 
 /**
  * IP del cliente. No se confía en X-Forwarded-For por defecto porque el
@@ -40,13 +39,13 @@ function rate_limit_hit(mysqli $db, string $action, string $key, int $limit, int
     );
     if (!$stmt) {
         error_log('OPNG ratelimit.php: ' . $db->error);
-        return true; // fail-open
+        return false;
     }
     $stmt->bind_param('ssi', $action, $key_hash, $window_start);
     if (!$stmt->execute()) {
         error_log('OPNG ratelimit.php: ' . $stmt->error);
         $stmt->close();
-        return true;
+        return false;
     }
     $stmt->close();
 
@@ -60,13 +59,13 @@ function rate_limit_hit(mysqli $db, string $action, string $key, int $limit, int
     );
     if (!$stmt) {
         error_log('OPNG ratelimit.php: ' . $db->error);
-        return true;
+        return false;
     }
     $stmt->bind_param('iiss', $window_start, $window_start, $action, $key_hash);
     if (!$stmt->execute()) {
         error_log('OPNG ratelimit.php: ' . $stmt->error);
         $stmt->close();
-        return true;
+        return false;
     }
     $stmt->close();
 
@@ -74,23 +73,34 @@ function rate_limit_hit(mysqli $db, string $action, string $key, int $limit, int
     $stmt = $db->prepare("SELECT hits FROM rate_limits WHERE action = ? AND key_hash = ?");
     if (!$stmt) {
         error_log('OPNG ratelimit.php: ' . $db->error);
-        return true;
+        return false;
     }
     $stmt->bind_param('ss', $action, $key_hash);
     if (!$stmt->execute()) {
         error_log('OPNG ratelimit.php: ' . $stmt->error);
         $stmt->close();
-        return true;
+        return false;
     }
     $result = $stmt->get_result();
-    $row = $result ? $result->fetch_assoc() : null;
-    $hits = (int) ($row['hits'] ?? 0);
+    if (!$result) {
+        error_log('OPNG ratelimit.php: could not read rate-limit count');
+        $stmt->close();
+        return false;
+    }
+    $row = $result->fetch_assoc();
     $stmt->close();
+    if (!$row) {
+        error_log('OPNG ratelimit.php: rate-limit row disappeared');
+        return false;
+    }
+    $hits = (int) $row['hits'];
 
     // 4. Limpieza oportunista de ventanas antiguas (1% de las llamadas).
     if (random_int(1, 100) === 1) {
         $threshold = time() - 86400;
-        $db->query("DELETE FROM rate_limits WHERE window_start < $threshold");
+        if (!$db->query("DELETE FROM rate_limits WHERE window_start < $threshold")) {
+            error_log('OPNG ratelimit.php: failed to remove expired rate-limit rows: ' . $db->error);
+        }
     }
 
     return $hits <= $limit;

@@ -29,6 +29,9 @@ jobs:
       - name: PHP syntax check
         run: find src tools -name '*.php' -print0 | xargs -0 -n1 php -l
 
+      - name: Password reset security regression test
+        run: php tests/password_reset_security_test.php
+
   phpstan:
     name: PHPStan (PHP ${{ matrix.php }})
     runs-on: ubuntu-latest

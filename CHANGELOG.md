@@ -2,6 +2,12 @@
 ============================
 
 ## Version 0.8 (2026)
+### 🔐 Security — password reset hardening
+- **Disabled public password-reset requests by default.** Until real email delivery is configured, a simulated reset link is shown only when `OPNG_DEV_RESET=1` and both the request host and remote address are loopback/local.
+- Reset tokens are now stored as SHA-256 hashes, expire after 10 minutes, and are consumed by a single conditional password update. The local simulation displays a one-time link only; it never exposes or recovers a plaintext password.
+- Added independent hourly limits for reset requests by client IP and account. Rate-limit storage/query failures now deny the action and are logged instead of silently bypassing the limit.
+- Added regression tests for default-off behavior, local-only request checks and token hashing, and wired them into CI.
+
 ### 🌐 Internationalization
 - **Admin panel translations:** new i18n keys (`admin_title`, `admin_db_actions`, `empty_pastes`, `admin_manage_entries`, `id_to_remove`, `drop_entry`, `drop_confirm`) added to all language files (en, es, de, fr, pt, zh) and wired into the admin panel markup with `data-i18n` (panel title, database actions legend/button, manage entries legend, ID label, drop button). The drop confirmation dialog now reads the translated message instead of a hardcoded string.
 

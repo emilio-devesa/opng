@@ -176,6 +176,10 @@ For security reasons, access to **admin features** is restricted to administrato
 
 - **Rate limiting** — persisted in the `rate_limits` table (created by `install.php`) and keyed by a SHA-256 hash of IP (and IP+account for login). Limits: login 5/10 min, paste creation 5/min, registration and password-reset requests 5/hour.
 
+- **Password reset** — real password-reset email delivery is not configured, so public reset requests are disabled by default. For local development only, set `OPNG_DEV_RESET=1` in the PHP process environment. The simulation also requires the request to come from `127.0.0.1` or `::1` with a `localhost`/loopback Host; it shows a one-time reset link as a simulated email, never a password. Do not set this flag in a shared or production environment. Reset tokens are stored as SHA-256 hashes, expire after 10 minutes, and are consumed once.
+
+- **Password reset guard test** — run `php tests/password_reset_security_test.php` to verify the default-off behavior, loopback/Host checks and token hashing.
+
 - **CAPTCHA** — generated locally with GD (160×60, noise, per-character rotation) and served with `Cache-Control: no-store`. No external service or API key is required.
 
 - **Design** — `src/main.css` uses CSS design tokens (`:root` / `body.dark-mode`) for both light and dark themes, a responsive layout and `prefers-reduced-motion` support. The shared layout lives in `includes/layout_header.php` / `includes/layout_footer.php` (header with title, theme toggle, language selector, auth chips and search; footer with copyright and links). The view page presents *View / Edit / Reply* as tabs.

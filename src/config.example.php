@@ -15,6 +15,9 @@
  *     OPNG_DB_USER  (default: root)
  *     OPNG_DB_PASS  (default: empty)
  *     OPNG_DB_NAME  (default: opng)
+ *
+ * OPNG_DEV_RESET is intentionally not set here. Setting it to 1 enables a
+ * local-only password-reset email simulation; never enable it in production.
  */
 
 $mysql_server   = getenv('OPNG_DB_HOST') ?: 'localhost';
