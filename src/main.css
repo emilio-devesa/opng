@@ -735,6 +735,43 @@ legend {
 }
 
 /* ========================= */
+/* FILA DE LISTADO: CREATE | PAG. | BUSQUEDA */
+/* ========================= */
+.list-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 0 0 1.5rem;
+}
+
+.list-toolbar .create-link {
+    display: inline-block;
+    margin: 0;
+    width: auto;
+}
+
+.list-toolbar form.search-form {
+    margin: 0;
+}
+
+.list-toolbar form.search-form input[type="text"] {
+    max-width: 280px;
+}
+
+/* ========================= */
+/* VOLVER ARRIBA */
+/* ========================= */
+.back-to-top {
+    text-align: center;
+    margin: 0 0 1.5rem;
+}
+
+.back-to-top a {
+    font-weight: 600;
+}
+
+/* ========================= */
 /* RESPONSIVE */
 /* ========================= */
 @media (max-width: 720px) {

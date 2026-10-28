@@ -55,5 +55,6 @@
     "id_to_remove": "ID para remover:",
     "drop_entry": "Excluir Entrada",
     "drop_confirm": "Tem certeza de que deseja excluir esta entrada? Esta ação não pode ser desfeita.",
-    "admin": "Admin"
+    "admin": "Admin",
+    "back_to_top": "Voltar ao topo"
 }

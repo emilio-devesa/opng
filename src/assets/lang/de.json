@@ -55,5 +55,6 @@
     "id_to_remove": "ID zum Entfernen:",
     "drop_entry": "Eintrag löschen",
     "drop_confirm": "Bist du sicher, dass du diesen Eintrag löschen willst? Diese Aktion kann nicht rückgängig gemacht werden.",
-    "admin": "Admin"
+    "admin": "Admin",
+    "back_to_top": "Nach oben"
 }

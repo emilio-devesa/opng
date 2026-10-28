@@ -55,5 +55,6 @@
     "id_to_remove": "ID a eliminar:",
     "drop_entry": "Eliminar Paste",
     "drop_confirm": "¿Seguro que quieres eliminar esta entrada? Esta acción no se puede deshacer.",
-    "admin": "Administración"
+    "admin": "Administración",
+    "back_to_top": "Volver arriba"
 }

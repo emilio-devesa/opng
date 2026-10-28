@@ -55,5 +55,6 @@
     "id_to_remove": "ID to remove:",
     "drop_entry": "Drop Entry",
     "drop_confirm": "Are you sure you want to drop this entry? This action cannot be undone.",
-    "admin": "Admin"
+    "admin": "Admin",
+    "back_to_top": "Back to top"
 }
