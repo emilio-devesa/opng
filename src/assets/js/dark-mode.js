@@ -33,10 +33,14 @@
             fetch(`${basePath}assets/lang/${lang}.json`)
                 .then(response => response.json())
                 .then(data => {
-                    const label = document.body.classList.contains("dark-mode")
-                        ? data.light_mode
-                        : data.dark_mode;
-                    if (label) themeToggle.textContent = label;
+                    const isDark = document.body.classList.contains("dark-mode");
+                    const label = isDark ? data.light_mode : data.dark_mode;
+                    const emoji = isDark ? "☀️" : "🌙";
+                    if (label) {
+                        themeToggle.textContent = emoji;
+                        themeToggle.setAttribute("aria-label", label);
+                        themeToggle.setAttribute("title", label);
+                    }
                 })
                 .catch(error => console.error("Error loading language file:", error));
         }

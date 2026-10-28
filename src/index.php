@@ -112,7 +112,7 @@ $db->close();
 $lang_attr = 'en';
 $page_title = 'Open Pastebin NG';
 $page_title_i18n = 'title_index';
-$show_search = false;
+$show_search = true;
 ?>
 
 <?php require(__DIR__ . "/includes/layout_header.php"); ?>
@@ -122,24 +122,17 @@ $show_search = false;
     <?php endif; ?>
 
     <div class="list-toolbar">
-        <a href="pastebin.php" data-i18n="create_new" class="create-link">Create New Entry</a>
+        <a href="pastebin.php" class="create-link" aria-label="Create new entry" title="Create new entry" data-i18n-aria-label="create_new" data-i18n-title="create_new">➕</a>
 
-    <nav class="pagination" aria-label="Pagination" data-i18n-aria-label="pagination">
-        <?php if ($has_newer): ?>
-            <a href="?direction=newer&amp;cursor=<?php echo urlencode($newer_cursor); echo $q !== '' ? '&amp;q=' . urlencode($q) : ''; ?>" data-i18n="newer_entries">&laquo; Newer entries</a>
-        <?php endif; ?>
-        <span data-i18n="<?php echo $q === '' ? 'latest_entries' : 'search_results'; ?>"><?php echo $q === '' ? 'Latest entries' : 'Search results'; ?></span>
-        <?php if ($has_older): ?>
-            <a href="?direction=older&amp;cursor=<?php echo urlencode($older_cursor); echo $q !== '' ? '&amp;q=' . urlencode($q) : ''; ?>" data-i18n="older_entries">Older entries &raquo;</a>
-        <?php endif; ?>
-    </nav>
-
-        <form method="get" action="index.php" class="search-form">
-            <label class="visually-hidden" for="search-query" data-i18n="search_by_topic">Search by topic</label>
-            <input id="search-query" type="text" name="q" maxlength="255" aria-describedby="search-help" placeholder="Search by topic..." data-i18n-placeholder="search_placeholder" value="<?php echo htmlspecialchars($q, ENT_QUOTES, 'UTF-8'); ?>">
-            <button type="submit" data-i18n="search">Search</button>
-            <small id="search-help" class="search-help" data-i18n="search_help">All words must match; word beginnings are supported. Short words or stopwords may be ignored.</small>
-        </form>
+        <nav class="pagination" aria-label="Pagination" data-i18n-aria-label="pagination">
+            <?php if ($has_newer): ?>
+                <a href="?direction=newer&amp;cursor=<?php echo urlencode($newer_cursor); echo $q !== '' ? '&amp;q=' . urlencode($q) : ''; ?>" data-i18n="newer_entries">&laquo; Newer entries</a>
+            <?php endif; ?>
+            <span data-i18n="<?php echo $q === '' ? 'latest_entries' : 'search_results'; ?>"><?php echo $q === '' ? 'Latest entries' : 'Search results'; ?></span>
+            <?php if ($has_older): ?>
+                <a href="?direction=older&amp;cursor=<?php echo urlencode($older_cursor); echo $q !== '' ? '&amp;q=' . urlencode($q) : ''; ?>" data-i18n="older_entries">Older entries &raquo;</a>
+            <?php endif; ?>
+        </nav>
     </div>
     <div class="table-scroll">
         <table>
