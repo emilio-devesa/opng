@@ -265,7 +265,7 @@ form.search-form .search-input-wrap input[type="text"] {
 }
 
 form.search-form .search-input-wrap.has-value input[type="text"] {
-    padding-left: 2.75rem;
+    padding-right: 4.5rem;
 }
 
 form.search-form button {
@@ -276,7 +276,8 @@ form.search-form button {
 .search-clear {
     position: absolute;
     top: 50%;
-    left: 0.45rem;
+    right: 2.1rem;
+    left: auto;
     display: inline-flex;
     align-items: center;
     justify-content: center;
