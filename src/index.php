@@ -68,22 +68,27 @@ $db->close();
 
 $lang_attr = 'en';
 $page_title = 'Open Pastebin NG';
+$show_search = true;
 ?>
 
 <?php require(__DIR__ . "/includes/layout_header.php"); ?>
-
-    <h1 data-i18n="welcome">Welcome to Open Pastebin NG!</h1>
 
     <?php if ($flash !== ""): ?>
         <p class="flash-message"><?php echo $flash; ?></p>
     <?php endif; ?>
 
-    <form method="get" action="index.php" class="search-form">
-        <input type="text" name="q" placeholder="Search by topic..." value="<?php echo htmlspecialchars($q, ENT_QUOTES, 'UTF-8'); ?>">
-        <button type="submit" data-i18n="search">Search</button>
-    </form>
-
     <h2 data-i18n="list_all">List of Entries</h2>
+    <a href="pastebin.php" data-i18n="create_new" class="create-link">Create New Entry</a>
+
+    <p class="pagination">
+        <?php if ($page > 1): ?>
+            <a href="?p=<?php echo $page - 1; echo $q !== "" ? "&q=" . urlencode($q) : ""; ?>">&laquo; Prev</a>
+        <?php endif; ?>
+        <span>Page <?php echo $page; ?> / <?php echo $total_pages; ?></span>
+        <?php if ($page < $total_pages): ?>
+            <a href="?p=<?php echo $page + 1; echo $q !== "" ? "&q=" . urlencode($q) : ""; ?>">Next &raquo;</a>
+        <?php endif; ?>
+    </p>
     <table border="1" cellpadding="5">
         <tr>
             <th data-i18n="id">ID</th>
@@ -111,7 +116,7 @@ $page_title = 'Open Pastebin NG';
         <p data-i18n="no_results">No entries match your search.</p>
     <?php endif; ?>
 
-    <p>
+    <p class="pagination">
         <?php if ($page > 1): ?>
             <a href="?p=<?php echo $page - 1; echo $q !== "" ? "&q=" . urlencode($q) : ""; ?>">&laquo; Prev</a>
         <?php endif; ?>
@@ -120,7 +125,5 @@ $page_title = 'Open Pastebin NG';
             <a href="?p=<?php echo $page + 1; echo $q !== "" ? "&q=" . urlencode($q) : ""; ?>">Next &raquo;</a>
         <?php endif; ?>
     </p>
-
-    <a href="pastebin.php" data-i18n="create_new">Create New Entry</a>
 
 <?php require(__DIR__ . "/includes/layout_footer.php"); ?>

@@ -325,6 +325,7 @@ pre {
     border: none;
     border-radius: 10px;
     overflow: auto;
+    max-width: 100%;
     font-family: var(--font-mono);
     font-size: 0.85rem;
     line-height: 1.6;
@@ -405,10 +406,9 @@ button[type="button"]:hover {
 }
 
 .copy-button {
-    position: absolute;
-    top: 5px;
-    right: 5px;
-    z-index: 2;
+    position: static;
+    display: block;
+    margin-top: 0.75rem;
     padding: 0.35rem 0.7rem;
     background: var(--accent);
     color: #ffffff;
@@ -596,6 +596,70 @@ legend {
     color: var(--text);
     font: inherit;
     font-weight: 600;
+}
+
+/* ========================= */
+/* HEADER */
+/* ========================= */
+#SiteHeader {
+    width: 100%;
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 1.5rem 1.25rem 0;
+}
+
+#SiteHeader .header-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+#SiteHeader h1 {
+    margin: 0;
+    font-size: clamp(1.9rem, 4.5vw, 2.6rem);
+}
+
+#SiteHeader .header-tools {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+#SiteHeader .header-nav {
+    margin-top: 1.25rem;
+    display: flex;
+    gap: 0.5rem;
+}
+
+.create-link {
+    display: inline-block;
+    margin: 0 0 1.25rem;
+    padding: 0.55rem 1.1rem;
+    background: var(--accent);
+    color: #ffffff;
+    border-radius: 10px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.create-link:hover {
+    background: var(--accent-strong);
+    color: #ffffff;
+    text-decoration: none;
+}
+
+/* ========================= */
+/* PAGINACION */
+/* ========================= */
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    margin: 0 0 1.5rem;
 }
 
 /* ========================= */

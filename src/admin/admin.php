@@ -17,7 +17,7 @@ $page_title = 'Administration - Open Pastebin NG';
 $base = '../';
 require(__DIR__ . "/../includes/layout_header.php");
 ?>
-    <h1>Admin Panel</h1>
+    <h2>Admin Panel</h2>
 
     <fieldset>
         <legend>Database Actions</legend>

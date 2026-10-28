@@ -59,7 +59,6 @@ $base = '';
 $flash = isset($_GET['msg']) ? htmlspecialchars($_GET['msg'], ENT_QUOTES, 'UTF-8') : "";
 require(__DIR__ . "/includes/layout_header.php");
 ?>
-            <h2><?php echo htmlspecialchars($array['topic']); ?></h2>
             <?php if ($flash !== ""): ?>
                 <p class="flash-message"><?php echo $flash; ?></p>
             <?php endif; ?>
