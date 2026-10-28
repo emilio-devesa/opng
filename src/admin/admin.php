@@ -621,6 +621,9 @@ require(__DIR__ . "/../includes/layout_header.php");
         <legend data-i18n="admin_db_actions">Database Actions</legend>
         <p class="form-help admin-backup-warning" data-i18n="admin_backup_warning">The backup contains password hashes and password-reset tokens. Store it securely. Importing it replaces tables in the selected database.</p>
         <div class="admin-db-controls">
+        <form action="seed_instructions.php" method="get">
+            <button type="submit" data-i18n="admin_seed_button">Load sample data</button>
+        </form>
         <form action="backup.php" method="get">
             <button type="submit" data-i18n="admin_download_backup">Download backup</button>
         </form>

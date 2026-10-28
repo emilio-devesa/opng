@@ -6,6 +6,7 @@
 - Reorganized the admin panel around entry management, user management and database actions; added parameterized search with ID selection, role updates, and guarded account deletion with a choice to anonymize or delete associated pastes.
 - Added an administrator-only SQL backup download using a read-only consistent snapshot and safe value serialization. The UI warns that dumps contain password hashes/reset tokens and that restore replaces tables; complete database deletion remains a manual MAMP operation so the web runtime needs no `DROP` privilege.
 - Added admin metrics for total pastes/users, language distribution, the five most active users plus the remainder, and the total byte size of paste text.
+- Added a first database-action button that opens administrator-only CLI seeder instructions, including its fixture cleanup scope and known development password; the seeder remains inaccessible through HTTP.
 - Added responsive admin controls with role radio buttons, search/action separators and reduced login autofill on the numeric account-ID field; added deletion confirmation, translations in all six locales, SQL serialization regression coverage and documented backup/restore handling.
 
 ### ⚡ Performance and scalability — Phase 3

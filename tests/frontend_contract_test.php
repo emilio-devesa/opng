@@ -75,6 +75,12 @@ $required_keys = [
     'admin_metrics_unknown',
     'admin_metrics_no_data',
     'admin_metrics_failed',
+    'admin_seed_button',
+    'admin_seed_title',
+    'admin_seed_warning',
+    'admin_seed_cli_only',
+    'admin_seed_cleanup_warning',
+    'admin_seed_password_warning',
 ];
 foreach ($required_keys as $key) {
     if (!array_key_exists($key, $catalogs['en'] ?? [])) {
@@ -186,6 +192,24 @@ if (!is_string($admin_page)) {
     ) {
         $failures[] = 'Administration cards are not ordered metrics, entries, users, then database actions';
     }
+    $database_controls_start = strpos($admin_page, 'class="admin-db-controls"');
+    $seed_button_position = strpos($admin_page, 'action="seed_instructions.php"');
+    $backup_button_position = strpos($admin_page, 'action="backup.php"');
+    $empty_button_position = strpos($admin_page, 'action="empty.php"');
+    $delete_database_button_position = strpos($admin_page, 'action="delete_database.php"');
+    if (
+        $database_controls_start === false
+        || $seed_button_position === false
+        || $backup_button_position === false
+        || $empty_button_position === false
+        || $delete_database_button_position === false
+        || $seed_button_position < $database_controls_start
+        || $seed_button_position > $backup_button_position
+        || $seed_button_position > $empty_button_position
+        || $seed_button_position > $delete_database_button_position
+    ) {
+        $failures[] = 'Sample-data instructions are not the first database action';
+    }
     if (str_contains($admin_page, 'data-i18n="return"')) {
         $failures[] = 'Administration page still contains a redundant return-home link';
     }
@@ -227,6 +251,20 @@ if (!is_string($admin_page)) {
     ) {
         $failures[] = 'Entry and user deletion controls are not positioned beside their related fields/options';
     }
+}
+
+$seed_instructions = file_get_contents($root . '/src/admin/seed_instructions.php');
+$seed_script = file_get_contents($root . '/tools/seed.php');
+if (
+    !is_string($seed_instructions)
+    || !str_contains($seed_instructions, 'php tools/seed.php')
+    || !str_contains($seed_instructions, 'admin_seed_cleanup_warning')
+    || !str_contains($seed_instructions, 'admin_seed_password_warning')
+    || preg_match('/\b(?:require|include)(?:_once)?\s*\(?\s*[\'"][^\'"]*tools\/seed\.php/', $seed_instructions) === 1
+    || !is_string($seed_script)
+    || !str_contains($seed_script, "PHP_SAPI !== 'cli'")
+) {
+    $failures[] = 'Sample-data action must explain safe CLI use while keeping the seeder CLI-only';
 }
 
 $metrics_source = file_get_contents($root . '/src/admin/admin.php');

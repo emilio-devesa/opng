@@ -182,7 +182,7 @@ For security reasons, access to **admin features** is restricted to administrato
 
 ## 🧪 Development
 
-- **`tools/seed.php`** — CLI-only seeder for local development. It creates 10 users (8 normal + 2 admins), 60 pastes and 12 replies (72 entries total) so pagination, search and role permissions can be tested.
+- **`tools/seed.php`** — CLI-only seeder for local development. The admin panel's first database action opens safe-use instructions; it does not run the script through HTTP. The seeder creates 10 users (8 normal + 2 admins), 60 pastes and 12 replies (72 entries total) so pagination, search and role permissions can be tested. It deletes prior fixtures with `seed`-prefixed IDs and users in the `@example.test` domain, and generated accounts share the known `Password123!` development password. Review affected records before running it and never use the fixtures/password in production.
 
   ```bash
   php tools/seed.php
