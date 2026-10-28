@@ -73,6 +73,7 @@
     "newer_entries": "« Entradas mais recentes",
     "older_entries": "Entradas mais antigas »",
     "search_help": "Todas as palavras têm de corresponder; são aceites inícios de palavras. Palavras curtas ou vazias podem ser ignoradas.",
+    "search_help_label": "Ajuda da pesquisa",
     "storage_quota_notice": "As contas normais podem armazenar até 100 MiB no total. As contas de administrador estão isentas.",
     "paste_navigation": "Ações do paste",
     "copy_error": "Não foi possível copiar o código. Verifique as permissões da área de transferência e tente novamente.",

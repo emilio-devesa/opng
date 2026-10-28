@@ -79,9 +79,12 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style
         <?php if ($show_search): ?>
         <form method="get" action="index.php" class="search-form header-search">
             <label class="visually-hidden" for="header-search" data-i18n="search_by_topic">Search by topic</label>
-            <input id="header-search" type="text" name="q" maxlength="255" aria-describedby="header-search-help" placeholder="Search by topic..." data-i18n-placeholder="search_placeholder" value="<?php echo htmlspecialchars($q ?? '', ENT_QUOTES, 'UTF-8'); ?>">
+            <div class="search-input-wrap">
+                <input id="header-search" type="text" name="q" maxlength="255" aria-describedby="header-search-help" placeholder="Search by topic..." data-i18n-placeholder="search_placeholder" value="<?php echo htmlspecialchars($q ?? '', ENT_QUOTES, 'UTF-8'); ?>">
+                <button class="search-help-trigger" type="button" aria-label="Search help" title="Search help" aria-describedby="header-search-help" data-i18n-aria-label="search_help_label" data-i18n-title="search_help_label">ⓘ</button>
+                <span id="header-search-help" class="search-help-tooltip" role="tooltip" data-i18n="search_help">All words must match; word beginnings are supported. Short words or stopwords may be ignored.</span>
+            </div>
             <button type="submit" aria-label="Search" title="Search" data-i18n-aria-label="search" data-i18n-title="search">🔎</button>
-            <small id="header-search-help" class="search-help" data-i18n="search_help">All words must match; word beginnings are supported. Short words or stopwords may be ignored.</small>
         </form>
         <?php endif; ?>
     </header>

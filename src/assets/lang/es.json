@@ -73,6 +73,7 @@
     "newer_entries": "« Entradas más recientes",
     "older_entries": "Entradas anteriores »",
     "search_help": "Deben coincidir todas las palabras; se admiten comienzos de palabra. Se pueden ignorar palabras cortas o vacías.",
+    "search_help_label": "Ayuda sobre la búsqueda",
     "storage_quota_notice": "Las cuentas normales pueden almacenar hasta 100 MiB entre todos sus pastes. Las cuentas admin están exentas.",
     "paste_navigation": "Acciones del paste",
     "copy_error": "No se pudo copiar el código. Comprueba los permisos del portapapeles e inténtalo de nuevo.",

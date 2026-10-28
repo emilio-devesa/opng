@@ -73,6 +73,7 @@
     "newer_entries": "« Newer entries",
     "older_entries": "Older entries »",
     "search_help": "All words must match; word beginnings are supported. Short words or stopwords may be ignored.",
+    "search_help_label": "Search help",
     "storage_quota_notice": "Normal accounts can store up to 100 MiB across all pastes. Administrators are exempt.",
     "paste_navigation": "Paste actions",
     "copy_error": "Could not copy the code. Check clipboard permissions and try again.",

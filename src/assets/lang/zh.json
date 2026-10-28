@@ -73,6 +73,7 @@
     "newer_entries": "« 更新的条目",
     "older_entries": "更早的条目 »",
     "search_help": "必须匹配所有词语；支持词语开头匹配。较短的词语或停用词可能会被忽略。",
+    "search_help_label": "搜索帮助",
     "storage_quota_notice": "普通账户的所有 paste 总容量上限为 100 MiB。管理员账户不受限制。",
     "paste_navigation": "Paste 操作",
     "copy_error": "无法复制代码。请检查剪贴板权限后重试。",

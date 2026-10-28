@@ -73,6 +73,7 @@
     "newer_entries": "« Neuere Einträge",
     "older_entries": "Ältere Einträge »",
     "search_help": "Alle Wörter müssen passen; Wortanfänge werden unterstützt. Kurze Wörter oder Stoppwörter werden möglicherweise ignoriert.",
+    "search_help_label": "Suchhilfe",
     "storage_quota_notice": "Normale Konten können insgesamt bis zu 100 MiB speichern. Administratorkonten sind ausgenommen.",
     "paste_navigation": "Paste-Aktionen",
     "copy_error": "Der Code konnte nicht kopiert werden. Prüfe die Zwischenablage-Berechtigungen und versuche es erneut.",

@@ -177,6 +177,4 @@ $show_search = true;
         <?php endif; ?>
     </nav>
 
-    <p class="back-to-top"><a href="#SiteHeader" data-i18n="back_to_top">Back to top</a></p>
-
 <?php require(__DIR__ . "/includes/layout_footer.php"); ?>

@@ -73,6 +73,7 @@
     "newer_entries": "« Entrées plus récentes",
     "older_entries": "Entrées plus anciennes »",
     "search_help": "Tous les mots doivent correspondre ; les débuts de mots sont acceptés. Les mots courts ou vides peuvent être ignorés.",
+    "search_help_label": "Aide à la recherche",
     "storage_quota_notice": "Les comptes standard peuvent stocker jusqu'à 100 Mio au total. Les comptes administrateur sont exemptés.",
     "paste_navigation": "Actions du paste",
     "copy_error": "Impossible de copier le code. Vérifiez les autorisations du presse-papiers et réessayez.",
