@@ -10,6 +10,7 @@ require("includes/paste_validation.php");
 require("includes/paste_permissions.php");
 require("includes/user_quota.php");
 require("includes/http_input.php");
+require("includes/account_role.php");
 
 // ------------------ Validaciones de seguridad ------------------
 if (
@@ -98,8 +99,7 @@ try {
     }
 
     // Comprobar permisos: admin o propietario del paste
-    $user_role  = $_SESSION['role'] ?? 'guest';
-    $user_role = is_string($user_role) ? $user_role : 'guest';
+    $user_role = refresh_account_role($db) ?? 'guest';
     $owner_id   = $entry['user_id'];
     $current_id = $_SESSION['user_id'];
 

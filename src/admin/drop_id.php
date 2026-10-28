@@ -5,6 +5,7 @@ session_start_secured();
 require_once('../includes/csrf.php');
 require_once('../database.php');
 require_once('../includes/http_input.php');
+require_once('../includes/account_role.php');
 
 // Verificar si el usuario está autenticado
 if (!isset($_SESSION['user_id'])) {
@@ -37,12 +38,6 @@ if ($user_id === null) {
     header("Location: ../error.php?msg=" . urlencode("Unauthorized access"));
     exit;
 }
-$user_role = $_SESSION['role'] ?? 'user'; // "admin" o "user"
-if (!is_string($user_role) || !in_array($user_role, ['admin', 'user'], true)) {
-    header("Location: ../error.php?msg=" . urlencode("Unauthorized access"));
-    exit;
-}
-
 // Conectar a la base de datos
 $db = database_connect();
 if (!$db) {
@@ -50,7 +45,19 @@ if (!$db) {
     exit;
 }
 
+$transaction_started = false;
 try {
+    $db->begin_transaction();
+    $transaction_started = true;
+    $user_role = refresh_account_role($db);
+    if ($user_role === null) {
+        $db->rollback();
+        $transaction_started = false;
+        $db->close();
+        header("Location: ../error.php?msg=" . urlencode("Unauthorized access"));
+        exit;
+    }
+
     // Si el usuario es administrador, puede eliminar cualquier paste.
     if ($user_role === "admin") {
         $stmt = $db->prepare("DELETE FROM entries WHERE id = ?");
@@ -65,10 +72,17 @@ try {
     }
     $deleted = $stmt->affected_rows === 1;
     $stmt->close();
+    if (!$db->commit()) {
+        throw new RuntimeException('Entry deletion transaction could not be committed.');
+    }
+    $transaction_started = false;
 } catch (mysqli_sql_exception | RuntimeException $exception) {
     error_log("OPNG drop_id.php: " . $exception->getMessage());
     if (isset($stmt) && $stmt instanceof mysqli_stmt) {
         $stmt->close();
+    }
+    if ($transaction_started) {
+        $db->rollback();
     }
     $db->close();
     header("Location: ../error.php?msg=" . urlencode("Database operation failed."));

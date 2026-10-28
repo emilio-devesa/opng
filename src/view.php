@@ -9,6 +9,7 @@ require("includes/csrf.php");
 require("includes/rules.php");
 require("includes/paste_permissions.php");
 require("includes/http_input.php");
+require("includes/account_role.php");
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     http_response_code(405);
@@ -51,6 +52,7 @@ try {
     $array = $result->fetch_assoc();
     $result->free();
     $stmt->close();
+    $role = refresh_account_role($db) ?? 'guest';
     $db->close();
 } catch (mysqli_sql_exception | RuntimeException $exception) {
     error_log('OPNG view.php: ' . $exception->getMessage());

@@ -2,6 +2,12 @@
 ============================
 
 ## Version 0.8 (2026)
+### 🛠️ Administration and database recovery
+- Reorganized the admin panel around entry management, user management and database actions; added parameterized search with ID selection, role updates, and guarded account deletion with a choice to anonymize or delete associated pastes.
+- Added an administrator-only SQL backup download using a read-only consistent snapshot and safe value serialization. The UI warns that dumps contain password hashes/reset tokens and that restore replaces tables; complete database deletion remains a manual MAMP operation so the web runtime needs no `DROP` privilege.
+- Added admin metrics for total pastes/users, language distribution, the five most active users plus the remainder, and the total byte size of paste text.
+- Added responsive admin controls with role radio buttons, search/action separators and reduced login autofill on the numeric account-ID field; added deletion confirmation, translations in all six locales, SQL serialization regression coverage and documented backup/restore handling.
+
 ### ⚡ Performance and scalability — Phase 3
 - Replaced wildcard topic scans with a bounded, sanitized FULLTEXT query; installer now adds topic, cursor-ordering and owner indexes.
 - Replaced numbered OFFSET pagination and per-request COUNT(*) with stable date/ID keyset cursors and a 51-row window.

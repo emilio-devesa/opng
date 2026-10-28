@@ -152,7 +152,9 @@ From the homepage you can:
 
 - 📝 **Create a new paste**: Enter your text or code, select a language and submit.
 - 🔍 **View, edit and reply to a paste**: Click on the topic you want to view. The view page uses tabs — **View** (code), **Edit** (author or admin only) and **Reply** (creates a new paste). Includes syntax highlighting, line numbers and one-click copy.
-- 🛠️ **Manage pastes (Admin panel)**: Log in to `admin/admin.php` to drop entries or empty all pastes (user accounts are preserved).
+- 🛠️ **Manage the application (Admin panel)**: Log in to `admin/admin.php` to search entries and users, remove entries, change user roles, delete accounts, and review paste/user totals, language distribution, the five most active users, and stored paste-text bytes. When deleting an account, choose whether to preserve its pastes as anonymous or delete them too.
+- 💾 **Download a database backup**: Administrators can download a SQL backup from the database actions panel. It contains account password hashes and password-reset tokens, so store it securely. Importing the backup drops and recreates its listed tables; test restoration only against a disposable database.
+- ⚠️ **Delete the database**: This remains a manual operation in MAMP's database administration tool. The web runtime account intentionally has no `DROP` permission, and the admin panel only provides the guarded instructions.
 
 For security reasons, access to **admin features** is restricted to administrators.
 
@@ -171,9 +173,10 @@ For security reasons, access to **admin features** is restricted to administrato
 - Cannot access the admin panel
 
 🛠️ Administrator
-- Has full control over the system
+- Can manage entries, user accounts and roles through the admin panel
 - Can edit or delete any paste (even from other users)
 - Can empty all pastes via the admin panel (user accounts are preserved)
+- Can download a SQL backup; deleting the whole database must be done manually in MAMP
 
 ---
 
@@ -212,6 +215,7 @@ For security reasons, access to **admin features** is restricted to administrato
   php tests/search_pagination_test.php
   php tests/session_security_test.php
   php tests/permissions_test.php
+  php tests/sql_backup_test.php
   php tests/frontend_contract_test.php
   ```
 
