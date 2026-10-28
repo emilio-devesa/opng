@@ -98,33 +98,38 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         exit;
     }
 }
+    $lang_attr = 'en';
+    $page_title = 'Sign up';
+    $page_title_i18n = 'register_title';
+    $base = '../';
+    require(__DIR__ . '/../includes/layout_header.php');
 ?>
-
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title data-i18n="register_title">Sign up</title>
-    <link rel="stylesheet" href="../main.css">
-</head>
-<body>
-    <h2 data-i18n="register_title">Sign up</h2>
-    <form method="POST">
-        <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
-        <p><label data-i18n="username">Username:</label>
-        <input type="text" name="username" maxlength="50" required><br>
-        <label data-i18n="email">Email:</label>
-        <input type="email" name="email" maxlength="100" required><br>
-        <label data-i18n="password">Password:</label>
-        <input type="password" name="password" minlength="12" maxlength="72" required></p>
-        <!-- Imagen CAPTCHA -->
-        <p><label data-i18n="captcha_label">Please enter the captcha text:</label>
-        <input type="text" name="captcha_answer" required><br>
-        <img src="captcha.php" alt="CAPTCHA" class="captcha-image"><br>
-        <button type="button" class="refresh-captcha" data-i18n="refresh_captcha">🔄 Refresh</button></p>
-        <br>
-        <p><button type="submit" data-i18n="register">Sign up</button></p>
-    </form>
-    <script src="../assets/js/refresh-captcha.js"></script>
-</body>
-</html>
+    <section class="auth-page">
+        <h2 data-i18n="register_title">Sign up</h2>
+        <form method="post" class="auth-form">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
+            <p>
+                <label for="username" data-i18n="username">Username:</label>
+                <input id="username" type="text" name="username" maxlength="50" autocomplete="username" required>
+            </p>
+            <p>
+                <label for="email" data-i18n="email">Email:</label>
+                <input id="email" type="email" name="email" maxlength="100" autocomplete="email" required>
+            </p>
+            <p>
+                <label for="password" data-i18n="password">Password:</label>
+                <input id="password" type="password" name="password" minlength="12" maxlength="72" autocomplete="new-password" aria-describedby="password-policy" required>
+                <span id="password-policy" class="field-help" data-i18n="password_policy">Use a password between 12 and 72 bytes.</span>
+            </p>
+            <p>
+                <label for="captcha_answer" data-i18n="captcha_label">Please enter the captcha text:</label>
+                <input id="captcha_answer" type="text" name="captcha_answer" autocomplete="off" required>
+                <img src="captcha.php" alt="CAPTCHA" class="captcha-image" data-i18n-alt="captcha_alt">
+                <button type="button" class="refresh-captcha" data-i18n="refresh_captcha">🔄 Refresh</button>
+            </p>
+            <button type="submit" data-i18n="register">Sign up</button>
+        </form>
+        <p><a href="login.php" data-i18n="have_account">Already have an account? Sign in</a></p>
+    </section>
+    <script src="../assets/js/refresh-captcha.js?v=<?php echo filemtime(__DIR__ . '/../assets/js/refresh-captcha.js'); ?>"></script>
+<?php require(__DIR__ . '/../includes/layout_footer.php'); ?>

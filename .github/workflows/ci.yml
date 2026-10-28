@@ -38,6 +38,9 @@ jobs:
       - name: Session and CSRF regression test
         run: php tests/session_security_test.php
 
+      - name: Frontend contract and translation regression test
+        run: php tests/frontend_contract_test.php
+
   phpstan:
     name: PHPStan (PHP ${{ matrix.php }})
     runs-on: ubuntu-latest

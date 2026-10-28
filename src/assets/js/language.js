@@ -8,21 +8,17 @@
 
     // Prefijo de rutas (capturado en tiempo de carga; en subdirectorios como admin/ o auth/)
     const basePath = (document.currentScript && document.currentScript.dataset.base) || "";
+    const validLanguages = ["en", "es", "de", "fr", "pt", "zh"];
+    let savedLang = localStorage.getItem("lang") || "en";
+    if (!validLanguages.includes(savedLang)) savedLang = "en";
+    document.documentElement.lang = savedLang;
 
     document.addEventListener("DOMContentLoaded", function () {
         const languageSelector = document.getElementById("language-selector");
         if (!languageSelector) return; // Evitar errores si el selector no está presente
 
-        // Idiomas disponibles
-        const validLanguages = ["en", "es", "de", "fr", "pt", "zh"];
-
-        // Obtener idioma guardado en localStorage, si no existe, usar "en"
-        let savedLang = localStorage.getItem("lang") || "en";
-        if (!validLanguages.includes(savedLang)) savedLang = "en";
-
         // Aplicar el idioma guardado al selector y al documento
         languageSelector.value = savedLang;
-        document.documentElement.lang = savedLang;
 
         // Cargar traducciones y aplicarlas
         function loadTranslations(lang) {
@@ -40,6 +36,14 @@
                             el.textContent = data[key];
                         }
                     });
+                    ["aria-label", "placeholder", "title", "alt"].forEach(attribute => {
+                        document.querySelectorAll(`[data-i18n-${attribute}]`).forEach(el => {
+                            const key = el.getAttribute(`data-i18n-${attribute}`);
+                            if (Object.prototype.hasOwnProperty.call(data, key)) {
+                                el.setAttribute(attribute, data[key]);
+                            }
+                        });
+                    });
                     // Disparar evento de cambio de idioma
                     document.dispatchEvent(new Event("languageChanged"));
                 })
@@ -56,6 +60,7 @@
 
             // Guardar en localStorage
             localStorage.setItem("lang", selectedLang);
+            savedLang = selectedLang;
 
             // Cambiar atributo lang de HTML
             document.documentElement.lang = selectedLang;

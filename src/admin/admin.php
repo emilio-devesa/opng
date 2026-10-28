@@ -12,8 +12,9 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'admin') {
 require("../includes/csrf.php");
 $csrf_token = csrf_token();
 
-$lang_attr = 'es';
+$lang_attr = 'en';
 $page_title = 'Administration - Open Pastebin NG';
+$page_title_i18n = 'admin_title';
 $base = '../';
 require(__DIR__ . "/../includes/layout_header.php");
 ?>
@@ -22,13 +23,13 @@ require(__DIR__ . "/../includes/layout_header.php");
     <fieldset>
         <legend data-i18n="admin_db_actions">Database Actions</legend>
         <form action="empty.php" method="get">
-            <button type="button" data-i18n="empty_pastes" title="Empty" onclick="window.location.href='empty.php';">Empty Pastes</button>
+            <button type="submit" data-i18n="empty_pastes" title="Empty">Empty Pastes</button>
         </form>
     </fieldset>
 
     <fieldset>
         <legend data-i18n="admin_manage_entries">Manage Entries</legend>
-        <form method="post" action="drop_id.php" onsubmit="return confirm(document.getElementById('drop_confirm').textContent);">
+        <form method="post" action="drop_id.php" data-confirm-target="drop_confirm">
             <span id="drop_confirm" data-i18n="drop_confirm" hidden>Are you sure you want to drop this entry? This action cannot be undone.</span>
             <label for="input_ID" data-i18n="id_to_remove">ID to remove:</label>
             <input type="text" id="input_ID" name="input_ID" required>

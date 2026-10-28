@@ -34,11 +34,7 @@ if ($_SESSION["login_attempts"] >= 5 && (time() - $_SESSION["last_attempt_time"]
     exit;
 }
 
-// Generar un token CSRF si no existe
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
-$csrf_token = $_SESSION['csrf_token'];
+$csrf_token = csrf_token();
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Verificar si el token CSRF existe y es válido
@@ -134,27 +130,34 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     header("Location: ../error.php?msg=" . urlencode($error_message));
     exit;
 }
+    $notice = isset($_GET['msg']) && is_string($_GET['msg']) ? $_GET['msg'] : '';
+    $notice_key = $notice === 'Registration successful. Please sign in.' ? 'registration_success' : '';
+    $lang_attr = 'en';
+    $page_title = 'Sign in';
+    $page_title_i18n = 'login_title';
+    $base = '../';
+    require(__DIR__ . '/../includes/layout_header.php');
 ?>
-
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title data-i18n="login_title">Sign in</title>
-    <link rel="stylesheet" href="../main.css">
-</head>
-<body>
-    <h2 data-i18n="login_title">Sign in</h2>
-
-    <form method="POST">
-        <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
-        <label data-i18n="email">Email:</label>
-        <input type="email" name="email" value="<?php echo htmlspecialchars($_POST['email'] ?? '', ENT_QUOTES, 'UTF-8'); ?>" required><br>
-        <label data-i18n="password">Password:</label>
-        <input type="password" name="password" required><br>
-        <button type="submit" data-i18n="login">Sign in</button>
-    </form>
-
-    <a href="register.php" data-i18n="no_account">No account? Register here</a>    
-</body>
-</html>
+    <section class="auth-page">
+        <h2 data-i18n="login_title">Sign in</h2>
+        <?php if ($notice !== ''): ?>
+            <p class="flash-message" role="status"<?php echo $notice_key !== '' ? ' data-i18n="' . htmlspecialchars($notice_key, ENT_QUOTES, 'UTF-8') . '"' : ''; ?>>
+                <?php echo htmlspecialchars($notice, ENT_QUOTES, 'UTF-8'); ?>
+            </p>
+        <?php endif; ?>
+        <form method="post" class="auth-form">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
+            <p>
+                <label for="email" data-i18n="email">Email:</label>
+                <input id="email" type="email" name="email" autocomplete="username" value="<?php echo htmlspecialchars($_POST['email'] ?? '', ENT_QUOTES, 'UTF-8'); ?>" required>
+            </p>
+            <p>
+                <label for="password" data-i18n="password">Password:</label>
+                <input id="password" type="password" name="password" autocomplete="current-password" required>
+            </p>
+            <button type="submit" data-i18n="login">Sign in</button>
+        </form>
+        <p><a href="request_reset.php" data-i18n="forgot_password">Forgot your password?</a></p>
+        <p><a href="register.php" data-i18n="no_account">No account? Register here</a></p>
+    </section>
+<?php require(__DIR__ . '/../includes/layout_footer.php'); ?>

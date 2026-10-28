@@ -5,8 +5,19 @@
 
 function load_rules(): array {
     $dom = new DOMDocument();
-    if (!$dom->load(__DIR__ . "/../rules.xml")) {
-        die("<p style='color: red;'>Error: No se pudo cargar rules.xml.</p>");
+    $rules_path = __DIR__ . "/../rules.xml";
+    $previous_error_mode = libxml_use_internal_errors(true);
+    try {
+        $loaded = $dom->load($rules_path);
+        $xml_errors = libxml_get_errors();
+    } finally {
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous_error_mode);
+    }
+    if (!$loaded) {
+        $detail = isset($xml_errors[0]) ? trim($xml_errors[0]->message) : 'unknown XML error';
+        error_log("OPNG rules.php: failed to load rules.xml: " . $detail);
+        throw new RuntimeException("Language configuration is unavailable.");
     }
 
     $rules = [];
@@ -15,6 +26,10 @@ function load_rules(): array {
         if ($name !== '') {
             $rules[$name] = true;
         }
+    }
+    if ($rules === []) {
+        error_log("OPNG rules.php: rules.xml contains no valid language rules");
+        throw new RuntimeException("Language configuration is unavailable.");
     }
     return $rules;
 }

@@ -39,7 +39,12 @@ if ($validation_error !== null || $language === '') {
     exit;
 }
 
-$rules = load_rules();
+try {
+    $rules = load_rules();
+} catch (RuntimeException $exception) {
+    header("Location: error.php?msg=" . urlencode("Language configuration is unavailable."));
+    exit;
+}
 if (!isset($rules[$language])) {
     header("Location: error.php?msg=" . urlencode("Error: The selected language ('" . $language . "') is not valid."));
     exit;
@@ -85,6 +90,6 @@ try {
     exit;
 }
 
-header("Location: index.php");
+header("Location: index.php?msg=" . urlencode("Paste created successfully"));
 exit;
 ?>

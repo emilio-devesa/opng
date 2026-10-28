@@ -94,36 +94,70 @@ if (!$simulation_enabled) {
         }
     }
 }
+
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+    $_SESSION['reset_request_flash'] = [
+        'message' => $message,
+        'reset_link' => $reset_link,
+    ];
+    header("Location: request_reset.php", true, 303);
+    exit;
+}
+
+if (isset($_SESSION['reset_request_flash'])) {
+    $request_flash = $_SESSION['reset_request_flash'];
+    unset($_SESSION['reset_request_flash']);
+    if ($simulation_enabled && is_array($request_flash)) {
+        if (isset($request_flash['message']) && is_string($request_flash['message'])) {
+            $message = $request_flash['message'];
+        }
+        if (isset($request_flash['reset_link']) && is_string($request_flash['reset_link'])) {
+            $reset_link = $request_flash['reset_link'];
+        }
+    }
+}
+
+$message_key = match ($message) {
+    "Password resets are unavailable for this installation. Please contact the administrator." => 'reset_unavailable',
+    "The request could not be validated. Please reload the page and try again." => 'request_invalid',
+    "Please enter a valid email address and CAPTCHA." => 'reset_email_captcha_required',
+    "Please enter a valid email address." => 'email_invalid',
+    "Incorrect CAPTCHA. Please try again." => 'captcha_incorrect',
+    "If an account exists for this address, a reset link has been generated." => 'reset_requested',
+    "The password reset service is temporarily unavailable." => 'reset_service_unavailable',
+    default => '',
+};
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title data-i18n="request_reset_title">Request Password Reset</title>
-    <link rel="stylesheet" href="../main.css">
-</head>
-<body>
+<?php
+$lang_attr = 'en';
+$page_title = 'Request Password Reset';
+$page_title_i18n = 'request_reset_title';
+$base = '../';
+require(__DIR__ . '/../includes/layout_header.php');
+?>
+    <section class="auth-page">
     <h2 data-i18n="request_reset_title">Request Password Reset</h2>
 
     <?php if ($simulation_enabled): ?>
-        <p><strong>Development-only email simulation.</strong> The reset link is shown only on localhost and only while OPNG_DEV_RESET=1.</p>
+        <p data-i18n="development_reset_notice">Development-only email simulation. The reset link is shown only on localhost and only while OPNG_DEV_RESET=1.</p>
     <?php endif; ?>
 
     <?php if ($message !== ""): ?>
-        <p role="status"><?php echo htmlspecialchars($message, ENT_QUOTES, 'UTF-8'); ?></p>
+        <p role="status"<?php echo $message_key !== '' ? ' data-i18n="' . htmlspecialchars($message_key, ENT_QUOTES, 'UTF-8') . '"' : ''; ?>>
+            <?php echo htmlspecialchars($message, ENT_QUOTES, 'UTF-8'); ?>
+        </p>
     <?php endif; ?>
 
     <?php if ($reset_link !== null): ?>
-        <section aria-label="Simulated password reset email">
-            <h3>Simulated email</h3>
-            <p>A password reset was requested for this account. The link expires in 10 minutes and can be used once.</p>
-            <p><a href="<?php echo htmlspecialchars($reset_link, ENT_QUOTES, 'UTF-8'); ?>">Open local reset link</a></p>
+        <section aria-labelledby="simulated-email-title">
+            <h3 id="simulated-email-title" data-i18n="simulated_email">Simulated email</h3>
+            <p data-i18n="reset_link_details">A password reset was requested for this account. The link expires in 10 minutes and can be used once.</p>
+            <p><a href="<?php echo htmlspecialchars($reset_link, ENT_QUOTES, 'UTF-8'); ?>" data-i18n="open_reset_link">Open local reset link</a></p>
         </section>
     <?php endif; ?>
 
     <?php if ($simulation_enabled): ?>
-        <form method="POST" id="reset-form">
+        <form method="post" id="reset-form" class="auth-form">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
             <p>
                 <label for="email" data-i18n="email">Email:</label>
@@ -132,12 +166,13 @@ if (!$simulation_enabled) {
             <p>
                 <label for="captcha_answer" data-i18n="captcha_label">Please enter the captcha text:</label>
                 <input id="captcha_answer" type="text" name="captcha_answer" required>
-                <img src="captcha.php" alt="CAPTCHA" class="captcha-image">
+                <img src="captcha.php" alt="CAPTCHA" class="captcha-image" data-i18n-alt="captcha_alt">
                 <button type="button" class="refresh-captcha" data-i18n="refresh_captcha">🔄 Refresh</button>
             </p>
             <button type="submit" data-i18n="send_reset_link">Send Reset Link</button>
         </form>
-        <script src="../assets/js/refresh-captcha.js"></script>
+        <script src="../assets/js/refresh-captcha.js?v=<?php echo filemtime(__DIR__ . '/../assets/js/refresh-captcha.js'); ?>"></script>
     <?php endif; ?>
-</body>
-</html>
+    <p><a href="login.php" data-i18n="return_to_sign_in">Return to sign in</a></p>
+    </section>
+<?php require(__DIR__ . '/../includes/layout_footer.php'); ?>

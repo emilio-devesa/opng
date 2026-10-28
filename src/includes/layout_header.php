@@ -9,21 +9,32 @@ if (!isset($base)) { $base = ''; }
 $page_title = $page_title ?? 'Open Pastebin NG';
 $logged_in = isset($_SESSION['user_id']);
 $show_search = isset($show_search) && $show_search;
+$page_title_i18n_attribute = '';
+if (isset($page_title_i18n) && is_string($page_title_i18n)) {
+    $page_title_i18n_attribute = ' data-i18n="' . htmlspecialchars($page_title_i18n, ENT_QUOTES, 'UTF-8') . '"';
+}
+require_once(__DIR__ . '/csrf.php');
+$logout_csrf_token = $logged_in ? csrf_token() : '';
+header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'");
 ?>
 <!DOCTYPE html>
 <html lang="<?php echo htmlspecialchars($lang_attr ?? 'en', ENT_QUOTES, 'UTF-8'); ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo htmlspecialchars($page_title, ENT_QUOTES, 'UTF-8'); ?></title>
-    <link rel="stylesheet" href="<?php echo $base; ?>main.css">
+    <?php if (!empty($no_referrer)): ?>
+    <meta name="referrer" content="no-referrer">
+    <?php endif; ?>
+    <title<?php echo $page_title_i18n_attribute; ?>><?php echo htmlspecialchars($page_title, ENT_QUOTES, 'UTF-8'); ?></title>
+    <link rel="stylesheet" href="<?php echo $base; ?>main.css?v=<?php echo filemtime(__DIR__ . '/../main.css'); ?>">
 </head>
 <body>
     <header id="SiteHeader">
         <div class="header-top">
-            <h1><?php echo htmlspecialchars($page_title, ENT_QUOTES, 'UTF-8'); ?></h1>
+            <h1<?php echo $page_title_i18n_attribute; ?>><?php echo htmlspecialchars($page_title, ENT_QUOTES, 'UTF-8'); ?></h1>
             <div class="header-tools">
-                <button id="theme-toggle" data-i18n="dark_mode">Dark Mode</button>
+                <button id="theme-toggle" type="button" data-i18n="dark_mode">Dark Mode</button>
+                <label class="visually-hidden" for="language-selector" data-i18n="language_selector_label">Select language</label>
                 <select id="language-selector">
                     <option value="en">🇬🇧 English</option>
                     <option value="es">🇪🇸 Español</option>
@@ -36,26 +47,34 @@ $show_search = isset($show_search) && $show_search;
         </div>
         <?php if ($show_search): ?>
         <form method="get" action="index.php" class="search-form">
-            <input type="text" name="q" placeholder="Search by topic..." value="">
+            <label class="visually-hidden" for="header-search" data-i18n="search_by_topic">Search by topic</label>
+            <input id="header-search" type="text" name="q" placeholder="Search by topic..." data-i18n-placeholder="search_placeholder" value="">
             <button type="submit" data-i18n="search">Search</button>
         </form>
         <?php endif; ?>
         <?php if ($logged_in && ($_SESSION['role'] ?? '') === 'admin'): ?>
-        <nav class="header-nav">
+        <nav class="header-nav" aria-label="Account navigation" data-i18n-aria-label="account_navigation">
             <a data-i18n="admin" href="<?php echo $base; ?>admin/admin.php">Admin</a>
-            <a data-i18n="logout" href="<?php echo $base; ?>auth/logout.php">Logout</a>
+            <form method="post" action="<?php echo $base; ?>auth/logout.php" class="logout-form">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($logout_csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
+                <button type="submit" data-i18n="logout">Logout</button>
+            </form>
         </nav>
         <?php elseif ($logged_in): ?>
-        <nav class="header-nav">
-            <a data-i18n="logout" href="<?php echo $base; ?>auth/logout.php">Logout</a>
+        <nav class="header-nav" aria-label="Account navigation" data-i18n-aria-label="account_navigation">
+            <form method="post" action="<?php echo $base; ?>auth/logout.php" class="logout-form">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($logout_csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
+                <button type="submit" data-i18n="logout">Logout</button>
+            </form>
         </nav>
         <?php else: ?>
-        <nav class="header-nav">
+        <nav class="header-nav" aria-label="Account navigation" data-i18n-aria-label="account_navigation">
             <a data-i18n="login" href="<?php echo $base; ?>auth/login.php">Login</a>
             <a data-i18n="register" href="<?php echo $base; ?>auth/register.php">Register</a>
         </nav>
         <?php endif; ?>
     </header>
-    <script src="<?php echo $base; ?>assets/js/dark-mode.js" data-base="<?php echo $base; ?>"></script>
-    <script src="<?php echo $base; ?>assets/js/language.js" data-base="<?php echo $base; ?>"></script>
+    <script src="<?php echo $base; ?>assets/js/dark-mode.js?v=<?php echo filemtime(__DIR__ . '/../assets/js/dark-mode.js'); ?>" data-base="<?php echo $base; ?>"></script>
+    <script src="<?php echo $base; ?>assets/js/language.js?v=<?php echo filemtime(__DIR__ . '/../assets/js/language.js'); ?>" data-base="<?php echo $base; ?>"></script>
+    <script src="<?php echo $base; ?>assets/js/confirm.js?v=<?php echo filemtime(__DIR__ . '/../assets/js/confirm.js'); ?>"></script>
     <div id="Content">

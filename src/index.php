@@ -70,77 +70,92 @@ $stmt->execute();
 $result = $stmt->get_result();
 
 // Mensajes de éxito/información que llegan vía ?msg= (p. ej. tras vaciar/borrar)
-$flash = isset($_GET['msg']) && is_string($_GET['msg'])
-    ? htmlspecialchars($_GET['msg'], ENT_QUOTES, 'UTF-8')
+$flash_message = isset($_GET['msg']) && is_string($_GET['msg']) ? $_GET['msg'] : '';
+$flash = $flash_message !== ''
+    ? htmlspecialchars($flash_message, ENT_QUOTES, 'UTF-8')
     : "";
+$flash_key = match ($flash_message) {
+    'Paste created successfully' => 'paste_created',
+    'Paste deleted successfully' => 'paste_deleted',
+    'All pastes have been deleted' => 'all_pastes_deleted',
+    default => '',
+};
 
 $db->close();
 
 $lang_attr = 'en';
 $page_title = 'Open Pastebin NG';
+$page_title_i18n = 'title_index';
 $show_search = false;
 ?>
 
 <?php require(__DIR__ . "/includes/layout_header.php"); ?>
 
     <?php if ($flash !== ""): ?>
-        <p class="flash-message"><?php echo $flash; ?></p>
+        <p class="flash-message" role="status"<?php echo $flash_key !== '' ? ' data-i18n="' . htmlspecialchars($flash_key, ENT_QUOTES, 'UTF-8') . '"' : ''; ?>><?php echo $flash; ?></p>
     <?php endif; ?>
 
     <div class="list-toolbar">
         <a href="pastebin.php" data-i18n="create_new" class="create-link">Create New Entry</a>
 
-    <p class="pagination">
+    <nav class="pagination" aria-label="Pagination" data-i18n-aria-label="pagination">
         <?php if ($page > 1): ?>
-            <a href="?p=<?php echo $page - 1; echo $q !== "" ? "&q=" . urlencode($q) : ""; ?>">&laquo; Prev</a>
+            <a href="?p=<?php echo $page - 1; echo $q !== "" ? "&q=" . urlencode($q) : ""; ?>" data-i18n="previous">&laquo; Previous</a>
         <?php endif; ?>
-        <span>Page <?php echo $page; ?> / <?php echo $total_pages; ?></span>
+        <span aria-current="page"><span data-i18n="page">Page</span> <?php echo $page; ?> / <?php echo $total_pages; ?></span>
         <?php if ($page < $total_pages): ?>
-            <a href="?p=<?php echo $page + 1; echo $q !== "" ? "&q=" . urlencode($q) : ""; ?>">Next &raquo;</a>
+            <a href="?p=<?php echo $page + 1; echo $q !== "" ? "&q=" . urlencode($q) : ""; ?>" data-i18n="next">Next &raquo;</a>
         <?php endif; ?>
-    </p>
+    </nav>
 
         <form method="get" action="index.php" class="search-form">
-            <input type="text" name="q" placeholder="Search by topic..." value="<?php echo htmlspecialchars($q, ENT_QUOTES, 'UTF-8'); ?>">
+            <label class="visually-hidden" for="search-query" data-i18n="search_by_topic">Search by topic</label>
+            <input id="search-query" type="text" name="q" placeholder="Search by topic..." data-i18n-placeholder="search_placeholder" value="<?php echo htmlspecialchars($q, ENT_QUOTES, 'UTF-8'); ?>">
             <button type="submit" data-i18n="search">Search</button>
         </form>
     </div>
-    <table border="1" cellpadding="5">
-        <tr>
-            <th data-i18n="id">ID</th>
-            <th data-i18n="topic">Topic</th>
-            <th data-i18n="author">Author</th>
-            <th data-i18n="language">Language</th>
-            <th data-i18n="date">Date</th>
-        </tr>
-        <?php while ($row = $result->fetch_assoc()): ?>
-        <tr>
-            <td><?php echo htmlspecialchars($row['id']); ?></td>
-            <td>
-                <a href="view.php?id=<?php echo urlencode($row['id']); ?>">
-                    <?php echo htmlspecialchars($row['topic']); ?>
-                </a>
-            </td>
-            <td><?php echo htmlspecialchars($row['username'] ?? "Guest"); ?></td>
-            <td><?php echo htmlspecialchars($row['language']); ?></td>
-            <td><?php echo htmlspecialchars($row['date']); ?></td>
-        </tr>
-        <?php endwhile; ?>
-    </table>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th scope="col" data-i18n="id">ID</th>
+                    <th scope="col" data-i18n="topic">Topic</th>
+                    <th scope="col" data-i18n="author">Author</th>
+                    <th scope="col" data-i18n="language">Language</th>
+                    <th scope="col" data-i18n="date">Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php while ($row = $result->fetch_assoc()): ?>
+                <tr>
+                    <td><?php echo htmlspecialchars($row['id'], ENT_QUOTES, 'UTF-8'); ?></td>
+                    <td>
+                        <a href="view.php?id=<?php echo urlencode($row['id']); ?>">
+                            <?php echo htmlspecialchars($row['topic'], ENT_QUOTES, 'UTF-8'); ?>
+                        </a>
+                    </td>
+                    <td><?php echo htmlspecialchars($row['username'] ?? "Guest", ENT_QUOTES, 'UTF-8'); ?></td>
+                    <td><?php echo htmlspecialchars($row['language'], ENT_QUOTES, 'UTF-8'); ?></td>
+                    <td><?php echo htmlspecialchars($row['date'], ENT_QUOTES, 'UTF-8'); ?></td>
+                </tr>
+                <?php endwhile; ?>
+            </tbody>
+        </table>
+    </div>
 
     <?php if ($total === 0 && $q !== ""): ?>
         <p data-i18n="no_results">No entries match your search.</p>
     <?php endif; ?>
 
-    <p class="pagination">
+    <nav class="pagination" aria-label="Pagination" data-i18n-aria-label="pagination">
         <?php if ($page > 1): ?>
-            <a href="?p=<?php echo $page - 1; echo $q !== "" ? "&q=" . urlencode($q) : ""; ?>">&laquo; Prev</a>
+            <a href="?p=<?php echo $page - 1; echo $q !== "" ? "&q=" . urlencode($q) : ""; ?>" data-i18n="previous">&laquo; Previous</a>
         <?php endif; ?>
-        <span>Page <?php echo $page; ?> / <?php echo $total_pages; ?></span>
+        <span aria-current="page"><span data-i18n="page">Page</span> <?php echo $page; ?> / <?php echo $total_pages; ?></span>
         <?php if ($page < $total_pages): ?>
-            <a href="?p=<?php echo $page + 1; echo $q !== "" ? "&q=" . urlencode($q) : ""; ?>">Next &raquo;</a>
+            <a href="?p=<?php echo $page + 1; echo $q !== "" ? "&q=" . urlencode($q) : ""; ?>" data-i18n="next">Next &raquo;</a>
         <?php endif; ?>
-    </p>
+    </nav>
 
     <p class="back-to-top"><a href="#SiteHeader" data-i18n="back_to_top">Back to top</a></p>
 

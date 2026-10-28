@@ -1,6 +1,6 @@
 # Open Pastebin NG
 
-**Open Pastebin NG** is an easy-to-use utility for sharing text and code through the web. It supports plain text as well as syntax highlighting for **PHP, Ruby, Bash, Python, Java/C/C++ and more**. See the feature list below for more details.
+**Open Pastebin NG** is an easy-to-use utility for sharing text and code through the web. It supports plain text as well as syntax highlighting for **PHP, Ruby, Bash, Python, Pascal, Java, C and C++**. See the feature list below for more details.
 
 This project is based on **[Open Pastebin](http://sourceforge.net/projects/openpastebin/)**. All you need is a **web server with PHP and MySQL**.
 Open Pastebin NG is **free software** released under the **[GNU GPL license](LICENSE)**.
@@ -12,7 +12,7 @@ Open Pastebin NG is **free software** released under the **[GNU GPL license](LIC
 ## ✨ Features
 - ✅ Simple and clean user interface
 - ⚡️ Fast performance (no heavy images or media, just text)
-- 🎨 Syntax highlighting for multiple programming languages
+- 🎨 Local syntax highlighting and accessible clipboard feedback for multiple programming languages
 - 🌗 Light/dark theme with persistent toggle (no external fonts or frameworks)
 - 🌐 Internationalization in 6 languages (English, Spanish, German, French, Portuguese, Chinese)
 - 📱 Responsive layout (mobile-friendly tables, `prefers-reduced-motion` support)
@@ -20,6 +20,12 @@ Open Pastebin NG is **free software** released under the **[GNU GPL license](LIC
 - 👤 User management: **Admin**, **Registered User**, and **Guest**  
 - 🛡️ CSRF protection for sensitive actions
 - 📂 Entries are stored in a **MySQL database**
+
+### Local syntax-highlighting asset
+
+The browser uses a locally bundled, language-scoped build of **Highlight.js 11.12.0** (Bash, C, C++, Java, Pascal, PHP, Python and Ruby). It is served from `src/assets/vendor/` and does not contact a CDN. The upstream BSD-3-Clause license is included in [`src/assets/vendor/HIGHLIGHT-LICENSE.txt`](src/assets/vendor/HIGHLIGHT-LICENSE.txt). Clipboard access requires a secure context (HTTPS or localhost).
+
+The shared interface uses a strict same-origin Content Security Policy. Keep scripts and styles in local assets; do not add inline handlers or inline styles, which the shipped Apache and Nginx policies intentionally block.
 
 ---
 
@@ -141,8 +147,8 @@ Paste text is limited to **1 MiB (1,048,576 bytes)** and topics to **255 bytes**
 > Since v0.8 there is no automatic migration on every request. A missing database now returns a connection error instead of being auto-created.
 
 5️⃣ **Run the application**
-- If using **Apache**, place the project in `htdocs` or configure a virtual host. The shipped `src/.htaccess` blocks direct access to `config.php`/`database.php`/`rules.xml` and the `includes/` directory, disables directory listings, adds security headers and disables `session.upload_progress`.
-- If using **Nginx**, start from [`deploy/nginx.example.conf`](deploy/nginx.example.conf). It redirects HTTP to HTTPS, blocks the installer and internal files, denies `includes/`, sets security headers and disables CAPTCHA caching. Configure valid certificates before enabling the TLS server block.
+- If using **Apache**, place the project in `htdocs` or configure a virtual host. The shipped `src/.htaccess` blocks direct access to `config.php`/`database.php`/`rules.xml` and the `includes/` directory, disables directory listings, adds security headers including a strict same-origin CSP, and disables `session.upload_progress`.
+- If using **Nginx**, start from [`deploy/nginx.example.conf`](deploy/nginx.example.conf). It redirects HTTP to HTTPS, blocks the installer and internal files, denies `includes/`, sets security headers including a strict same-origin CSP, and disables CAPTCHA caching. Configure valid certificates before enabling the TLS server block.
 - The example Nginx configuration terminates TLS directly and sets PHP's HTTPS state explicitly. If a trusted reverse proxy terminates TLS, configure the backend so that only the proxy can set the HTTPS state; do not trust arbitrary client-supplied `X-Forwarded-Proto`.
 - Enable HSTS only after confirming HTTPS works across the entire hostname for the chosen max-age.
 - **Use `src/` as the document root**, not the repository root, so `tools/`, `README.md` and `.git/` are never reachable over HTTP.

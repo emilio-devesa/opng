@@ -2,6 +2,12 @@
 ============================
 
 ## Version 0.8 (2026)
+### 🎨 UX, accessibility and CSP — Phase 2
+- Vendored a local Highlight.js 11.12.0 bundle limited to the supported languages, with its BSD-3-Clause license. Paste code is highlighted only after HTML escaping; copy uses the Clipboard API with visible, translated success/error feedback.
+- Authentication and error pages now use the shared layout and six-language catalogs. Added associated labels, accessible names, password guidance, translated server messages and correct document language updates.
+- Logout now requires a CSRF-protected POST and expires the session cookie. Destructive confirmations use external event listeners; removed inline handlers/styles and `unsafe-inline` from Apache/Nginx CSPs, including static and CAPTCHA locations.
+- Improved view/navigation semantics, current-page state, focus visibility, responsive table scrolling and code line-number accessibility. Standardized redirect-after-POST feedback for reset requests and successful password changes.
+
 ### 🔐 Security and robustness — Phase 1
 - The schema installer is CLI-only, requires a pre-created database, and uses separate `OPNG_INSTALL_DB_*` credentials. Runtime defaults now target a dedicated DML-only account; migration rights can be revoked after installation.
 - The installer creates lowercase table names, safely renames only unambiguous legacy case variants, and stops on ambiguous schemas. Existing `entries.text` is widened to `MEDIUMTEXT` without deleting rows.

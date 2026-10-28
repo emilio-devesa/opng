@@ -57,7 +57,12 @@ if ($validation_error !== null) {
 }
 
 // Lenguaje: allowlist (igual que en submit.php)
-$rules = load_rules();
+try {
+    $rules = load_rules();
+} catch (RuntimeException $exception) {
+    header("Location: error.php?msg=" . urlencode("Language configuration is unavailable."));
+    exit;
+}
 $language = trim($_POST['input_language']);
 if (!isset($rules[$language])) {
     header("Location: error.php?msg=" . urlencode("Error: The selected language ('" . $language . "') is not valid."));

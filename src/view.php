@@ -72,101 +72,118 @@ $valid_tabs = ['view', 'edit', 'reply'];
 if (!in_array($tab, $valid_tabs, true)) { $tab = 'view'; }
 if ($tab === 'edit' && !$can_edit) { $tab = 'view'; }
 
+$rules = [];
+if ($tab === 'edit' || $tab === 'reply') {
+    try {
+        $rules = load_rules();
+    } catch (RuntimeException $exception) {
+        header("Location: error.php?msg=" . urlencode("Language configuration is unavailable."));
+        exit;
+    }
+}
+
+$highlight_language_class = match (strtolower($language)) {
+    'plaintext' => 'language-plaintext',
+    'bash' => 'language-bash',
+    'pascal' => 'language-pascal',
+    'python' => 'language-python',
+    'php' => 'language-php',
+    default => '',
+};
+$flash_key = match ($_GET['msg'] ?? '') {
+    'Paste updated successfully' => 'paste_updated',
+    default => '',
+};
+
 require(__DIR__ . "/includes/layout_header.php");
 ?>
-            <?php if ($flash !== ""): ?>
-                <p class="flash-message"><?php echo $flash; ?></p>
+    <?php if ($flash !== ""): ?>
+        <p class="flash-message" role="status"<?php echo $flash_key !== '' ? ' data-i18n="' . htmlspecialchars($flash_key, ENT_QUOTES, 'UTF-8') . '"' : ''; ?>><?php echo $flash; ?></p>
+    <?php endif; ?>
+    <nav class="tabs" aria-label="Paste actions" data-i18n-aria-label="paste_navigation">
+        <a href="view.php?id=<?php echo urlencode($id); ?>&tab=view" class="tab tab-view <?php echo $tab === 'view' ? 'active' : ''; ?>" data-i18n="tab_view"<?php echo $tab === 'view' ? ' aria-current="page"' : ''; ?>>View</a>
+        <?php if ($can_edit): ?>
+        <a href="view.php?id=<?php echo urlencode($id); ?>&tab=edit" class="tab tab-edit <?php echo $tab === 'edit' ? 'active' : ''; ?>" data-i18n="tab_edit"<?php echo $tab === 'edit' ? ' aria-current="page"' : ''; ?>>Edit</a>
+        <?php endif; ?>
+        <a href="view.php?id=<?php echo urlencode($id); ?>&tab=reply" class="tab tab-reply <?php echo $tab === 'reply' ? 'active' : ''; ?>" data-i18n="tab_reply"<?php echo $tab === 'reply' ? ' aria-current="page"' : ''; ?>>Reply</a>
+    </nav>
+    <div class="container">
+        <?php if ($tab === 'view'): ?>
+        <section class="box" aria-labelledby="paste-code-title">
+            <h2 id="paste-code-title" data-i18n="code:">Code:</h2>
+            <dl class="paste-meta">
+                <div><dt data-i18n="language:">Language:</dt><dd><?php echo htmlspecialchars($language, ENT_QUOTES, 'UTF-8'); ?></dd></div>
+                <div><dt data-i18n="date">Date:</dt><dd><?php echo htmlspecialchars($array['date'], ENT_QUOTES, 'UTF-8'); ?></dd></div>
+                <div><dt data-i18n="id">ID:</dt><dd><?php echo htmlspecialchars($array['id'], ENT_QUOTES, 'UTF-8'); ?></dd></div>
+            </dl>
+            <div class="code-view">
+                <pre class="line-numbers" aria-hidden="true"><?php for ($line = 1; $line <= $line_count; $line++) { echo $line . ($line < $line_count ? "\n" : ""); } ?></pre>
+                <pre class="code-content"><code id="code-block"<?php echo $highlight_language_class !== '' ? ' class="' . htmlspecialchars($highlight_language_class, ENT_QUOTES, 'UTF-8') . '"' : ''; ?>><?php echo htmlspecialchars($array['text'], ENT_QUOTES, 'UTF-8'); ?></code></pre>
+            </div>
+            <div class="copy-controls">
+                <button id="copy-button" type="button" data-i18n="copy" class="copy-button">Copy</button>
+                <p id="copy-status" role="status" aria-live="polite" class="copy-status"></p>
+                <span id="copy-copied-message" data-i18n="copied" hidden>Copied!</span>
+                <span id="copy-error-message" data-i18n="copy_error" hidden>Could not copy the code. Check clipboard permissions and try again.</span>
+            </div>
+            <?php if ($can_delete): ?>
+                <form method="post" action="admin/drop_id.php" data-confirm-target="delete_confirm">
+                    <span id="delete_confirm" data-i18n="delete_confirm" hidden>Are you sure you want to delete this paste? This action cannot be undone.</span>
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
+                    <input type="hidden" name="input_ID" value="<?php echo htmlspecialchars($array['id'], ENT_QUOTES, 'UTF-8'); ?>">
+                    <button type="submit" class="danger" data-i18n="delete_paste">Delete Paste</button>
+                </form>
             <?php endif; ?>
-            <div class="tabs">
-                <a href="view.php?id=<?php echo urlencode($id); ?>&tab=view" class="tab tab-view <?php echo $tab === 'view' ? 'active' : ''; ?>" data-i18n="tab_view">View</a>
-                <?php if ($can_edit): ?>
-                <a href="view.php?id=<?php echo urlencode($id); ?>&tab=edit" class="tab tab-edit <?php echo $tab === 'edit' ? 'active' : ''; ?>" data-i18n="tab_edit">Edit</a>
-                <?php endif; ?>
-                <a href="view.php?id=<?php echo urlencode($id); ?>&tab=reply" class="tab tab-reply <?php echo $tab === 'reply' ? 'active' : ''; ?>" data-i18n="tab_reply">Reply</a>
-            </div>
-            <div class="container">
-                <?php if ($tab === 'view'): ?>
-                <div class="box">
-                    <h3 data-i18n="code:">Code:</h3>
-                    <label data-i18n="language:">Language:</label> <?php echo htmlspecialchars($language); ?><br>
-                    <label data-i18n="date">Date:</label> <?php echo htmlspecialchars($array['date']); ?><br>
-                    <label data-i18n="id">ID:</label> <?php echo htmlspecialchars($array['id']); ?><br>
-                    <table>
-                        <tr>
-                            <td nowrap align="right">
-                                <pre><?php for ($line = 1; $line <= $line_count; $line++) { echo $line . "\n"; } ?></pre>
-                            </td>
-                            <td nowrap align="left">
-                                <div style="position: relative;">
-                                    <pre><code id="code-block" class="language-<?php echo htmlspecialchars($language); ?>"><?php echo htmlspecialchars($array['text'], ENT_QUOTES, 'UTF-8'); ?></code></pre>
-                                    <button id="copy-button" data-i18n="copy" class="copy-button" onclick="copyToClipboard()">📋 Copy</button>
-                                </div>
-                            </td>
-                        </tr>
-                    </table>
-                    <br>
-                    <?php if ($can_delete): ?>
-                        <form method="post" action="admin/drop_id.php">
-                            <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
-                            <input type="hidden" name="input_ID" value="<?php echo htmlspecialchars($array['id']); ?>">
-                                                        <button type="submit" data-i18n="delete_paste" onclick="return confirm('Are you sure you want to delete this paste?');">Delete Paste</button>
-                        </form>
-                    <?php endif; ?>
-                </div>
-                <?php endif; ?>
-                <?php if ($tab === 'edit'): ?>
-                <?php if ($can_edit): ?>
-                <div class="box">
-                    <h3 data-i18n="edit:">Edit:</h3>
-                    <form method="post" action="update.php">
-                        <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
-                        <input type="hidden" name="input_ID" value="<?php echo htmlspecialchars($array['id']); ?>">
-
-                        <label data-i18n="topic:">Topic:</label>
-                        <input type="text" name="input_topic" maxlength="255" value="<?php echo htmlspecialchars($array['topic'], ENT_QUOTES, 'UTF-8'); ?>"><br>
-
-                        <label data-i18n="select_language:" for="edit_language">Select language:</label>
-                        <select id="edit_language" name="input_language" required>
-                            <?php foreach (load_rules() as $rule_name => $rule): ?>
-                                <option value="<?php echo htmlspecialchars($rule_name); ?>" <?php echo ($rule_name === $language) ? "selected" : ""; ?>>
-                                    <?php echo htmlspecialchars($rule_name); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select><br>
-                        <br><br>
-                        <textarea name="input_text" maxlength="1048576" rows="<?php echo $textarea_rows; ?>" cols="80"><?php echo htmlspecialchars($array['text'], ENT_QUOTES, 'UTF-8'); ?></textarea>
-                        <br><br>
-                        <button data-i18n="save" id="edit-save" type="submit">Save changes</button>
-                    </form>
-                </div>
-                <?php endif; ?>
-                <?php endif; ?>
-                <?php if ($tab === 'reply'): ?>
-                <div class="box">
-                    <h3 data-i18n="reply:">Reply (new paste):</h3>
-                    <form method="post" action="submit.php">
-                        <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
-
-                        <label data-i18n="topic:">Topic:</label>
-                        <input type="text" name="input_topic" maxlength="255" value="RE: <?php echo htmlspecialchars($array['topic']); ?>"><br>
-
-                        <label data-i18n="select_language:" for="input_language">Select language:</label>
-                        <select id="input_language" name="input_language" required>
-                            <?php foreach (load_rules() as $rule_name => $rule): ?>
-                                <option value="<?php echo htmlspecialchars($rule_name); ?>" <?php echo ($rule_name === $language) ? "selected" : ""; ?>>
-                                    <?php echo htmlspecialchars($rule_name); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select><br>
-                        <br><br>
-                        <textarea name="input_text" maxlength="1048576" rows="<?php echo $textarea_rows; ?>" cols="80"><?php echo htmlspecialchars($array['text'], ENT_QUOTES, 'UTF-8'); ?></textarea>
-                        <br><br>
-                        <button data-i18n="submit" id="submit" type="submit">Submit</button>
-                    </form>
-                </div>
-                <?php endif; ?>
-            </div>
-            <br>
-            <a href="index.php" data-i18n="return">Return to Home</a>
+        </section>
+        <?php endif; ?>
+        <?php if ($tab === 'edit' && $can_edit): ?>
+        <section class="box" aria-labelledby="edit-title">
+            <h2 id="edit-title" data-i18n="edit:">Edit:</h2>
+            <form method="post" action="update.php" class="editor-form">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
+                <input type="hidden" name="input_ID" value="<?php echo htmlspecialchars($array['id'], ENT_QUOTES, 'UTF-8'); ?>">
+                <label for="edit_topic" data-i18n="topic:">Topic:</label>
+                <input id="edit_topic" type="text" name="input_topic" maxlength="255" value="<?php echo htmlspecialchars($array['topic'], ENT_QUOTES, 'UTF-8'); ?>" required>
+                <label data-i18n="select_language:" for="edit_language">Select language:</label>
+                <select id="edit_language" name="input_language" required>
+                    <?php foreach ($rules as $rule_name => $rule): ?>
+                        <option value="<?php echo htmlspecialchars($rule_name, ENT_QUOTES, 'UTF-8'); ?>" <?php echo ($rule_name === $language) ? "selected" : ""; ?>>
+                            <?php echo htmlspecialchars($rule_name, ENT_QUOTES, 'UTF-8'); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <label for="edit_text" data-i18n="text">Enter your text here</label>
+                <textarea id="edit_text" name="input_text" maxlength="1048576" rows="<?php echo $textarea_rows; ?>" cols="80" required><?php echo htmlspecialchars($array['text'], ENT_QUOTES, 'UTF-8'); ?></textarea>
+                <button data-i18n="save" id="edit-save" type="submit">Save changes</button>
+            </form>
+        </section>
+        <?php endif; ?>
+        <?php if ($tab === 'reply'): ?>
+        <section class="box" aria-labelledby="reply-title">
+            <h2 id="reply-title" data-i18n="reply:">Reply (new paste):</h2>
+            <form method="post" action="submit.php" class="editor-form">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
+                <label for="reply_topic" data-i18n="topic:">Topic:</label>
+                <input id="reply_topic" type="text" name="input_topic" maxlength="255" value="RE: <?php echo htmlspecialchars($array['topic'], ENT_QUOTES, 'UTF-8'); ?>" required>
+                <label data-i18n="select_language:" for="input_language">Select language:</label>
+                <select id="input_language" name="input_language" required>
+                    <?php foreach ($rules as $rule_name => $rule): ?>
+                        <option value="<?php echo htmlspecialchars($rule_name, ENT_QUOTES, 'UTF-8'); ?>" <?php echo ($rule_name === $language) ? "selected" : ""; ?>>
+                            <?php echo htmlspecialchars($rule_name, ENT_QUOTES, 'UTF-8'); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <label for="reply_text" data-i18n="text">Enter your text here</label>
+                <textarea id="reply_text" name="input_text" maxlength="1048576" rows="<?php echo $textarea_rows; ?>" cols="80" required><?php echo htmlspecialchars($array['text'], ENT_QUOTES, 'UTF-8'); ?></textarea>
+                <button data-i18n="submit" id="submit" type="submit">Submit</button>
+            </form>
+        </section>
+        <?php endif; ?>
+    </div>
+    <p><a href="index.php" data-i18n="return">Return to Home</a></p>
+    <?php if ($tab === 'view'): ?>
+    <script src="assets/vendor/highlight.min.js?v=<?php echo filemtime(__DIR__ . '/assets/vendor/highlight.min.js'); ?>" defer></script>
+    <script src="assets/js/copy.js?v=<?php echo filemtime(__DIR__ . '/assets/js/copy.js'); ?>" defer></script>
+    <?php endif; ?>
 
 <?php require(__DIR__ . "/includes/layout_footer.php"); ?>

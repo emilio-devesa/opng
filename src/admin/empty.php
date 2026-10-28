@@ -18,6 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     $csrf_token = csrf_token();
     $lang_attr = 'en';
     $page_title = 'Admin - Empty database';
+    $page_title_i18n = 'empty_title';
     $base = '../';
     require(__DIR__ . "/../includes/layout_header.php");
     ?>
@@ -26,9 +27,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             <p data-i18n="empty_confirm">Are you sure you want to continue?</p>
             <form method="post">
                 <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
-                <button type="submit" style="background-color: red; color: white;" data-i18n="empty_yes">Yes, empty it</button>
+                <button type="submit" class="danger" data-i18n="empty_yes">Yes, empty it</button>
             </form>
-            <br>
             <a href="admin.php" data-i18n="cancel">Cancel</a>
     <?php
     require(__DIR__ . "/../includes/layout_footer.php");
