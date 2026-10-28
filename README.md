@@ -182,13 +182,13 @@ For security reasons, access to **admin features** is restricted to administrato
 
 ## 🧪 Development
 
-- **`tools/seed.php`** — CLI-only seeder for local development. The admin panel's first database action opens safe-use instructions; it does not run the script through HTTP. The seeder creates 10 users (8 normal + 2 admins), 60 pastes and 12 replies (72 entries total) so pagination, search and role permissions can be tested. It deletes prior fixtures with `seed`-prefixed IDs and users in the `@example.test` domain, and generated accounts share the known `Password123!` development password. Review affected records before running it and never use the fixtures/password in production.
+- **Contributing** — see [`CONTRIBUTING.md`](CONTRIBUTING.md) for issue reports, improvement proposals, pull requests, local development setup, test safety, and the repository structure.
+
+- **`tools/seed.php`** — CLI-only seeder for local development. The admin panel's first database action opens safe-use instructions; it does not run the script through HTTP. It creates 10 users, 60 pastes and 12 replies for testing pagination, search, and permissions. Review [the seeder's cleanup scope and development password](CONTRIBUTING.md#development-setup-and-repository-structure) before running it; never use its fixtures in production.
 
   ```bash
   php tools/seed.php
   ```
-
-  It is re-runnable: it only deletes its own data (`seed%` IDs and `@example.test` emails). Seeded accounts share the password `Password123!` (e.g. `lucia@example.test` for a normal user, `maria@example.test` for an admin).
 
 - **Static analysis and linting** — the repo ships `composer.json`, `phpstan.neon` (level 5) and a GitHub Actions workflow (PHP 8.2–8.5).
 
