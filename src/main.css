@@ -770,6 +770,35 @@ legend {
 }
 
 /* ========================= */
+/* PESTAÑAS (VIEW / EDIT / REPLY) */
+/* ========================= */
+.tabs {
+    display: flex;
+    gap: 0.25rem;
+    margin: 0 0 1.25rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.tab {
+    padding: 0.5rem 1rem;
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+}
+
+.tab:hover {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+/* ========================= */
 /* RESPONSIVE */
 /* ========================= */
 @media (max-width: 720px) {

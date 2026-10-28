@@ -57,12 +57,27 @@ $page_title = $array['topic'];
 $base = '';
 // Mensajes que llegan vía ?msg= (p. ej. tras editar el paste en update.php)
 $flash = isset($_GET['msg']) ? htmlspecialchars($_GET['msg'], ENT_QUOTES, 'UTF-8') : "";
+
+// Pestañas de la vista: Ver / Editar / Responder
+$tab = $_GET['tab'] ?? 'view';
+$valid_tabs = ['view', 'edit', 'reply'];
+if (!in_array($tab, $valid_tabs, true)) { $tab = 'view'; }
+if ($tab === 'edit' && !$can_edit) { $tab = 'view'; }
+
 require(__DIR__ . "/includes/layout_header.php");
 ?>
             <?php if ($flash !== ""): ?>
                 <p class="flash-message"><?php echo $flash; ?></p>
             <?php endif; ?>
+            <div class="tabs">
+                <a href="view.php?id=<?php echo urlencode($id); ?>&tab=view" class="tab tab-view <?php echo $tab === 'view' ? 'active' : ''; ?>" data-i18n="tab_view">View</a>
+                <?php if ($can_edit): ?>
+                <a href="view.php?id=<?php echo urlencode($id); ?>&tab=edit" class="tab tab-edit <?php echo $tab === 'edit' ? 'active' : ''; ?>" data-i18n="tab_edit">Edit</a>
+                <?php endif; ?>
+                <a href="view.php?id=<?php echo urlencode($id); ?>&tab=reply" class="tab tab-reply <?php echo $tab === 'reply' ? 'active' : ''; ?>" data-i18n="tab_reply">Reply</a>
+            </div>
             <div class="container">
+                <?php if ($tab === 'view'): ?>
                 <div class="box">
                     <h3 data-i18n="code:">Code:</h3>
                     <label data-i18n="language:">Language:</label> <?php echo htmlspecialchars($language); ?><br>
@@ -90,6 +105,8 @@ require(__DIR__ . "/includes/layout_header.php");
                         </form>
                     <?php endif; ?>
                 </div>
+                <?php endif; ?>
+                <?php if ($tab === 'edit'): ?>
                 <?php if ($can_edit): ?>
                 <div class="box">
                     <h3 data-i18n="edit:">Edit:</h3>
@@ -115,6 +132,8 @@ require(__DIR__ . "/includes/layout_header.php");
                     </form>
                 </div>
                 <?php endif; ?>
+                <?php endif; ?>
+                <?php if ($tab === 'reply'): ?>
                 <div class="box">
                     <h3 data-i18n="reply:">Reply (new paste):</h3>
                     <form method="post" action="submit.php">
@@ -137,6 +156,7 @@ require(__DIR__ . "/includes/layout_header.php");
                         <button data-i18n="submit" id="submit" type="submit">Submit</button>
                     </form>
                 </div>
+                <?php endif; ?>
             </div>
             <br>
             <a href="index.php" data-i18n="return">Return to Home</a>

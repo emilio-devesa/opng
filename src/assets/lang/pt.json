@@ -56,5 +56,8 @@
     "drop_entry": "Excluir Entrada",
     "drop_confirm": "Tem certeza de que deseja excluir esta entrada? Esta ação não pode ser desfeita.",
     "admin": "Admin",
-    "back_to_top": "Voltar ao topo"
+    "back_to_top": "Voltar ao topo",
+    "tab_view": "Ver",
+    "tab_edit": "Editar",
+    "tab_reply": "Responder"
 }

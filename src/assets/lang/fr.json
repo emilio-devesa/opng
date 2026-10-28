@@ -56,5 +56,8 @@
     "drop_entry": "Supprimer l'entrée",
     "drop_confirm": "Es-tu sûr de vouloir supprimer cette entrée ? Cette action est irréversible.",
     "admin": "Admin",
-    "back_to_top": "Retour en haut"
+    "back_to_top": "Retour en haut",
+    "tab_view": "Voir",
+    "tab_edit": "Modifier",
+    "tab_reply": "Répondre"
 }
