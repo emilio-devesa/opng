@@ -60,6 +60,44 @@ assert_value(
     entry_cursor_condition(['id' => 'legacy-id', 'date' => null], 'older'),
     'older-page cursors handle null dates'
 );
+$listing_cursor = [
+    'sort' => 'topic',
+    'order' => 'asc',
+    'value' => 'Alpha',
+    'id' => 'entry-1',
+];
+assert_value(
+    $listing_cursor,
+    decode_listing_cursor(encode_listing_cursor($listing_cursor)),
+    'global listing cursors preserve sort values and direction'
+);
+assert_value(
+    [
+        'sql' => "(COALESCE(entries.topic, '') > ? OR (COALESCE(entries.topic, '') = ? AND entries.id > ?))",
+        'params' => ['Alpha', 'Alpha', 'entry-1'],
+    ],
+    listing_cursor_condition($listing_cursor, 'older'),
+    'ascending sorted cursors advance by sort value and stable ID'
+);
+assert_value(
+    [
+        'sql' => "(COALESCE(users.username, 'Guest') < ? OR (COALESCE(users.username, 'Guest') = ? AND entries.id < ?))",
+        'params' => ['Guest', 'Guest', 'entry-2'],
+    ],
+    listing_cursor_condition([
+        'sort' => 'author',
+        'order' => 'asc',
+        'value' => 'Guest',
+        'id' => 'entry-2',
+    ], 'newer'),
+    'reverse sorted cursors use the opposite comparison'
+);
+assert_value(null, entry_sort_expression('id'), 'unsupported listing columns cannot become SQL');
+assert_value(
+    'Guest',
+    entry_listing_sort_value('author', ['username' => null]),
+    'anonymous entries sort by their displayed author label'
+);
 
 $under_quota = ['role' => 'user', 'used_bytes' => OPNG_USER_QUOTA_BYTES - 100];
 assert_value(true, user_quota_allows($under_quota, 0, 100), 'a write exactly at the account quota is allowed');

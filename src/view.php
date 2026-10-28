@@ -152,20 +152,25 @@ require(__DIR__ . "/includes/layout_header.php");
                 <pre class="line-numbers" aria-hidden="true"><?php for ($line = 1; $line <= $line_count; $line++) { echo $line . ($line < $line_count ? "\n" : ""); } ?></pre>
                 <pre class="code-content"><code id="code-block"<?php echo $highlight_language_class !== '' ? ' class="' . htmlspecialchars($highlight_language_class, ENT_QUOTES, 'UTF-8') . '"' : ''; ?>><?php echo htmlspecialchars($array['text'], ENT_QUOTES, 'UTF-8'); ?></code></pre>
             </div>
-            <div class="copy-controls">
-                <button id="copy-button" type="button" data-i18n="copy" class="copy-button">Copy</button>
-                <p id="copy-status" role="status" aria-live="polite" class="copy-status"></p>
-                <span id="copy-copied-message" data-i18n="copied" hidden>Copied!</span>
-                <span id="copy-error-message" data-i18n="copy_error" hidden>Could not copy the code. Check clipboard permissions and try again.</span>
-            </div>
-            <?php if ($can_delete): ?>
-                <form method="post" action="admin/drop_id.php" data-confirm-target="delete_confirm">
+            <div class="paste-actions">
+                <div class="copy-controls">
+                    <button id="copy-button" type="button" data-i18n="copy" class="copy-button">Copy</button>
+                    <p id="copy-status" role="status" aria-live="polite" class="copy-status"></p>
+                    <span id="copy-copied-message" data-i18n="copied" hidden>Copied!</span>
+                    <span id="copy-error-message" data-i18n="copy_error" hidden>Could not copy the code. Check clipboard permissions and try again.</span>
+                </div>
+                <?php if ($can_delete): ?>
+                <form method="post" action="admin/drop_id.php" class="delete-paste-form" data-confirm-target="delete_confirm">
                     <span id="delete_confirm" data-i18n="delete_confirm" hidden>Are you sure you want to delete this paste? This action cannot be undone.</span>
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
                     <input type="hidden" name="input_ID" value="<?php echo htmlspecialchars($array['id'], ENT_QUOTES, 'UTF-8'); ?>">
-                    <button type="submit" class="danger" data-i18n="delete_paste">Delete Paste</button>
+                    <button type="submit" class="danger" aria-label="Delete Paste" title="Delete Paste" data-i18n-aria-label="delete_paste" data-i18n-title="delete_paste">
+                        <span aria-hidden="true">🗑️</span>
+                        <span class="visually-hidden" data-i18n="delete_paste">Delete Paste</span>
+                    </button>
                 </form>
-            <?php endif; ?>
+                <?php endif; ?>
+            </div>
         </section>
         <?php endif; ?>
         <?php if ($tab === 'edit' && $can_edit): ?>
@@ -212,7 +217,6 @@ require(__DIR__ . "/includes/layout_header.php");
         </section>
         <?php endif; ?>
     </div>
-    <p><a href="index.php" data-i18n="return">Return to Home</a></p>
     <?php if ($tab === 'view'): ?>
     <script src="assets/vendor/highlight.min.js?v=<?php echo filemtime(__DIR__ . '/assets/vendor/highlight.min.js'); ?>" defer></script>
     <script src="assets/js/copy.js?v=<?php echo filemtime(__DIR__ . '/assets/js/copy.js'); ?>" defer></script>

@@ -41,6 +41,7 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style
         <div class="header-top">
             <h1<?php echo $page_title_i18n_attribute; ?>><?php echo htmlspecialchars($page_title, ENT_QUOTES, 'UTF-8'); ?></h1>
             <div class="header-actions">
+                <a class="header-home" href="<?php echo $base; ?>index.php" aria-label="Home" title="Home" data-i18n-aria-label="home" data-i18n-title="home">🏠</a>
                 <div class="header-tools">
                     <button id="theme-toggle" type="button" data-i18n-aria-label="dark_mode" data-i18n-title="dark_mode" aria-label="Dark mode" title="Dark mode">🌙</button>
                     <label class="visually-hidden" for="language-selector" data-i18n="language_selector_label">Select language</label>
@@ -81,6 +82,7 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style
             <label class="visually-hidden" for="header-search" data-i18n="search_by_topic">Search by topic</label>
             <div class="search-input-wrap">
                 <input id="header-search" type="text" name="q" maxlength="255" aria-describedby="header-search-help" placeholder="Search by topic..." data-i18n-placeholder="search_placeholder" value="<?php echo htmlspecialchars($q ?? '', ENT_QUOTES, 'UTF-8'); ?>">
+                <button class="search-clear" type="button" aria-label="Clear search" title="Clear search" data-i18n-aria-label="search_clear" data-i18n-title="search_clear"<?php echo empty($q) ? ' hidden' : ''; ?>>×</button>
                 <button class="search-help-trigger" type="button" aria-label="Search help" title="Search help" aria-describedby="header-search-help" data-i18n-aria-label="search_help_label" data-i18n-title="search_help_label">ⓘ</button>
                 <span id="header-search-help" class="search-help-tooltip" role="tooltip" data-i18n="search_help">All words must match; word beginnings are supported. Short words or stopwords may be ignored.</span>
             </div>
@@ -91,4 +93,7 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style
     <script src="<?php echo $base; ?>assets/js/dark-mode.js?v=<?php echo filemtime(__DIR__ . '/../assets/js/dark-mode.js'); ?>" data-base="<?php echo $base; ?>"></script>
     <script src="<?php echo $base; ?>assets/js/language.js?v=<?php echo filemtime(__DIR__ . '/../assets/js/language.js'); ?>" data-base="<?php echo $base; ?>" data-language-version="<?php echo $language_catalog_version; ?>"></script>
     <script src="<?php echo $base; ?>assets/js/confirm.js?v=<?php echo filemtime(__DIR__ . '/../assets/js/confirm.js'); ?>"></script>
+    <?php if ($show_search): ?>
+    <script src="<?php echo $base; ?>assets/js/search-clear.js?v=<?php echo filemtime(__DIR__ . '/../assets/js/search-clear.js'); ?>" defer></script>
+    <?php endif; ?>
     <div id="Content">

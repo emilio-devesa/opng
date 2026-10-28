@@ -100,3 +100,127 @@ function entry_cursor_condition(array $cursor, string $direction): array
         'params' => [$cursor['date'], $cursor['date'], $cursor['id']],
     ];
 }
+
+/**
+ * SQL expression for each supported global listing sort.
+ */
+function entry_sort_expression(string $sort): ?string
+{
+    return match ($sort) {
+        'topic' => "COALESCE(entries.topic, '')",
+        'author' => "COALESCE(users.username, 'Guest')",
+        'language' => "COALESCE(entries.language, '')",
+        'date' => "COALESCE(entries.date, '0000-00-00 00:00:00')",
+        default => null,
+    };
+}
+
+/**
+ * @return array{sort: string, order: string, value: string, id: string}|null
+ */
+function decode_listing_cursor(mixed $value): ?array
+{
+    if (
+        !is_string($value)
+        || strlen($value) > 2048
+        || preg_match('/\A[A-Za-z0-9_-]+\z/', $value) !== 1
+    ) {
+        return null;
+    }
+
+    $legacy_cursor = decode_entry_cursor($value);
+    if ($legacy_cursor !== null) {
+        return [
+            'sort' => 'date',
+            'order' => 'desc',
+            'value' => $legacy_cursor['date'] ?? '0000-00-00 00:00:00',
+            'id' => $legacy_cursor['id'],
+        ];
+    }
+
+    $base64 = strtr($value, '-_', '+/');
+    $base64 .= str_repeat('=', (4 - strlen($base64) % 4) % 4);
+    $json = base64_decode($base64, true);
+    if ($json === false) {
+        return null;
+    }
+
+    try {
+        $payload = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+    } catch (JsonException) {
+        return null;
+    }
+
+    if (
+        !is_array($payload)
+        || !isset($payload['sort'], $payload['order'], $payload['value'], $payload['id'])
+        || !is_string($payload['sort'])
+        || entry_sort_expression($payload['sort']) === null
+        || !is_string($payload['order'])
+        || !in_array($payload['order'], ['asc', 'desc'], true)
+        || !is_string($payload['value'])
+        || strlen($payload['value']) > 1020
+        || !is_string($payload['id'])
+        || $payload['id'] === ''
+        || strlen($payload['id']) > 1020
+    ) {
+        return null;
+    }
+
+    return [
+        'sort' => $payload['sort'],
+        'order' => $payload['order'],
+        'value' => $payload['value'],
+        'id' => $payload['id'],
+    ];
+}
+
+/**
+ * @param array<string, mixed> $row
+ */
+function entry_listing_sort_value(string $sort, array $row): string
+{
+    $value = match ($sort) {
+        'topic' => $row['topic'] ?? '',
+        'author' => $row['username'] ?? 'Guest',
+        'language' => $row['language'] ?? '',
+        'date' => $row['date'] ?? '0000-00-00 00:00:00',
+        default => throw new InvalidArgumentException('Unsupported listing sort.'),
+    };
+
+    if (!is_string($value)) {
+        throw new UnexpectedValueException('Listing sort value must be a string.');
+    }
+
+    return $value;
+}
+
+/**
+ * @param array{sort: string, order: string, value: string, id: string} $cursor
+ */
+function encode_listing_cursor(array $cursor): string
+{
+    $json = json_encode($cursor, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+
+    return rtrim(strtr(base64_encode($json), '+/', '-_'), '=');
+}
+
+/**
+ * @param array{sort: string, order: string, value: string, id: string} $cursor
+ * @return array{sql: string, params: list<string>}
+ */
+function listing_cursor_condition(array $cursor, string $direction): array
+{
+    $expression = entry_sort_expression($cursor['sort']);
+    if ($expression === null || !in_array($direction, ['older', 'newer'], true)) {
+        throw new InvalidArgumentException('Invalid listing cursor sort or direction.');
+    }
+
+    $ascending = ($direction === 'older') === ($cursor['order'] === 'asc');
+    $operator = $ascending ? '>' : '<';
+
+    return [
+        'sql' => "({$expression} {$operator} ? OR ({$expression} = ? AND entries.id {$operator} ?))",
+        'params' => [$cursor['value'], $cursor['value'], $cursor['id']],
+    ];
+}

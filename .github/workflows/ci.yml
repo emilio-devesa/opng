@@ -64,6 +64,7 @@ jobs:
           node --check src/assets/js/language.js
           node --check src/assets/js/confirm.js
           node --check src/assets/js/copy.js
+          node --check src/assets/js/search-clear.js
 
       - name: Frontend contract and translation regression test
         run: php tests/frontend_contract_test.php

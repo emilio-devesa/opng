@@ -50,6 +50,8 @@ $required_keys = [
     'storage_quota_notice',
     'error_invalid_cursor',
     'error_storage_quota',
+    'home',
+    'search_clear',
 ];
 foreach ($required_keys as $key) {
     if (!array_key_exists($key, $catalogs['en'] ?? [])) {
@@ -95,6 +97,12 @@ if (!is_string($layout) || preg_match('/Content-Security-Policy:[^"]*style-src \
 if (!is_string($layout) || !str_contains($layout, 'data-language-version=')) {
     $failures[] = 'Language catalogs are missing versioned browser-cache URLs';
 }
+if (!is_string($layout) || !str_contains($layout, 'data-i18n-aria-label="home"')) {
+    $failures[] = 'The global home control is missing its translated accessible label';
+}
+if (!is_string($layout) || !str_contains($layout, 'data-i18n-aria-label="search_clear"')) {
+    $failures[] = 'The search clear control is missing its translated accessible label';
+}
 
 $language_script = file_get_contents($root . '/src/assets/js/language.js');
 if (
@@ -120,6 +128,7 @@ foreach ([
     '/src/assets/js/language.js',
     '/src/assets/js/confirm.js',
     '/src/assets/js/copy.js',
+    '/src/assets/js/search-clear.js',
 ] as $script_path) {
     if (!is_file($root . $script_path)) {
         $failures[] = "Frontend resource is missing: {$script_path}";
@@ -133,4 +142,4 @@ if ($failures !== []) {
     exit(1);
 }
 
-echo 'Frontend contracts passed: translation parity, catalog caching, no inline attributes, strict CSP, and local vendor license.' . PHP_EOL;
+echo 'Frontend contracts passed: translation parity, global controls, catalog caching, no inline attributes, strict CSP, and local vendor license.' . PHP_EOL;
