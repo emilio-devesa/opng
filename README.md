@@ -51,44 +51,22 @@ The shared interface uses a strict same-origin Content Security Policy. Keep scr
 ## 🛠️ Requirements
 To run Open Pastebin NG, you need:
 
-- **PHP 8.2.35**, **8.3.36**, **8.4.27** or **8.5.12** or higher ⚠️ *(updated in v0.8 — see the "PHP security releases" note below)*
+- **PHP 8.2.35**, **8.3.36**, **8.4.27** or **8.5.12** or later within that major/minor branch. These are the minimum patched versions currently enforced by `composer.json`; keep the runtime on the latest patch of a supported branch.
 - **PHP extensions:** `mysqli` (database) and `gd` (CAPTCHA image)
 - **MySQL 5.7** or MariaDB
 - A web server (**Apache, Nginx or similar**)
 
-### 🔐 PHP security releases note (October 2026 — "PHP2Shell")
+### PHP runtime support
 
-In October 2026 the PHP project disclosed several critical vulnerabilities affecting the **PHP engine itself**, which impact any Open Pastebin NG deployment running an affected PHP version:
+The minimum patch versions above include fixes for the PHP issues listed in the [NVD records for CVE-2026-109618](https://nvd.nist.gov/vuln/detail/CVE-2026-109618) and [CVE-2026-109619](https://nvd.nist.gov/vuln/detail/CVE-2026-109619), checked on 28 October 2026. This project does not make an exploitation-status claim. Do not infer a vulnerability from an identifier that has not been confirmed by an authoritative advisory.
 
-| CVE | Type | Status | Fixed versions |
-|---|---|---|---|
-| **CVE-2026-109618** | Use-after-free (OOM/`longjmp()` handling) → **RCE** | Patched (2026-10-21), actively exploited | 8.2.35 / 8.3.36 / 8.4.27 / 8.5.12 |
-| **CVE-2026-109619** | Use-after-free (stale global state) → **RCE** | Patched (2026-10-21), actively exploited | 8.2.35 / 8.3.36 / 8.4.27 / 8.5.12 |
-| **CVE-2026-115560** | **RCE** via `session.upload_progress` + runtime `serialize_handler` change | **Unpatched** at time of writing | TBD |
+Check the PHP project's [supported-versions table](https://www.php.net/supported-versions.php) before deployment and keep the actual web SAPI (PHP-FPM or Apache module) updated; checking only the CLI binary is insufficient. PHP 8.2 is in security-fixes-only support through 31 December 2026 according to that table. `composer.json` and the CI matrix define the project's current lower bounds and tested branches; these do not replace the PHP project's support policy.
 
-**You must run a patched PHP version before exposing OPNG to the internet.** Additionally apply the official mitigation for CVE-2026-109619/115560 (Open Pastebin NG does **not** use file uploads or upload progress, so this can be disabled at no cost):
+OPNG does not upload files. Disabling PHP session upload progress is optional hardening, not a mitigation claim for an unverified advisory:
 
 ```ini
-; php.ini (or, preferred, administratively via php-fpm pool / Apache)
-session.upload_progress.enabled = 0
-```
-
-Examples for your server:
-
-- **PHP-FPM** (recommended, not overridable by `ini_set()`): in your pool config:
-  `php_admin_flag[session.upload_progress.enabled] = off` — then perform a **full restart** of the workers (not a reload).
-- **Apache with mod_php**: OPNG ships a hardened `src/.htaccess` that disables `session.upload_progress` automatically.
-- **Nginx + PHP-FPM**: set the pool flag above; block direct access to sensitive files with:
-  ```nginx
-  location ~ /(?:config\.php|database\.php|rules\.xml)$ { deny all; }
-  ```
-
-**Verification** (do it against the HTTP SAPI, not the CLI — `php -i` reads a different config):
-
-```bash
-php-fpm -v                          # confirm the patched binary actually serving traffic
-php-fpm -i | grep session.upload_progress.enabled   # should print "0"
-grep -Rn "ini_set.*serialize_handler" src/           # expected: no matches in OPNG
+# Optional PHP-FPM pool hardening (restart workers after changing the pool):
+php_admin_flag[session.upload_progress.enabled] = off
 ```
 
 ---
@@ -155,6 +133,17 @@ The topic search uses a MySQL/MariaDB FULLTEXT index and requires all entered wo
 - Enable HSTS only after confirming HTTPS works across the entire hostname for the chosen max-age.
 - **Use `src/` as the document root**, not the repository root, so `tools/`, `README.md` and `.git/` are never reachable over HTTP.
 - Open `http://localhost/` for local development or `https://your-host/` in a TLS deployment.
+
+### ✅ Production deployment checklist
+
+- [ ] Use a PHP patch level at or above the Composer requirement and check the version/extensions used by the actual HTTP SAPI (`php-fpm -v` or the server's PHP module), not only the CLI.
+- [ ] Install a valid TLS certificate, redirect HTTP to HTTPS, verify secure session cookies, and trust forwarded-protocol headers only from a controlled reverse proxy. Enable HSTS only after HTTPS is confirmed throughout the hostname.
+- [ ] Set the document root to `src/`; keep the repository root and `tools/` outside HTTP reach. Because `src/config.php` is inside the document root, verify the web server denies direct access to it and other internal files, as well as `install.php`.
+- [ ] Use a dedicated runtime database account with only `SELECT`, `INSERT`, `UPDATE` and `DELETE`. Run schema upgrades from the CLI with the separate migration account, back up first, then revoke or remove migration credentials.
+- [ ] Keep `src/config.php` and database credentials out of version control and HTTP access. Set `post_max_size` and proxy request limits to at least `4M`.
+- [ ] Configure private server/application logs, confirm visitors receive generic errors, and ensure the log path is writable only by the service account and administrators.
+- [ ] After installation or upgrade, verify the expected schema/indexes, create and view a test paste, search and paginate, and confirm the HTTP error log has no database/configuration leaks.
+- [ ] Test a database backup restore before relying on the deployment; a backup that has never been restored is not a verified recovery plan.
 
 ---
 
@@ -267,7 +256,7 @@ Currently available:
 - 🇨🇳 Chinese
 
 ### 🔷 Can I download, fork, modify, and/or share again Open Pastebin NG?
-Yes! **Open Pastebin NG** is **free and open-source software**, licensed under the **[GNU GPL](LICENSE)**.
+Yes! **Open Pastebin NG** is **free and open-source software**, licensed under the **[GNU GPL version 2 or later](LICENSE)**.
 You can:
 
 - **Download** and install it on your server
@@ -308,8 +297,7 @@ Your feedback is highly appreciated!
 ---
 
 ## 📜 License
-Released under [GNU GENERAL PUBLIC LICENSE](LICENSE)
-Version 2, June 1991 -  or later
+Released under the [GNU General Public License, version 2 or later](LICENSE).
 
 You are free to use, modify, and distribute this software under the terms of the GPL.
 NOTE! THIS IS EXPERIMENTAL SOFTWARE MEANT ONLY FOR TESTING! USE AT YOUR OWN RISK!

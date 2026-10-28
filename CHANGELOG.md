@@ -43,16 +43,14 @@
 - **View:** stacked the view/edit/reply boxes vertically (`.container` column) so the code/edit/reply text fields get full width instead of squeezed side-by-side columns.
 - **View:** converted the three boxes into tabs (Ver / Editar / Responder) via `?tab=` (with `can_edit` guard for the Edit tab).
 
-### 🚨 Security — PHP engine vulnerabilities ("PHP2Shell", October 2026)
-- Updated requirements: passing from "PHP 7.4+" to patched PHP releases only (**8.2.35 / 8.3.36 / 8.4.27 / 8.5.12 or higher**), due to:
-    - **CVE-2026-109618** — PHP use-after-free in OOM/`longjmp()` handling, leading to RCE (patched 2026-10-21, actively exploited).
-    - **CVE-2026-109619** — PHP use-after-free via stale global request state, leading to RCE (patched 2026-10-21, actively exploited).
-    - **CVE-2026-115560** — PHP RCE via `session.upload_progress` + runtime `serialize_handler` change (unpatched at the time of writing).
-- Added official mitigation for CVE-2026-109619 / CVE-2026-115560 in the docs: `session.upload_progress.enabled = 0` (administratively via `php_admin_flag` when using PHP-FPM). OPNG does not use file uploads, so the feature is disposable at zero cost.
+### 🔐 Runtime and deployment hardening
+- Composer enforces PHP patch floors of 8.2.35 / 8.3.36 / 8.4.27 / 8.5.12. The README links to the PHP supported-versions policy and the NVD records used to set these floors; it makes no unverified exploitation-status claims.
+- OPNG does not use file uploads or session upload progress. Apache disables upload progress in the shipped `.htaccess`; the Nginx/PHP-FPM example documents the equivalent as optional hardening, without attributing it to an unverified advisory.
+- Added a production deployment checklist covering the actual HTTP PHP SAPI, TLS, database privilege separation, installer access, backups, logs, request limits and smoke tests.
 - Shipped hardened `src/.htaccess` for Apache:
     - Blocks direct HTTP access to `config.php`, `database.php` and `rules.xml`.
     - Disables `session.upload_progress` automatically under mod_php.
-- Added Nginx equivalent snippet in the README, plus server-side verification commands (`php-fpm -v`, `php-fpm -i`).
+- Documented verification against the actual HTTP PHP SAPI and optional upload-progress hardening for PHP-FPM.
 - Added a server-admin migration checklist covering branch v0.8 work in the security audit report (`opng_audit_0.7.md`).
 ### 🔒 Security — Application fixes (Phase 1 of the audit)
 - **`admin/empty.php` rewritten** (critical, fixes S1/S2/R1):

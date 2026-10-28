@@ -28,19 +28,15 @@ Options -Indexes
 </IfModule>
 
 # ------------------------------------------------------------------
-# CVE-2026-109619 / CVE-2026-115560 (PHP "PHP2Shell", Oct 2026)
-# Mitigacion oficial: deshabilitar session.upload_progress.
-# OPNG no utiliza subidas de ficheros ni barras de progreso, por lo
-# que esta funcionalidad se puede desactivar sin coste.
+# OPNG does not use file uploads or session upload progress, so this
+# optional hardening can be applied when running under mod_php.
 #
-# Esta directiva solo aplica con mod_php. Si se usa PHP-FPM, fijar
-# la opcion administrativamente en el pool (no anulable con ini_set):
+# This directive only applies to mod_php. With PHP-FPM, configure the
+# pool administratively instead:
 #
 #     php_admin_flag[session.upload_progress.enabled] = off
 #
-# Tras el cambio: reiniciar los workers por completo (restart, no
-# reload) y verificar via phpinfo()/php-fpm -i en el SAPI HTTP.
-# Mas informacion: audit v0.7, seccion 4 (CVE-2026-1096xx/115560).
+# Restart PHP-FPM workers after changing the pool configuration.
 # ------------------------------------------------------------------
 <IfModule mod_php7.c>
     php_flag session.upload_progress.enabled 0

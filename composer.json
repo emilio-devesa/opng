@@ -2,7 +2,7 @@
     "name": "emilio-devesa/opng",
     "description": "Open Pastebin NG — a modern, self-hosted pastebin",
     "type": "project",
-    "license": "MIT",
+    "license": "GPL-2.0-or-later",
     "require": {
         "php": ">=8.2.35 <8.3.0 || >=8.3.36 <8.4.0 || >=8.4.27 <8.5.0 || >=8.5.12 <9.0.0",
         "ext-gd": "*",
