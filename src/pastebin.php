@@ -59,6 +59,4 @@ require(__DIR__ . "/includes/layout_header.php");
         <p class="form-help" data-i18n="storage_quota_notice">Normal accounts can store up to 100 MiB across all pastes. Administrators are exempt.</p>
         <button data-i18n="submit" id="submit" type="submit">Submit</button>
     </form>
-    <a href="index.php" data-i18n="return">Return to Home</a>
-
 <?php require(__DIR__ . "/includes/layout_footer.php"); ?>
