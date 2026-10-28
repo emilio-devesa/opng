@@ -1,49 +1,67 @@
-document.addEventListener("DOMContentLoaded", function () {
-    const languageSelector = document.getElementById("language-selector");
-    if (!languageSelector) return; // Evitar errores si el selector no está presente
+// Selector de idioma.
+// Se encapsula en una IIFE: los scripts clásicos comparten el ámbito global y
+// antes este fichero y dark-mode.js declaraban ambos `const basePath`, lo que
+// provocaba "Identifier 'basePath' has already been declared" y hacía que este
+// script no se ejecutara (el selector no cambiaba el idioma).
+(function () {
+    "use strict";
 
-    // Idiomas disponibles
-    const validLanguages = ["en", "es", "de", "fr", "pt", "zh"];
+    // Prefijo de rutas (capturado en tiempo de carga; en subdirectorios como admin/ o auth/)
+    const basePath = (document.currentScript && document.currentScript.dataset.base) || "";
 
-    // Obtener idioma guardado en localStorage, si no existe, usar "en"
-    let savedLang = localStorage.getItem("lang") || "en";
-    if (!validLanguages.includes(savedLang)) savedLang = "en";
+    document.addEventListener("DOMContentLoaded", function () {
+        const languageSelector = document.getElementById("language-selector");
+        if (!languageSelector) return; // Evitar errores si el selector no está presente
 
-    // Aplicar el idioma guardado al selector y al documento
-    languageSelector.value = savedLang;
-    document.documentElement.lang = savedLang;
+        // Idiomas disponibles
+        const validLanguages = ["en", "es", "de", "fr", "pt", "zh"];
 
-    // Cargar traducciones y aplicarlas
-    function loadTranslations(lang) {
-        fetch(`assets/lang/${lang}.json`)
-            .then(response => response.json())
-            .then(data => {
-                // Reemplazar textos en la página usando data del JSON
-                document.querySelectorAll("[data-i18n]").forEach(el => {
-                    const key = el.getAttribute("data-i18n");
-                    if (data[key]) el.innerHTML = data[key];
-                });
-                // Disparar evento de cambio de idioma
-                document.dispatchEvent(new Event("languageChanged"));
-            })
-            .catch(error => console.error("Error cargando traducciones:", error));
-    }
+        // Obtener idioma guardado en localStorage, si no existe, usar "en"
+        let savedLang = localStorage.getItem("lang") || "en";
+        if (!validLanguages.includes(savedLang)) savedLang = "en";
 
-    // Aplicar traducciones al cargar la página
-    loadTranslations(savedLang);
+        // Aplicar el idioma guardado al selector y al documento
+        languageSelector.value = savedLang;
+        document.documentElement.lang = savedLang;
 
-    // Manejar el cambio de idioma sin recargar la página
-    languageSelector.addEventListener("change", function () {
-        let selectedLang = this.value;
-        if (!validLanguages.includes(selectedLang)) return;
+        // Cargar traducciones y aplicarlas
+        function loadTranslations(lang) {
+            fetch(`${basePath}assets/lang/${lang}.json`)
+                .then(response => {
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    return response.json();
+                })
+                .then(data => {
+                    // Reemplazar textos en la página usando data del JSON.
+                    // textContent (no innerHTML): las traducciones son texto plano.
+                    document.querySelectorAll("[data-i18n]").forEach(el => {
+                        const key = el.getAttribute("data-i18n");
+                        if (Object.prototype.hasOwnProperty.call(data, key)) {
+                            el.textContent = data[key];
+                        }
+                    });
+                    // Disparar evento de cambio de idioma
+                    document.dispatchEvent(new Event("languageChanged"));
+                })
+                .catch(error => console.error("Error cargando traducciones:", error));
+        }
 
-        // Guardar en localStorage
-        localStorage.setItem("lang", selectedLang);
+        // Aplicar traducciones al cargar la página
+        loadTranslations(savedLang);
 
-        // Cambiar atributo lang de HTML
-        document.documentElement.lang = selectedLang;
+        // Manejar el cambio de idioma sin recargar la página
+        languageSelector.addEventListener("change", function () {
+            const selectedLang = this.value;
+            if (!validLanguages.includes(selectedLang)) return;
 
-        // Cargar y aplicar nuevas traducciones
-        loadTranslations(selectedLang);
+            // Guardar en localStorage
+            localStorage.setItem("lang", selectedLang);
+
+            // Cambiar atributo lang de HTML
+            document.documentElement.lang = selectedLang;
+
+            // Cargar y aplicar nuevas traducciones
+            loadTranslations(selectedLang);
+        });
     });
-});
+})();

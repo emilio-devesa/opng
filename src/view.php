@@ -1,26 +1,29 @@
 <?php
-session_start(); // Iniciar sesión antes de usar $_SESSION
-require("config.php");
-require("database.php");
+// (v0.8) Vista de un paste.
+//   - "Edit" (UPDATE real): solo visible para el autor o un admin → update.php (U1)
+//   - "Reply" (crea un paste nuevo tipo RE): siempre disponible → submit.php
+require("includes/session.php");
+session_start_secured();
+require("includes/db.php");
+require("includes/csrf.php");
+require("includes/rules.php");
 
 // Obtener el rol y el ID del usuario (si está autenticado)
-// Definir valores predeterminados si el usuario no ha iniciado sesión
-$role = $_SESSION['role'] ?? 'guest';  // Si no hay sesión, será 'guest'
-$user_id = $_SESSION['user_id'] ?? null; // Si no hay sesión, será null
-
+$role = $_SESSION['role'] ?? 'guest';
+$user_id = $_SESSION['user_id'] ?? null;
 
 // Verificar y obtener el ID
 if (!isset($_GET['id']) || empty($_GET['id'])) {
-    header("Location: error.php?msg=" . urlencode("ID no válido"));
+    header("Location: error.php?msg=" . urlencode("Invalid ID"));
     exit;
 }
 
 $id = trim($_GET['id']);
 
 // Conectar a la base de datos
-$db = database_connect();
+$db = db_connect();
 if (!$db) {
-    header("Location: error.php?msg=" . urlencode("Error de conexión a la base de datos"));
+    header("Location: error.php?msg=" . urlencode("Database connection error."));
     exit;
 }
 
@@ -34,21 +37,8 @@ $stmt->close();
 $db->close();
 
 if (!$array) {
-    header("Location: error.php?msg=" . urlencode("Registro no encontrado"));
+    header("Location: error.php?msg=" . urlencode("Entry not found"));
     exit;
-}
-
-// Cargar reglas desde rules.xml
-$dom = new DOMDocument();
-if (!$dom->load(__DIR__ . "/rules.xml")) {
-    die("<p style='color: red;'>Error: No se pudo cargar rules.xml.</p>");
-}
-
-// Convertir XML a array
-$rules = [];
-foreach ($dom->getElementsByTagName('RULE') as $rule) {
-    $name = trim($rule->getAttribute('name'));
-    $rules[$name] = $name; // Solo almacenar el nombre del lenguaje
 }
 
 // Obtener y normalizar el lenguaje
@@ -57,97 +47,99 @@ $language = trim($array['language']);
 // Contar lineas para el resaltado
 $lines = explode("\n", $array['text']);
 
-// Determinar si el usuario tiene permisos para eliminar la entrada
-$can_delete = ($role === "admin" || ($user_id && $user_id === $array['user_id']));
+// Permisos, separando edición (autor/admin) de borrado (admin o autor)
+$can_edit   = ($role === "admin" || ($user_id !== null && (int)$user_id === (int)$array['user_id'])); // fix R2
+$can_delete = $can_edit;
 
-// Generar un token CSRF si no existe
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
-$csrf_token = $_SESSION['csrf_token'];
-
+$csrf_token = csrf_token();
+$lang_attr = 'en';
+$page_title = $array['topic'];
+$base = '';
+// Mensajes que llegan vía ?msg= (p. ej. tras editar el paste en update.php)
+$flash = isset($_GET['msg']) ? htmlspecialchars($_GET['msg'], ENT_QUOTES, 'UTF-8') : "";
+require(__DIR__ . "/includes/layout_header.php");
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title><?php echo htmlspecialchars($array['topic']); ?></title>
-    <link rel="stylesheet" href="main.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-    <script>hljs.highlightAll();</script>
-</head>
-<body>
-    <div id="Content">
-        <h2><?php echo htmlspecialchars($array['topic']); ?></h2>
-        <div class="container">
-            <div class="box">
-                <h3 data-i18n="code:">Code:</h3>
-                <label data-i18n="language:">Language:</label> <?php echo htmlspecialchars($language); ?><br>
-                <label data-i18n="date">Date:</label> <?php echo htmlspecialchars($array['date']); ?><br>
-                <label data-i18n="id">ID:</label> <?php echo htmlspecialchars($array['id']); ?><br>
-                <table>
-                    <tr>
-                        <td nowrap align="right">
-                            <pre><?php echo implode("\n", range(1, count($lines))); ?></pre>
-                        </td>
-                        <td nowrap align="left">
-                            <div style="position: relative;">
-                                <pre><code id="code-block" class="language-<?php echo htmlspecialchars($language); ?>"><?php echo htmlspecialchars($array['text'], ENT_QUOTES, 'UTF-8'); ?></code></pre>
-                                <button id="copy-button" data-i18n="copy" class="copy-button" onclick="copyToClipboard()">📋 Copy</button>
-                            </div>
-                        </td>
-                    </tr>
-                </table>
-                <br>
-                <?php if ($can_delete): ?>  <!-- ✅ USAMOS `$can_delete` EN LUGAR DE `$_SESSION` -->
-                    <form method="post" action="admin/drop_id.php">
+            <h2><?php echo htmlspecialchars($array['topic']); ?></h2>
+            <?php if ($flash !== ""): ?>
+                <p class="flash-message"><?php echo $flash; ?></p>
+            <?php endif; ?>
+            <div class="container">
+                <div class="box">
+                    <h3 data-i18n="code:">Code:</h3>
+                    <label data-i18n="language:">Language:</label> <?php echo htmlspecialchars($language); ?><br>
+                    <label data-i18n="date">Date:</label> <?php echo htmlspecialchars($array['date']); ?><br>
+                    <label data-i18n="id">ID:</label> <?php echo htmlspecialchars($array['id']); ?><br>
+                    <table>
+                        <tr>
+                            <td nowrap align="right">
+                                <pre><?php echo implode("\n", range(1, count($lines))); ?></pre>
+                            </td>
+                            <td nowrap align="left">
+                                <div style="position: relative;">
+                                    <pre><code id="code-block" class="language-<?php echo htmlspecialchars($language); ?>"><?php echo htmlspecialchars($array['text'], ENT_QUOTES, 'UTF-8'); ?></code></pre>
+                                    <button id="copy-button" data-i18n="copy" class="copy-button" onclick="copyToClipboard()">📋 Copy</button>
+                                </div>
+                            </td>
+                        </tr>
+                    </table>
+                    <br>
+                    <?php if ($can_delete): ?>
+                        <form method="post" action="admin/drop_id.php">
+                            <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
+                            <input type="hidden" name="input_ID" value="<?php echo htmlspecialchars($array['id']); ?>">
+                                                        <button type="submit" data-i18n="delete_paste" onclick="return confirm('Are you sure you want to delete this paste?');">Delete Paste</button>
+                        </form>
+                    <?php endif; ?>
+                </div>
+                <?php if ($can_edit): ?>
+                <div class="box">
+                    <h3 data-i18n="edit:">Edit:</h3>
+                    <form method="post" action="update.php">
                         <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
                         <input type="hidden" name="input_ID" value="<?php echo htmlspecialchars($array['id']); ?>">
-                        <button type="submit" onclick="return confirm('¿Seguro que deseas eliminar este paste?');">Eliminar Paste</button>
-                    </form>
-                <?php endif; ?>
-            </div>
-            <div class="box">
-                <h3 data-i18n="edit:">Edit:</h3>
-                <form method="post" action="submit.php">
-                    <!-- Protección CSRF -->
-                    <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
 
-                    <label data-i18n="topic:">Topic:</label>
-                    <input type="text" name="input_topic" value="RE: <?php echo htmlspecialchars($array['topic']); ?>"><br>
-                    
-                    <label data-i18n="select_language:" for="input_language">Select language:</label>
-                    <select id="input_language" name="input_language" required>
-                        <?php foreach ($rules as $rule_name => $rule): ?>
-                            <option value="<?php echo htmlspecialchars($rule_name); ?>" <?php echo ($rule_name === $language) ? "selected" : ""; ?>>
-                                <?php echo htmlspecialchars($rule_name); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select><br>
-                    <br><br>
-                    <textarea name="input_text" rows="<?php echo (max(count($lines), 10)+1); ?>" cols="80"><?php echo htmlspecialchars($array['text'], ENT_QUOTES, 'UTF-8'); ?></textarea>
-                    <br><br>
-                    <button data-i18n="submit" id="submit" type="submit">Submit</button>
-                </form>
+                        <label data-i18n="topic:">Topic:</label>
+                        <input type="text" name="input_topic" value="<?php echo htmlspecialchars($array['topic'], ENT_QUOTES, 'UTF-8'); ?>"><br>
+
+                        <label data-i18n="select_language:" for="edit_language">Select language:</label>
+                        <select id="edit_language" name="input_language" required>
+                            <?php foreach (load_rules() as $rule_name => $rule): ?>
+                                <option value="<?php echo htmlspecialchars($rule_name); ?>" <?php echo ($rule_name === $language) ? "selected" : ""; ?>>
+                                    <?php echo htmlspecialchars($rule_name); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select><br>
+                        <br><br>
+                        <textarea name="input_text" rows="<?php echo (max(count($lines), 10)+1); ?>" cols="80"><?php echo htmlspecialchars($array['text'], ENT_QUOTES, 'UTF-8'); ?></textarea>
+                        <br><br>
+                        <button data-i18n="save" id="edit-save" type="submit">Save changes</button>
+                    </form>
+                </div>
+                <?php endif; ?>
+                <div class="box">
+                    <h3 data-i18n="reply:">Reply (new paste):</h3>
+                    <form method="post" action="submit.php">
+                        <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
+
+                        <label data-i18n="topic:">Topic:</label>
+                        <input type="text" name="input_topic" value="RE: <?php echo htmlspecialchars($array['topic']); ?>"><br>
+
+                        <label data-i18n="select_language:" for="input_language">Select language:</label>
+                        <select id="input_language" name="input_language" required>
+                            <?php foreach (load_rules() as $rule_name => $rule): ?>
+                                <option value="<?php echo htmlspecialchars($rule_name); ?>" <?php echo ($rule_name === $language) ? "selected" : ""; ?>>
+                                    <?php echo htmlspecialchars($rule_name); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select><br>
+                        <br><br>
+                        <textarea name="input_text" rows="<?php echo (max(count($lines), 10)+1); ?>" cols="80"><?php echo htmlspecialchars($array['text'], ENT_QUOTES, 'UTF-8'); ?></textarea>
+                        <br><br>
+                        <button data-i18n="submit" id="submit" type="submit">Submit</button>
+                    </form>
+                </div>
             </div>
-        </div>
-        <br>
-        <a href="index.php" data-i18n="return">Return to Home</a>
-        <br><br>
-        <button id="theme-toggle" data-i18n="dark_mode">Dark Mode</button>
-        <script src="assets/js/dark-mode.js"></script>
-        <br><br>
-        <select id="language-selector">
-            <option value="en">🇬🇧 English</option>
-            <option value="es">🇪🇸 Español</option>
-            <option value="de">🇩🇪 Deutsch</option>
-            <option value="fr">🇫🇷 Français</option>
-            <option value="pt">🇵🇹 Português</option>
-            <option value="zh">🇨🇳 中文</option>
-        </select>
-        <script src="assets/js/language.js"></script>
-        <script src="assets/js/copy.js"></script>
-    </div>
-</body>
-</html>
+            <br>
+            <a href="index.php" data-i18n="return">Return to Home</a>
+
+<?php require(__DIR__ . "/includes/layout_footer.php"); ?>

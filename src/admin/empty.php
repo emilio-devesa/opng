@@ -1,6 +1,8 @@
 <?php
-session_start();
-require_once('../config.php');
+// (v0.8) Vaciar pastes. Refactor: session/csrf centralizados.
+require_once('../includes/session.php');
+session_start_secured();
+require_once('../includes/csrf.php');
 require_once('../database.php');
 
 // Verificar que el usuario esté autenticado y sea administrador
@@ -13,40 +15,29 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'admin') {
 // Verificar que la solicitud es POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     // Sin POST: mostrar la página de confirmación
-    if (empty($_SESSION['csrf_token'])) {
-        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-    }
-    $csrf_token = $_SESSION['csrf_token'];
+    $csrf_token = csrf_token();
+    $lang_attr = 'en';
+    $page_title = 'Admin - Empty database';
+    $base = '../';
+    require(__DIR__ . "/../includes/layout_header.php");
     ?>
-    <!DOCTYPE html>
-    <html lang="es">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Administración - Vaciar Base de Datos</title>
-        <link rel="stylesheet" href="../main.css">
-    </head>
-    <body>
-        <div id="Content">
-            <h2>⚠️ Vaciar Base de Datos</h2>
-            <p><strong>Esta acción eliminará permanentemente todos los pastes almacenados.</strong></p>
-            <p>¿Estás seguro de que quieres continuar?</p>
+            <h2 data-i18n="empty_title">⚠️ Empty database</h2>
+            <p><strong data-i18n="empty_warning">This action will permanently delete all stored pastes.</strong></p>
+            <p data-i18n="empty_confirm">Are you sure you want to continue?</p>
             <form method="post">
                 <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
-                <button type="submit" style="background-color: red; color: white;">Sí, vaciar</button>
+                <button type="submit" style="background-color: red; color: white;" data-i18n="empty_yes">Yes, empty it</button>
             </form>
             <br>
-            <a href="admin.php">Cancelar</a>
-        </div>
-    </body>
-    </html>
+            <a href="admin.php" data-i18n="cancel">Cancel</a>
     <?php
+    require(__DIR__ . "/../includes/layout_footer.php");
     exit;
 }
 
 // Verificar token CSRF
-if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-    header("Location: ../error.php?msg=" . urlencode("Error: CSRF token inválido."));
+if (!csrf_valid($_POST['csrf_token'] ?? null)) {
+    header("Location: ../error.php?msg=" . urlencode("Error: invalid CSRF token."));
     exit;
 }
 
@@ -55,16 +46,16 @@ if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_tok
 // conservando la estructura y las cuentas de usuario)
 $db = database_connect();
 if (!$db) {
-    header("Location: ../error.php?msg=" . urlencode("Error de conexión a la base de datos"));
+    header("Location: ../error.php?msg=" . urlencode("Database connection error."));
     exit;
 }
 
 if ($db->query("TRUNCATE TABLE entries")) {
-    header("Location: ../index.php?msg=" . urlencode("Base de datos vaciada correctamente"));
+    header("Location: ../index.php?msg=" . urlencode("All pastes have been deleted"));
 } else {
     // Error genérico al usuario; detalle técnico al log del servidor (S6)
-    error_log("OPNG empty.php: fallo al truncar 'entries': " . $db->error);
-    header("Location: ../error.php?msg=" . urlencode("Error al vaciar la base de datos"));
+    error_log("OPNG empty.php: failed to truncate 'entries': " . $db->error);
+    header("Location: ../error.php?msg=" . urlencode("Error while emptying the database"));
 }
 
 $db->close();

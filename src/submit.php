@@ -1,29 +1,32 @@
 <?php
-session_start(); // Iniciar sesión antes de usar $_SESSION
-require("config.php");
-require("database.php");
+// (v0.8) Procesa el POST creación/respuesta. Refactor: session/csrf/rules centralizadas.
+require("includes/session.php");
+session_start_secured();
+require("includes/csrf.php");
+require("includes/rules.php");
+require("includes/db.php");
+
+// Protección CSRF (rechaza el POST sin token válido)
+if (!csrf_valid($_POST['csrf_token'] ?? null)) {
+    header("Location: error.php?msg=" . urlencode("Error: invalid CSRF token."));
+    exit;
+}
 
 // Inicializar el array de errores
 $errors = [];
-
-// Verificar y obtener el ID
-/* if (!isset($_GET['id']) || empty($_GET['id'])) {
-    header("Location: error.php?msg=" . urlencode("ID no válido"));
-    exit;
-} */
 
 // Obtener ID del usuario autenticado
 $user_id = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : null;
 
 // Validar los datos enviados en el formulario
 if (empty($_POST['input_text'])) {
-    $errors[] = "El texto no puede estar vacío.";
+    $errors[] = "The text cannot be empty.";
 }
 if (empty($_POST['input_language'])) {
-    $errors[] = "El lenguaje es obligatorio.";
+    $errors[] = "The language is required.";
 }
 if (empty($_POST['input_topic'])) {
-    $errors[] = "El tema es obligatorio.";
+    $errors[] = "The topic is required.";
 }
 
 // Si hay errores, los mostramos y detenemos el script
@@ -32,7 +35,7 @@ if (!empty($errors)) {
     foreach ($errors as $error) {
         echo "<li>" . htmlspecialchars($error) . "</li>";
     }
-    echo "</ul><p><a href='pastebin.php'>Volver</a></p>";
+    echo "</ul><p><a href='pastebin.php'>Back</a></p>";
     exit;
 }
 
@@ -41,31 +44,20 @@ if (!empty($errors)) {
 // en la capa de presentación, concretamente en view.php)
 $text = trim($_POST['input_text']);
 $topic = trim($_POST['input_topic']);
-$language = htmlspecialchars(trim($_POST['input_language']), ENT_QUOTES, 'UTF-8');
+$language = trim($_POST['input_language']);
 
-// Cargar rules.xml usando DOMDocument
-$dom = new DOMDocument();
-if (!$dom->load(__DIR__ . "/rules.xml")) {
-    die("<p style='color: red;'>Error: No se pudo cargar rules.xml.</p>");
-}
-
-// Convertir XML a array (solo nombres de lenguajes)
-$rules = [];
-foreach ($dom->getElementsByTagName('RULE') as $rule) {
-    $rules[trim($rule->getAttribute('name'))] = true;
-}
-
-// Verificar si el lenguaje existe en `rules.xml`
+// Verificar si el lenguaje existe en `rules.xml` (allowlist centralizada)
+$rules = load_rules();
 if (!isset($rules[$language])) {
-    echo "<p style='color: red;'>Error: El lenguaje seleccionado ('" . htmlspecialchars($language) . "') no es válido.</p>";
-    echo "<p><a href='pastebin.php'>Volver</a></p>";
+    header("Location: error.php?msg=" . urlencode("Error: The selected language ('" . $language . "') is not valid."));
     exit;
 }
 
 // Conectar a la base de datos
-$db = database_connect();
+$db = db_connect();
 if (!$db) {
-    die("<p style='color: red;'>Error: No se pudo conectar a la base de datos.</p>");
+    header("Location: error.php?msg=" . urlencode("Error: No se pudo conectar a la base de datos."));
+    exit;
 }
 
 // Generar un ID único
@@ -77,13 +69,20 @@ $id = bin2hex(random_bytes(8));
 if ($user_id === null) {
     $stmt = $db->prepare("INSERT INTO entries (id, user_id, language, text, topic) VALUES (?, NULL, ?, ?, ?)");
     if (!$stmt) {
-        die("<p style='color: red;'>Error en la preparación de la consulta: " . $db->error . "</p>");
+        // (S6) el detalle técnico va al log, no al usuario
+        error_log("OPNG submit.php: " . $db->error);
+        $db->close();
+        header("Location: error.php?msg=" . urlencode("Error saving the paste."));
+        exit;
     }
     $stmt->bind_param("ssss", $id, $language, $text, $topic);
 } else {
     $stmt = $db->prepare("INSERT INTO entries (id, user_id, language, text, topic) VALUES (?, ?, ?, ?, ?)");
     if (!$stmt) {
-        die("<p style='color: red;'>Error en la preparación de la consulta: " . $db->error . "</p>");
+        error_log("OPNG submit.php: " . $db->error);
+        $db->close();
+        header("Location: error.php?msg=" . urlencode("Error saving the paste."));
+        exit;
     }
     $stmt->bind_param("sisss", $id, $user_id, $language, $text, $topic);
 }

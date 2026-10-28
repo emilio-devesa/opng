@@ -1,6 +1,7 @@
 <?php
-session_start();
-require("../config.php");
+require("../includes/session.php");
+session_start_secured();
+require("../includes/csrf.php");
 require("../database.php");
 
 $token = "";
@@ -30,6 +31,12 @@ if ($_SERVER["REQUEST_METHOD"] === "GET" && isset($_GET["token"])) {
     $db->close();
 
 } elseif ($_SERVER["REQUEST_METHOD"] === "POST") {
+    // Protección CSRF
+    if (!csrf_valid($_POST['csrf_token'] ?? null)) {
+        header("Location: ../error.php?msg=" . urlencode("Error: invalid CSRF token."));
+        exit;
+    }
+
     if (!isset($_POST["token"], $_POST["password"])) {
         die("<p style='color: red;'>Invalid request.</p>");
     }
@@ -70,19 +77,21 @@ if ($_SERVER["REQUEST_METHOD"] === "GET" && isset($_GET["token"])) {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Reset Password</title>
+    <title data-i18n="reset_title">Reset Password</title>
+    <link rel="stylesheet" href="../main.css">
 </head>
 <body>
-    <h2>Reset Password</h2>
+    <h2 data-i18n="reset_title">Reset Password</h2>
 
     <?php if ($error_message): ?>
         <?php echo $error_message; ?>
     <?php elseif ($show_form): ?>
         <form method="POST">
+            <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
             <input type="hidden" name="token" value="<?php echo htmlspecialchars($token); ?>">
-            <label>New Password:</label>
+            <label data-i18n="new_password">New Password:</label>
             <input type="password" name="password" required>
-            <button type="submit">Change Password</button>
+            <button type="submit" data-i18n="change_password">Change Password</button>
         </form>
     <?php endif; ?>
 </body>

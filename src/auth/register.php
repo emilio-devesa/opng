@@ -1,9 +1,16 @@
 <?php
-session_start();
-require("../config.php");
+require("../includes/session.php");
+session_start_secured();
+require("../includes/csrf.php");
 require("../database.php");
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    // Protección CSRF
+    if (!csrf_valid($_POST['csrf_token'] ?? null)) {
+        header("Location: ../error.php?msg=" . urlencode("Error: invalid CSRF token."));
+        exit;
+    }
+
     $username = trim($_POST["username"]);
     $email = trim($_POST["email"]);
     $password = $_POST["password"];
@@ -17,7 +24,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     // Validación básica
     if (empty($username) || empty($email) || empty($password)) {
-        die("Todos los campos son obligatorios.");
+        die("All fields are required.");
     }
 
     // Conectar a la BD
@@ -29,7 +36,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $stmt->execute();
     $stmt->store_result();
     if ($stmt->num_rows > 0) {
-        die("El email ya está registrado.");
+        die("This email is already registered.");
     }
     $stmt->close();
 
@@ -40,9 +47,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, 'user')");
     $stmt->bind_param("sss", $username, $email, $passwordHash);
     if ($stmt->execute()) {
-        echo "Registro exitoso. <a href='login.php'>Iniciar sesión</a>";
+        echo "Registration successful. <a href='login.php'>Sign in</a>";
     } else {
-        echo "Error en el registro.";
+        echo "Registration error.";
     }
     $stmt->close();
     $db->close();
@@ -50,28 +57,29 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 ?>
 
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Registro</title>
-    <link rel="stylesheet" href="main.css">
+    <title data-i18n="register_title">Sign up</title>
+    <link rel="stylesheet" href="../main.css">
 </head>
 <body>
-    <h2>Registro</h2>
+    <h2 data-i18n="register_title">Sign up</h2>
     <form method="POST">
-        <p><label>Usuario:</label>
+        <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
+        <p><label data-i18n="username">Username:</label>
         <input type="text" name="username" required><br>
-        <label>Email:</label>
+        <label data-i18n="email">Email:</label>
         <input type="email" name="email" required><br>
-        <label>Contraseña:</label>
+        <label data-i18n="password">Password:</label>
         <input type="password" name="password" required></p>
         <!-- Imagen CAPTCHA -->
-        <p><label>Please enter captcha text:</label>
+        <p><label data-i18n="captcha_label">Please enter the captcha text:</label>
         <input type="text" name="captcha_answer" required><br>
         <img src="captcha.php" alt="CAPTCHA" class="captcha-image"><br>
-        <button type="button" class="refresh-captcha">🔄 Refresh</button></p>
+        <button type="button" class="refresh-captcha" data-i18n="refresh_captcha">🔄 Refresh</button></p>
         <br>
-        <p><button type="submit">Registrarse</button></p>
+        <p><button type="submit" data-i18n="register">Sign up</button></p>
     </form>
     <script src="../assets/js/refresh-captcha.js"></script>
 </body>

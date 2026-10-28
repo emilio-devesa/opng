@@ -99,9 +99,19 @@ Edit config.php and set your database credentials, for example:
 	$mysql_password = "yourpassword";
 	$mysql_dbname = "opng";
 
-3️⃣ **Run the application**
-- If using **Apache**, place the project in `htdocs` or configure a virtual host.
-- If using **Nginx**, configure the root directory in your Nginx config.
+3️⃣ **Run the installer (new in v0.8)**
+- Open `http://localhost/install.php` once (or run `php install.php` from the CLI).
+- It creates the database, the `Users`/`Entries` tables and the `Entries.Date` index.
+- **Delete `install.php` from the server afterwards.**
+
+> Since v0.8 there is no automatic migration on every request (performance fix). A missing database now returns a connection error instead of being auto-created.
+
+4️⃣ **Run the application**
+- If using **Apache**, place the project in `htdocs` or configure a virtual host (the shipped `src/.htaccess` provides hardening: it blocks direct access to `config.php`/`database.php`/`rules.xml` and disables `session.upload_progress`).
+- If using **Nginx**, configure the root directory and block sensitive files:
+  ```nginx
+  location ~ /(?:config\.php|database\.php|rules\.xml)$ { deny all; }
+  ```
 - Open `http://localhost/` in your browser.
 
 ---
@@ -122,16 +132,29 @@ For security reasons, access to **admin features** is restricted to administrato
 - Can view public pastes
 - Can create pastes (anonymous pastes)
 - Cannot delete any pastes
+- Cannot edit any pastes
 
 📝 Registered User
 - Can create and manage their own pastes
-- Can delete only their own pastes
+- Can edit and delete only their own pastes
 - Cannot access the admin panel
 
 🛠️ Administrator
 - Has full control over the system
-- Can delete any paste (even from other users)
+- Can edit or delete any paste (even from other users)
 - Can empty all pastes via the admin panel (user accounts are preserved)
+
+---
+
+## 🧪 Development
+
+- **`tools/seed.php`** — CLI-only seeder for local development. It creates 10 users (8 normal + 2 admins), 60 pastes and 12 replies (72 entries total) so pagination, search and role permissions can be tested.
+
+  ```bash
+  php tools/seed.php
+  ```
+
+  It is re-runnable: it only deletes its own data (`seed%` IDs and `@example.test` emails). Seeded accounts share the password `Password123!` (e.g. `lucia@example.test` for a normal user, `maria@example.test` for an admin).
 
 ---
 
