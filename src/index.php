@@ -94,7 +94,7 @@ $list_sql = "SELECT entries.id, entries.user_id, users.username, entries.topic, 
              FROM entries
              LEFT JOIN users ON entries.user_id = users.id"
              . $where_sql .
-             " ORDER BY {$sort_expression} {$query_order}, entries.id {$query_order} LIMIT 51";
+             " ORDER BY {$sort_expression} {$query_order}, entries.id {$query_order} LIMIT 21";
 $entries = [];
 try {
     $stmt = $db->prepare($list_sql);
@@ -121,7 +121,7 @@ try {
     exit;
 }
 
-$has_more = count($entries) > 50;
+$has_more = count($entries) > 20;
 if ($has_more) {
     array_pop($entries);
 }

@@ -52,7 +52,7 @@ try {
          FROM entries
          LEFT JOIN users ON entries.user_id = users.id
          ORDER BY entries.date DESC, entries.id DESC
-         LIMIT 51'
+         LIMIT 21'
     )->fetch_assoc();
     if (
         !in_array($listing_plan['key'] ?? null, ['idx_entries_cursor', 'idx_entries_date'], true)
