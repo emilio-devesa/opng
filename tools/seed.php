@@ -88,11 +88,11 @@ EOT
 Notas de la reunion de arquitectura
 
 - El listado debe paginar de 50 en 50.
-- La busqueda filtra por topic con LIKE.
+- La busqueda usa FULLTEXT por palabras y la paginacion usa cursor por fecha/ID.
 - El editor solo lo ve el autor o un admin.
 - Las respuestas se guardan como un paste nuevo con prefijo RE:.
 
-Pendiente: revisar el indice idx_entries_date.
+Los indices de listado, cursor, propietario y busqueda se aplican con install.php.
 EOT
 ,
 <<<'EOT'
@@ -110,8 +110,9 @@ Apuntes de SQL
 SELECT entries.id, users.username
 FROM entries
 LEFT JOIN users ON entries.user_id = users.id
-ORDER BY entries.date DESC
-LIMIT 50 OFFSET 0;
+WHERE MATCH(entries.topic) AGAINST ('+docker*' IN BOOLEAN MODE)
+ORDER BY entries.date DESC, entries.id DESC
+LIMIT 51;
 
 El LEFT JOIN es importante para no perder los pastes anonimos.
 EOT
@@ -315,10 +316,9 @@ EOT
 <?php
 $db = new mysqli('localhost', 'root', 'root', 'opng', 8889);
 
-$stmt = $db->prepare('SELECT id, topic FROM entries WHERE topic LIKE ? ORDER BY date DESC LIMIT ?');
-$q = '%docker%';
-$limit = 50;
-$stmt->bind_param('si', $q, $limit);
+$stmt = $db->prepare('SELECT id, topic FROM entries WHERE MATCH(topic) AGAINST (? IN BOOLEAN MODE) ORDER BY date DESC, id DESC LIMIT 51');
+$q = '+docker*';
+$stmt->bind_param('s', $q);
 $stmt->execute();
 $result = $stmt->get_result();
 
@@ -429,7 +429,7 @@ $topics = [
     'Configurar Nginx como reverse proxy',
     'Indices en MySQL: cuando usarlos',
     'Depurar un segmentation fault',
-    'Paginacion en PHP con LIMIT/OFFSET',
+    'Paginacion por cursor en PHP y MySQL',
     'Comprobar puertos abiertos con Bash',
     'Contar palabras en Python',
     'Evitar open redirects en login',

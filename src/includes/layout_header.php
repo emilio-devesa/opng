@@ -9,6 +9,14 @@ if (!isset($base)) { $base = ''; }
 $page_title = $page_title ?? 'Open Pastebin NG';
 $logged_in = isset($_SESSION['user_id']);
 $show_search = isset($show_search) && $show_search;
+$language_catalog_version = 0;
+foreach (['en', 'es', 'de', 'fr', 'pt', 'zh'] as $language_code) {
+    $catalog_mtime = filemtime(__DIR__ . '/../assets/lang/' . $language_code . '.json');
+    if ($catalog_mtime === false) {
+        throw new RuntimeException('A language catalog is unavailable.');
+    }
+    $language_catalog_version = max($language_catalog_version, $catalog_mtime);
+}
 $page_title_i18n_attribute = '';
 if (isset($page_title_i18n) && is_string($page_title_i18n)) {
     $page_title_i18n_attribute = ' data-i18n="' . htmlspecialchars($page_title_i18n, ENT_QUOTES, 'UTF-8') . '"';
@@ -48,8 +56,9 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style
         <?php if ($show_search): ?>
         <form method="get" action="index.php" class="search-form">
             <label class="visually-hidden" for="header-search" data-i18n="search_by_topic">Search by topic</label>
-            <input id="header-search" type="text" name="q" placeholder="Search by topic..." data-i18n-placeholder="search_placeholder" value="">
+            <input id="header-search" type="text" name="q" maxlength="255" aria-describedby="header-search-help" placeholder="Search by topic..." data-i18n-placeholder="search_placeholder" value="">
             <button type="submit" data-i18n="search">Search</button>
+            <small id="header-search-help" class="search-help" data-i18n="search_help">All words must match; word beginnings are supported. Short words or stopwords may be ignored.</small>
         </form>
         <?php endif; ?>
         <?php if ($logged_in && ($_SESSION['role'] ?? '') === 'admin'): ?>
@@ -75,6 +84,6 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style
         <?php endif; ?>
     </header>
     <script src="<?php echo $base; ?>assets/js/dark-mode.js?v=<?php echo filemtime(__DIR__ . '/../assets/js/dark-mode.js'); ?>" data-base="<?php echo $base; ?>"></script>
-    <script src="<?php echo $base; ?>assets/js/language.js?v=<?php echo filemtime(__DIR__ . '/../assets/js/language.js'); ?>" data-base="<?php echo $base; ?>"></script>
+    <script src="<?php echo $base; ?>assets/js/language.js?v=<?php echo filemtime(__DIR__ . '/../assets/js/language.js'); ?>" data-base="<?php echo $base; ?>" data-language-version="<?php echo $language_catalog_version; ?>"></script>
     <script src="<?php echo $base; ?>assets/js/confirm.js?v=<?php echo filemtime(__DIR__ . '/../assets/js/confirm.js'); ?>"></script>
     <div id="Content">

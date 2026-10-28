@@ -197,6 +197,33 @@ try {
         echo "OK: index idx_entries_date already exists\n";
     }
 
+    $required_indexes = [
+        'idx_entries_cursor' => 'CREATE INDEX `idx_entries_cursor` ON entries (`date`, `id`)',
+        'idx_entries_user' => 'CREATE INDEX `idx_entries_user` ON entries (`user_id`)',
+        'ft_entries_topic' => 'CREATE FULLTEXT INDEX `ft_entries_topic` ON entries (`topic`)',
+    ];
+    foreach ($required_indexes as $index_name => $create_sql) {
+        $stmt = $conn->prepare(
+            'SELECT 1
+             FROM information_schema.STATISTICS
+             WHERE TABLE_SCHEMA = DATABASE()
+               AND TABLE_NAME = \'entries\'
+               AND INDEX_NAME = ?
+             LIMIT 1'
+        );
+        $stmt->bind_param('s', $index_name);
+        $stmt->execute();
+        $index_exists = $stmt->get_result()->num_rows > 0;
+        $stmt->close();
+
+        if (!$index_exists) {
+            $conn->query($create_sql);
+            echo "OK: index {$index_name}\n";
+        } else {
+            echo "OK: index {$index_name} already exists\n";
+        }
+    }
+
     echo "\nSchema installation complete.\n";
     echo "The target database was not created or dropped by this installer.\n";
     echo "Revoke the migration account when installation is complete.\n";

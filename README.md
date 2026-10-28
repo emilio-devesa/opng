@@ -138,11 +138,13 @@ OPNG_INSTALL_DB_PASS='your-migration-secret' \
 php src/install.php
 ```
 
-The CLI installer creates lowercase `users`, `entries` and `rate_limits` tables and the `entries.date` index. It safely renames the legacy `Users`/`Entries` names only when the lowercase destination does not exist; ambiguous case variants stop the migration without deleting data. Existing `entries.text` is widened to `MEDIUMTEXT` for 1 MiB pastes. Back up the database before schema migrations. Remove `install.php` from a public document root after installation even though it refuses web execution.
+The CLI installer creates lowercase `users`, `entries` and `rate_limits` tables and the listing, cursor, owner and FULLTEXT topic indexes. It safely renames the legacy `Users`/`Entries` names only when the lowercase destination does not exist; ambiguous case variants stop the migration without deleting data. Existing `entries.text` is widened to `MEDIUMTEXT` for 1 MiB pastes. Re-run it with the migration account after schema upgrades; index creation is idempotent. Back up the database before schema migrations. Remove `install.php` from a public document root after installation even though it refuses web execution.
 
 4️⃣ **Enforce input and request limits**
 
-Paste text is limited to **1 MiB (1,048,576 bytes)** and topics to **255 bytes**. The server validates both limits on create and edit; the Nginx example allows a 4 MiB request body to account for form encoding. Configure PHP `post_max_size` to at least `4M` (and any reverse proxy/body limit accordingly). New and reset passwords must be 12–72 bytes; existing passwords remain valid for login.
+Paste text is limited to **1 MiB (1,048,576 bytes)** and topics to **255 bytes**. The server validates both limits on create and edit; the Nginx example allows a 4 MiB request body to account for form encoding. Configure PHP `post_max_size` to at least `4M` (and any reverse proxy/body limit accordingly). Normal accounts have a **100 MiB cumulative text quota** across owned pastes and replies; admins and anonymous pastes are exempt. Existing content is never removed by the quota. Accounts already over the limit may edit only without increasing their stored bytes. New and reset passwords must be 12–72 bytes; existing passwords remain valid for login.
+
+The topic search uses a MySQL/MariaDB FULLTEXT index and requires all entered words; word-prefix matches are supported. It does not perform arbitrary substring matching. The database's minimum token length and stopword settings apply, so short words or stopwords may not match. The listing uses stable keyset cursors rather than page numbers and avoids a total-row count on each request. Translation catalogs use versioned URLs and browser caching.
 
 > Since v0.8 there is no automatic migration on every request. A missing database now returns a connection error instead of being auto-created.
 
@@ -196,7 +198,7 @@ For security reasons, access to **admin features** is restricted to administrato
 
   It is re-runnable: it only deletes its own data (`seed%` IDs and `@example.test` emails). Seeded accounts share the password `Password123!` (e.g. `lucia@example.test` for a normal user, `maria@example.test` for an admin).
 
-- **Static analysis and linting** — the repo ships `composer.json`, `phpstan.neon` (level 5) and a GitHub Actions workflow (PHP 8.3/8.4).
+- **Static analysis and linting** — the repo ships `composer.json`, `phpstan.neon` (level 5) and a GitHub Actions workflow (PHP 8.2–8.5).
 
   ```bash
   composer install
@@ -204,13 +206,27 @@ For security reasons, access to **admin features** is restricted to administrato
   composer phpstan   # PHPStan level 5
   ```
 
-  `src/config.php` is excluded from the analysis and the CI installs no local configuration: the analysis is identical with and without credentials.
+  `src/config.php` is excluded from analysis. The PHPStan job needs no local configuration; the lint job creates a throwaway example config only for its isolated database-connection failure test.
+
+- **MySQL integration tests** — the installation and query-plan tests write temporary rows (the plan test inserts 5,000 fixtures) and require a disposable database. CI creates an isolated schema and explicitly opts in; do not run these tests against the live MAMP database.
 
 - **Rate limiting** — persisted in the `rate_limits` table (created by `install.php`) and keyed by a SHA-256 hash of IP (and IP+account for login). Limits: login 5/10 min, paste creation 5/min, registration and password-reset requests 5/hour.
 
 - **Password reset** — real password-reset email delivery is not configured, so public reset requests are disabled by default. For local development only, set `OPNG_DEV_RESET=1` in the PHP process environment. The simulation also requires the request to come from `127.0.0.1` or `::1` with a `localhost`/loopback Host; it shows a one-time reset link as a simulated email, never a password. Do not set this flag in a shared or production environment. Reset tokens are stored as SHA-256 hashes, expire after 10 minutes, and are consumed once.
 
 - **Password reset guard test** — run `php tests/password_reset_security_test.php` to verify the default-off behavior, loopback/Host checks and token hashing.
+
+- **Local regression tests** — the following tests do not alter the database and can be run with the PHP CLI:
+
+  ```bash
+  php tests/input_validation_test.php
+  php tests/search_pagination_test.php
+  php tests/session_security_test.php
+  php tests/permissions_test.php
+  php tests/frontend_contract_test.php
+  ```
+
+- **Database connection failure test** — CI runs `tests/database_connection_test.php` against an isolated runner with intentionally invalid credentials. It requires `OPNG_TEST_ALLOW_CONNECTION_PROBE=1`; do not set that flag for tests against a shared or production environment.
 
 - **CAPTCHA** — generated locally with GD (160×60, noise, per-character rotation) and served with `Cache-Control: no-store`. No external service or API key is required.
 

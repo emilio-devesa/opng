@@ -2,6 +2,13 @@
 ============================
 
 ## Version 0.8 (2026)
+### ⚡ Performance and scalability — Phase 3
+- Replaced wildcard topic scans with a bounded, sanitized FULLTEXT query; installer now adds topic, cursor-ordering and owner indexes.
+- Replaced numbered OFFSET pagination and per-request COUNT(*) with stable date/ID keyset cursors and a 51-row window.
+- Added a concurrency-safe 100 MiB cumulative content quota for normal accounts; admins and guest pastes are exempt, and over-quota content is never deleted.
+- Versioned and browser-cached translation catalogs; documented the search semantics, quota, and schema-upgrade procedure.
+- Added regression coverage for search normalization, bidirectional cursors, quota boundaries, paste permissions, controlled database-connection failures, frontend contracts, and indexed EXPLAIN plans on a synthetic 5,000-row MySQL dataset.
+
 ### 🎨 UX, accessibility and CSP — Phase 2
 - Vendored a local Highlight.js 11.12.0 bundle limited to the supported languages, with its BSD-3-Clause license. Paste code is highlighted only after HTML escaping; copy uses the Clipboard API with visible, translated success/error feedback.
 - Authentication and error pages now use the shared layout and six-language catalogs. Added associated labels, accessible names, password guidance, translated server messages and correct document language updates.

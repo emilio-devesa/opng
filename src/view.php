@@ -7,10 +7,15 @@ session_start_secured();
 require("includes/db.php");
 require("includes/csrf.php");
 require("includes/rules.php");
+require("includes/paste_permissions.php");
 
 // Obtener el rol y el ID del usuario (si está autenticado)
 $role = $_SESSION['role'] ?? 'guest';
 $user_id = $_SESSION['user_id'] ?? null;
+$role = is_string($role) ? $role : 'guest';
+$user_id = is_int($user_id) || (is_string($user_id) && ctype_digit($user_id))
+    ? (int) $user_id
+    : null;
 
 // Verificar y obtener el ID
 if (
@@ -54,7 +59,9 @@ $line_count = substr_count($array['text'], "\n") + 1;
 $textarea_rows = min(max($line_count, 10), 50);
 
 // Permisos, separando edición (autor/admin) de borrado (admin o autor)
-$can_edit   = ($role === "admin" || ($user_id !== null && (int)$user_id === (int)$array['user_id'])); // fix R2
+$current_user_id = $user_id;
+$owner_id = $array['user_id'] !== null ? (int) $array['user_id'] : null;
+$can_edit = paste_owner_can_manage($current_user_id, (string) $role, $owner_id);
 $can_delete = $can_edit;
 
 $csrf_token = csrf_token();

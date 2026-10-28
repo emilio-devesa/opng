@@ -35,6 +35,8 @@ $message_key = match ($flash_message) {
     'Error while emptying the database' => 'error_empty_pastes',
     'Invalid search query.' => 'error_invalid_search',
     'Invalid page number.' => 'error_invalid_page',
+    'Invalid pagination cursor.' => 'error_invalid_cursor',
+    'Your account storage limit of 100 MiB has been reached.' => 'error_storage_quota',
     'Language configuration is unavailable.' => 'error_language_config',
     default => str_starts_with($flash_message, 'Error: The selected language')
         ? 'error_invalid_language'

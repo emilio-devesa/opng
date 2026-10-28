@@ -35,8 +35,32 @@ jobs:
       - name: Input limits regression test
         run: php tests/input_validation_test.php
 
+      - name: Search, cursor, and quota regression test
+        run: php tests/search_pagination_test.php
+
       - name: Session and CSRF regression test
         run: php tests/session_security_test.php
+
+      - name: Paste permission regression test
+        run: php tests/permissions_test.php
+
+      - name: Database connection failure regression test
+        env:
+          OPNG_TEST_ALLOW_CONNECTION_PROBE: '1'
+          OPNG_DB_HOST: 127.0.0.1
+          OPNG_DB_USER: opng_connection_probe
+          OPNG_DB_PASS: invalid-ci-probe-password
+          OPNG_DB_NAME: opng_connection_probe
+        run: |
+          cp src/config.example.php src/config.php
+          php tests/database_connection_test.php
+
+      - name: JavaScript syntax check
+        run: |
+          node --check src/assets/js/dark-mode.js
+          node --check src/assets/js/language.js
+          node --check src/assets/js/confirm.js
+          node --check src/assets/js/copy.js
 
       - name: Frontend contract and translation regression test
         run: php tests/frontend_contract_test.php
@@ -145,11 +169,21 @@ jobs:
 
       - name: Verify lowercase schema, preserved data, and runtime privileges
         env:
+          OPNG_TEST_ALLOW_DATABASE_FIXTURES: '1'
           OPNG_DB_HOST: 127.0.0.1
           OPNG_DB_USER: opng_runtime
           OPNG_DB_PASS: runtime-ci-password
           OPNG_DB_NAME: opng_ci
         run: php tests/database_install_test.php
+
+      - name: Verify indexed query plans on a synthetic 5,000-row dataset
+        env:
+          OPNG_TEST_ALLOW_PERFORMANCE_FIXTURES: '1'
+          OPNG_DB_HOST: 127.0.0.1
+          OPNG_DB_USER: opng_runtime
+          OPNG_DB_PASS: runtime-ci-password
+          OPNG_DB_NAME: opng_ci
+        run: php tests/performance_query_plan_test.php
 
       - name: Verify ambiguous case variants abort without changing data
         env:

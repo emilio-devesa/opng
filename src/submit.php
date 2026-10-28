@@ -7,6 +7,7 @@ require("includes/rules.php");
 require("includes/db.php");
 require("includes/ratelimit.php");
 require("includes/paste_validation.php");
+require("includes/user_quota.php");
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header("Location: error.php?msg=" . urlencode("Request method not allowed."));
@@ -66,6 +67,26 @@ try {
 
     $id = bin2hex(random_bytes(8));
     $user_id = $_SESSION['user_id'] ?? null;
+    $transaction_started = false;
+    if ($user_id !== null) {
+        $db->begin_transaction();
+        $transaction_started = true;
+        $usage = lock_user_quota($db, (int) $user_id);
+        if ($usage === null) {
+            error_log('OPNG submit.php: authenticated account was not found while checking storage quota');
+            $db->rollback();
+            $db->close();
+            header("Location: error.php?msg=" . urlencode("Database operation failed."));
+            exit;
+        }
+        if (!user_quota_allows($usage, 0, strlen($text))) {
+            $db->rollback();
+            $db->close();
+            header("Location: error.php?msg=" . urlencode("Your account storage limit of 100 MiB has been reached."));
+            exit;
+        }
+    }
+
     if ($user_id === null) {
         $stmt = $db->prepare("INSERT INTO entries (id, user_id, language, text, topic) VALUES (?, NULL, ?, ?, ?)");
         $stmt->bind_param("ssss", $id, $language, $text, $topic);
@@ -77,14 +98,27 @@ try {
     if (!$stmt->execute()) {
         error_log("OPNG submit.php: " . $stmt->error);
         $stmt->close();
+        if ($transaction_started) {
+            $db->rollback();
+        }
         $db->close();
         header("Location: error.php?msg=" . urlencode("Error saving the paste."));
         exit;
     }
     $stmt->close();
+    if ($transaction_started && !$db->commit()) {
+        error_log("OPNG submit.php: failed to commit the paste transaction");
+        $db->rollback();
+        $db->close();
+        header("Location: error.php?msg=" . urlencode("Error saving the paste."));
+        exit;
+    }
     $db->close();
 } catch (mysqli_sql_exception $exception) {
     error_log("OPNG submit.php: " . $exception->getMessage());
+    if (isset($transaction_started) && $transaction_started) {
+        $db->rollback();
+    }
     $db->close();
     header("Location: error.php?msg=" . urlencode("Error saving the paste."));
     exit;

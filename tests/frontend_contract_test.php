@@ -43,6 +43,13 @@ $required_keys = [
     'password_policy',
     'pagination',
     'reset_unavailable',
+    'latest_entries',
+    'newer_entries',
+    'older_entries',
+    'search_help',
+    'storage_quota_notice',
+    'error_invalid_cursor',
+    'error_storage_quota',
 ];
 foreach ($required_keys as $key) {
     if (!array_key_exists($key, $catalogs['en'] ?? [])) {
@@ -85,6 +92,18 @@ $layout = file_get_contents($root . '/src/includes/layout_header.php');
 if (!is_string($layout) || preg_match('/Content-Security-Policy:[^"]*style-src \'self\'; script-src \'self\'/', $layout) !== 1) {
     $failures[] = 'Shared application layout is missing the strict same-origin CSP';
 }
+if (!is_string($layout) || !str_contains($layout, 'data-language-version=')) {
+    $failures[] = 'Language catalogs are missing versioned browser-cache URLs';
+}
+
+$language_script = file_get_contents($root . '/src/assets/js/language.js');
+if (
+    !is_string($language_script)
+    || !str_contains($language_script, 'cache: "force-cache"')
+    || !str_contains($language_script, 'translationCache')
+) {
+    $failures[] = 'Language catalog caching is missing';
+}
 
 $highlighter = $root . '/src/assets/vendor/highlight.min.js';
 $license = $root . '/src/assets/vendor/HIGHLIGHT-LICENSE.txt';
@@ -96,6 +115,17 @@ if (!is_string($license_contents) || !str_contains($license_contents, 'BSD 3-Cla
     $failures[] = 'Highlight.js BSD-3-Clause license is missing';
 }
 
+foreach ([
+    '/src/assets/js/dark-mode.js',
+    '/src/assets/js/language.js',
+    '/src/assets/js/confirm.js',
+    '/src/assets/js/copy.js',
+] as $script_path) {
+    if (!is_file($root . $script_path)) {
+        $failures[] = "Frontend resource is missing: {$script_path}";
+    }
+}
+
 foreach ($failures as $failure) {
     fwrite(STDERR, "FAIL: {$failure}\n");
 }
@@ -103,4 +133,4 @@ if ($failures !== []) {
     exit(1);
 }
 
-echo 'Frontend contracts passed: translation parity, no inline attributes, strict CSP, and local vendor license.' . PHP_EOL;
+echo 'Frontend contracts passed: translation parity, catalog caching, no inline attributes, strict CSP, and local vendor license.' . PHP_EOL;

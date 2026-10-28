@@ -49,6 +49,7 @@ require(__DIR__ . "/includes/layout_header.php");
 
         <label data-i18n="text" for="input_text">Enter your text here</label>
         <textarea id="input_text" name="input_text" rows="25" cols="80" maxlength="1048576" required></textarea>
+        <p class="form-help" data-i18n="storage_quota_notice">Normal accounts can store up to 100 MiB across all pastes. Administrators are exempt.</p>
         <button data-i18n="submit" id="submit" type="submit">Submit</button>
     </form>
     <a href="index.php" data-i18n="return">Return to Home</a>
