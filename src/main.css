@@ -258,11 +258,19 @@ form.search-form {
     display: flex;
     gap: 0.5rem;
     margin: 0 0 1.5rem;
+    justify-content: flex-end;
 }
 
 form.search-form input[type="text"] {
     flex: 1;
-    max-width: 480px;
+    max-width: 360px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+}
+
+form.search-form button {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
 }
 
 /* ========================= */
@@ -606,7 +614,6 @@ legend {
 }
 
 #language-selector {
-    margin-top: 1rem;
     padding: 0.4rem 0.85rem;
     border-radius: 999px;
     border: 1px solid var(--border);
@@ -673,7 +680,7 @@ legend {
 .create-link {
     display: block;
     width: fit-content;
-    margin: 0 0 1.25rem auto;
+    margin: 0 0 1.25rem 0;
     padding: 0.55rem 1.1rem;
     background: var(--accent);
     color: #ffffff;
