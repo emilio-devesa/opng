@@ -51,4 +51,6 @@ $show_search = isset($show_search) && $show_search;
         </nav>
         <?php endif; ?>
     </header>
+    <script src="<?php echo $base; ?>assets/js/dark-mode.js" data-base="<?php echo $base; ?>"></script>
+    <script src="<?php echo $base; ?>assets/js/language.js" data-base="<?php echo $base; ?>"></script>
     <div id="Content">
