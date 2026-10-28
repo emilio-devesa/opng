@@ -202,6 +202,24 @@ footer {
     font-size: 0.9rem;
 }
 
+footer .footer-text {
+    margin: 0;
+}
+
+footer .footer-text a {
+    color: var(--accent);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+footer .footer-text a:hover {
+    text-decoration: underline;
+}
+
+footer .footer-version {
+    color: var(--muted);
+}
+
 /* ========================= */
 /* TARJETAS / CAJAS */
 /* ========================= */
