@@ -1,7 +1,7 @@
 # Open Pastebin NG - Changelog
 ============================
 
-## Unreleased (branch v0.8-development)
+## Version 0.8 (2026)
 ### 🚨 Security — PHP engine vulnerabilities ("PHP2Shell", October 2026)
 - Updated requirements: passing from "PHP 7.4+" to patched PHP releases only (**8.2.35 / 8.3.36 / 8.4.27 / 8.5.12 or higher**), due to:
     - **CVE-2026-109618** — PHP use-after-free in OOM/`longjmp()` handling, leading to RCE (patched 2026-10-21, actively exploited).

@@ -10,7 +10,7 @@ $logged_in = isset($_SESSION['user_id']);
         </div>
     <footer>
         <p class="footer-text">
-            &copy; <?php echo date("Y"); ?> <a href="https://github.com/emilio-devesa" target="_blank" rel="noopener noreferrer">Emilio Devesa</a> &mdash; <a href="https://github.com/emilio-devesa/opng" target="_blank" rel="noopener noreferrer">Open Pastebin NG</a> <a href="https://github.com/emilio-devesa/opng" target="_blank" rel="noopener noreferrer">v0.8-beta</a>
+            &copy; <?php echo date("Y"); ?> <a href="https://github.com/emilio-devesa" target="_blank" rel="noopener noreferrer">Emilio Devesa</a> &mdash; <a href="https://github.com/emilio-devesa/opng" target="_blank" rel="noopener noreferrer">Open Pastebin NG</a> <a href="https://github.com/emilio-devesa/opng" target="_blank" rel="noopener noreferrer">v0.8</a>
         </p>
     </footer>
 </body>
