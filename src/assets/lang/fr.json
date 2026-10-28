@@ -54,5 +54,6 @@
     "admin_manage_entries": "Gérer les entrées",
     "id_to_remove": "ID à supprimer :",
     "drop_entry": "Supprimer l'entrée",
-    "drop_confirm": "Es-tu sûr de vouloir supprimer cette entrée ? Cette action est irréversible."
+    "drop_confirm": "Es-tu sûr de vouloir supprimer cette entrée ? Cette action est irréversible.",
+    "admin": "Admin"
 }

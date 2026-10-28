@@ -5,6 +5,12 @@
 ### 🌐 Internationalization
 - **Admin panel translations:** new i18n keys (`admin_title`, `admin_db_actions`, `empty_pastes`, `admin_manage_entries`, `id_to_remove`, `drop_entry`, `drop_confirm`) added to all language files (en, es, de, fr, pt, zh) and wired into the admin panel markup with `data-i18n` (panel title, database actions legend/button, manage entries legend, ID label, drop button). The drop confirmation dialog now reads the translated message instead of a hardcoded string.
 
+### 🎨 Design refinements (v0.8-development)
+- **Index:** removed the redundant "List of Entries" heading (the header now owns the page title).
+- **Index:** the "Create New Entry" button is now right-aligned.
+- **Pagination:** restyled as pill-shaped chips (navigation links + current page).
+- **Header:** theme toggle and language selector kept on the same line; auth buttons (Login/Register/Logout) as right-aligned chips; new admin chip (when the logged-in user is admin) linking to the admin panel.
+
 ## Version 0.8 (2026)
 ### 🚨 Security — PHP engine vulnerabilities ("PHP2Shell", October 2026)
 - Updated requirements: passing from "PHP 7.4+" to patched PHP releases only (**8.2.35 / 8.3.36 / 8.4.27 / 8.5.12 or higher**), due to:

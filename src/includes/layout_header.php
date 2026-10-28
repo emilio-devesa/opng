@@ -40,7 +40,12 @@ $show_search = isset($show_search) && $show_search;
             <button type="submit" data-i18n="search">Search</button>
         </form>
         <?php endif; ?>
-        <?php if ($logged_in): ?>
+        <?php if ($logged_in && ($_SESSION['role'] ?? '') === 'admin'): ?>
+        <nav class="header-nav">
+            <a data-i18n="admin" href="<?php echo $base; ?>admin/admin.php">Admin</a>
+            <a data-i18n="logout" href="<?php echo $base; ?>auth/logout.php">Logout</a>
+        </nav>
+        <?php elseif ($logged_in): ?>
         <nav class="header-nav">
             <a data-i18n="logout" href="<?php echo $base; ?>auth/logout.php">Logout</a>
         </nav>

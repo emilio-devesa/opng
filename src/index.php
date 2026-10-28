@@ -77,7 +77,6 @@ $show_search = true;
         <p class="flash-message"><?php echo $flash; ?></p>
     <?php endif; ?>
 
-    <h2 data-i18n="list_all">List of Entries</h2>
     <a href="pastebin.php" data-i18n="create_new" class="create-link">Create New Entry</a>
 
     <p class="pagination">

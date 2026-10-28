@@ -628,7 +628,7 @@ legend {
 
 #SiteHeader .header-top {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
     gap: 1rem;
     flex-wrap: wrap;
@@ -649,12 +649,31 @@ legend {
 #SiteHeader .header-nav {
     margin-top: 1.25rem;
     display: flex;
+    justify-content: flex-end;
     gap: 0.5rem;
 }
 
-.create-link {
+#SiteHeader .header-nav a {
     display: inline-block;
-    margin: 0 0 1.25rem;
+    padding: 0.35rem 0.9rem;
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--text);
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-decoration: none;
+}
+
+#SiteHeader .header-nav a:hover {
+    background: var(--accent-soft);
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.create-link {
+    display: block;
+    width: fit-content;
+    margin: 0 0 1.25rem auto;
     padding: 0.55rem 1.1rem;
     background: var(--accent);
     color: #ffffff;
@@ -670,14 +689,42 @@ legend {
 }
 
 /* ========================= */
-/* PAGINACION */
+/* PAGINACION — ESTILO CHIP */
 /* ========================= */
 .pagination {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 1rem;
+    gap: 0.6rem;
     margin: 0 0 1.5rem;
+}
+
+.pagination a {
+    display: inline-block;
+    padding: 0.35rem 0.95rem;
+    border-radius: 999px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-decoration: none;
+}
+
+.pagination a:hover {
+    background: var(--accent-soft);
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.pagination span {
+    display: inline-block;
+    padding: 0.35rem 0.95rem;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 0.9rem;
 }
 
 /* ========================= */

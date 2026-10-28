@@ -54,5 +54,6 @@
     "admin_manage_entries": "管理条目",
     "id_to_remove": "要删除的 ID:",
     "drop_entry": "删除条目",
-    "drop_confirm": "你确定要删除此条目吗？此操作无法撤销。"
+    "drop_confirm": "你确定要删除此条目吗？此操作无法撤销。",
+    "admin": "管理"
 }
