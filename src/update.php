@@ -9,19 +9,20 @@ require("includes/rules.php");
 require("includes/paste_validation.php");
 require("includes/paste_permissions.php");
 require("includes/user_quota.php");
+require("includes/http_input.php");
 
 // ------------------ Validaciones de seguridad ------------------
 if (
     !isset($_SESSION['user_id'])
-    || (!is_int($_SESSION['user_id']) && !is_string($_SESSION['user_id']))
-    || (is_string($_SESSION['user_id']) && !ctype_digit($_SESSION['user_id']))
+    || http_positive_integer($_SESSION['user_id']) === null
 ) {
     header("Location: error.php?msg=" . urlencode("You must be signed in to edit a paste."));
     exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header("Location: error.php?msg=" . urlencode("Request method not allowed."));
+    http_response_code(405);
+    header('Allow: POST');
     exit;
 }
 
@@ -31,31 +32,22 @@ if (!csrf_valid($_POST['csrf_token'] ?? null)) {
 }
 
 // El ID debe ser alfanumérico (mismo formato que genera submit.php)
-if (
-    !isset($_POST['input_ID'])
-    || !is_string($_POST['input_ID'])
-    || $_POST['input_ID'] === ''
-    || !ctype_alnum($_POST['input_ID'])
-) {
+$id = http_string_parameter($_POST, 'input_ID', 255, false);
+if ($id === null || !http_valid_entry_id($id)) {
     header("Location: error.php?msg=" . urlencode("Invalid ID"));
     exit;
 }
-$id = trim($_POST['input_ID']);
 
 // Validación de campos
-if (
-    !isset($_POST['input_text'], $_POST['input_language'], $_POST['input_topic'])
-    || !is_string($_POST['input_text'])
-    || !is_string($_POST['input_language'])
-    || !is_string($_POST['input_topic'])
-) {
+$text = http_string_parameter($_POST, 'input_text', OPNG_MAX_PASTE_BYTES + 1);
+$topic = http_string_parameter($_POST, 'input_topic', OPNG_MAX_TOPIC_BYTES + 1);
+$language = http_string_parameter($_POST, 'input_language', 255);
+if ($text === null || $topic === null || $language === null) {
     header("Location: error.php?msg=" . urlencode("Invalid paste data."));
     exit;
 }
 
 // Valores
-$text = trim($_POST['input_text']);
-$topic = trim($_POST['input_topic']);
 $validation_error = paste_validation_error($text, $topic);
 if ($validation_error !== null) {
     header("Location: error.php?msg=" . urlencode($validation_error));
@@ -69,9 +61,8 @@ try {
     header("Location: error.php?msg=" . urlencode("Language configuration is unavailable."));
     exit;
 }
-$language = trim($_POST['input_language']);
 if (!isset($rules[$language])) {
-    header("Location: error.php?msg=" . urlencode("Error: The selected language ('" . $language . "') is not valid."));
+    header("Location: error.php?msg=" . urlencode("Invalid language."));
     exit;
 }
 
@@ -89,8 +80,14 @@ try {
     $stmt = $db->prepare("SELECT id, user_id, OCTET_LENGTH(text) AS text_bytes FROM entries WHERE id = ? FOR UPDATE");
     $stmt->bind_param("s", $id);
     $stmt->execute();
-    $entry = $stmt->get_result()->fetch_assoc();
+    $result = $stmt->get_result();
+    if (!$result) {
+        throw new RuntimeException('Entry lookup result is unavailable.');
+    }
+    $entry = $result->fetch_assoc();
+    $result->free();
     $stmt->close();
+    $stmt = null;
 
     if (!$entry) {
         $db->rollback();
@@ -106,7 +103,14 @@ try {
     $owner_id   = $entry['user_id'];
     $current_id = $_SESSION['user_id'];
 
-    $current_user_id = (int) $current_id;
+    $current_user_id = http_positive_integer($current_id);
+    if ($current_user_id === null) {
+        $db->rollback();
+        $transaction_started = false;
+        $db->close();
+        header("Location: error.php?msg=" . urlencode("You must be signed in to edit a paste."));
+        exit;
+    }
     $entry_owner_id = $owner_id !== null ? (int) $owner_id : null;
     if (!paste_owner_can_manage($current_user_id, (string) $user_role, $entry_owner_id)) {
         $db->rollback();
@@ -139,6 +143,7 @@ try {
     $stmt->bind_param("ssss", $language, $text, $topic, $id);
     $ok = $stmt->execute();
     $stmt->close();
+    $stmt = null;
     if (!$ok) {
         $db->rollback();
         $transaction_started = false;
@@ -155,8 +160,11 @@ try {
         exit;
     }
     $transaction_started = false;
-} catch (mysqli_sql_exception $exception) {
+} catch (mysqli_sql_exception | RuntimeException $exception) {
     error_log("OPNG update.php: " . $exception->getMessage());
+    if (isset($stmt) && $stmt instanceof mysqli_stmt) {
+        $stmt->close();
+    }
     if ($transaction_started) {
         $db->rollback();
     }

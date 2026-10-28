@@ -1,8 +1,15 @@
 <?php
 require(__DIR__ . '/includes/session.php');
 session_start_secured();
+require(__DIR__ . '/includes/http_input.php');
 
-$flash_message = isset($_GET['msg']) && is_string($_GET['msg']) ? $_GET['msg'] : '';
+if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+    http_response_code(405);
+    header('Allow: GET');
+    exit;
+}
+
+$flash_message = http_string_parameter($_GET, 'msg', 128) ?? '';
 $message_key = match ($flash_message) {
     'Invalid ID' => 'error_invalid_id',
     'Database connection error.' => 'error_database_unavailable',
@@ -35,14 +42,24 @@ $message_key = match ($flash_message) {
     'Error while emptying the database' => 'error_empty_pastes',
     'Invalid search query.' => 'error_invalid_search',
     'Invalid page number.' => 'error_invalid_page',
+    'Invalid paste view.' => 'error_invalid_paste',
     'Invalid pagination cursor.' => 'error_invalid_cursor',
+    'Invalid language.' => 'error_invalid_language',
     'Your account storage limit of 100 MiB has been reached.' => 'error_storage_quota',
     'Language configuration is unavailable.' => 'error_language_config',
-    default => str_starts_with($flash_message, 'Error: The selected language')
-        ? 'error_invalid_language'
-        : ($flash_message === '' ? 'generic_error' : ''),
+    default => $flash_message === '' ? 'generic_error' : '',
 };
-$message = $flash_message !== '' ? $flash_message : 'An error occurred.';
+$message = $message_key !== '' ? $flash_message : 'An error occurred.';
+$http_status = match ($message_key) {
+    'error_permission' => 403,
+    'error_entry_not_found' => 404,
+    'error_method_not_allowed' => 405,
+    'error_invalid_credentials' => 401,
+    'error_database_unavailable', 'error_auth_unavailable' => 503,
+    'error_database_operation', 'error_save_paste', 'error_update_paste' => 500,
+    default => 400,
+};
+http_response_code($http_status);
 $lang_attr = 'en';
 $page_title = 'Error';
 $page_title_i18n = 'error_title';

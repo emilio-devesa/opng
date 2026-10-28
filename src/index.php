@@ -5,19 +5,20 @@ session_start_secured();
 require("includes/db.php");
 require("includes/topic_search.php");
 require("includes/pagination_cursor.php");
+require("includes/http_input.php");
 
-$db = db_connect();
-if (!$db) {
-    header("Location: error.php?msg=" . urlencode("Database connection error."));
+if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+    http_response_code(405);
+    header('Allow: GET');
     exit;
 }
 
 // ------------------ Búsqueda ------------------
-if (isset($_GET['q']) && !is_string($_GET['q'])) {
+if (array_key_exists('q', $_GET) && http_string_parameter($_GET, 'q', OPNG_MAX_SEARCH_QUERY_BYTES) === null) {
     header("Location: error.php?msg=" . urlencode("Invalid search query."));
     exit;
 }
-$q = isset($_GET['q']) ? trim($_GET['q']) : "";
+$q = http_string_parameter($_GET, 'q', OPNG_MAX_SEARCH_QUERY_BYTES) ?? "";
 $search_expression = $q === '' ? null : topic_search_expression($q);
 if ($q !== '' && $search_expression === null) {
     header("Location: error.php?msg=" . urlencode("Invalid search query."));
@@ -28,8 +29,9 @@ $cursor = null;
 $direction = null;
 $cursor_token = '';
 if (array_key_exists('cursor', $_GET) || array_key_exists('direction', $_GET)) {
-    $cursor = decode_entry_cursor($_GET['cursor'] ?? null);
-    $direction_value = $_GET['direction'] ?? null;
+    $cursor_value = http_string_parameter($_GET, 'cursor', 2048, false);
+    $direction_value = http_string_parameter($_GET, 'direction', 5, false);
+    $cursor = decode_entry_cursor($cursor_value);
     if (
         $cursor === null
         || !is_string($direction_value)
@@ -40,6 +42,12 @@ if (array_key_exists('cursor', $_GET) || array_key_exists('direction', $_GET)) {
     }
     $direction = $direction_value;
     $cursor_token = encode_entry_cursor($cursor);
+}
+
+$db = db_connect();
+if (!$db) {
+    header("Location: error.php?msg=" . urlencode("Database connection error."));
+    exit;
 }
 
 $conditions = [];
@@ -61,18 +69,31 @@ $list_sql = "SELECT entries.id, entries.user_id, users.username, entries.topic, 
              LEFT JOIN users ON entries.user_id = users.id"
              . $where_sql .
              " ORDER BY entries.date {$order}, entries.id {$order} LIMIT 51";
-$stmt = $db->prepare($list_sql);
-if ($params === []) {
-    $stmt->execute();
-} else {
-    $stmt->execute($params);
-}
-$result = $stmt->get_result();
 $entries = [];
-while ($row = $result->fetch_assoc()) {
-    $entries[] = $row;
+try {
+    $stmt = $db->prepare($list_sql);
+    $executed = $params === [] ? $stmt->execute() : $stmt->execute($params);
+    if (!$executed) {
+        throw new RuntimeException('Entry listing query failed.');
+    }
+    $result = $stmt->get_result();
+    if (!$result) {
+        throw new RuntimeException('Entry listing result is unavailable.');
+    }
+    while ($row = $result->fetch_assoc()) {
+        $entries[] = $row;
+    }
+    $result->free();
+    $stmt->close();
+} catch (mysqli_sql_exception | RuntimeException $exception) {
+    error_log('OPNG index.php: ' . $exception->getMessage());
+    if (isset($stmt) && $stmt instanceof mysqli_stmt) {
+        $stmt->close();
+    }
+    $db->close();
+    header("Location: error.php?msg=" . urlencode("Database operation failed."));
+    exit;
 }
-$stmt->close();
 
 $has_more = count($entries) > 50;
 if ($has_more) {
@@ -98,16 +119,16 @@ $older_cursor = $entries !== []
     : $cursor_token;
 
 // Mensajes de éxito/información que llegan vía ?msg= (p. ej. tras vaciar/borrar)
-$flash_message = isset($_GET['msg']) && is_string($_GET['msg']) ? $_GET['msg'] : '';
-$flash = $flash_message !== ''
-    ? htmlspecialchars($flash_message, ENT_QUOTES, 'UTF-8')
-    : "";
+$flash_message = http_string_parameter($_GET, 'msg', 128) ?? '';
 $flash_key = match ($flash_message) {
     'Paste created successfully' => 'paste_created',
     'Paste deleted successfully' => 'paste_deleted',
     'All pastes have been deleted' => 'all_pastes_deleted',
     default => '',
 };
+$flash = $flash_key !== ''
+    ? htmlspecialchars($flash_message, ENT_QUOTES, 'UTF-8')
+    : '';
 $db->close();
 $lang_attr = 'en';
 $page_title = 'Open Pastebin NG';

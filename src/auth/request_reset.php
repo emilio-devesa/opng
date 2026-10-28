@@ -4,7 +4,14 @@ session_start_secured();
 require("../includes/csrf.php");
 require("../includes/ratelimit.php");
 require_once("../includes/password_reset.php");
+require("../includes/http_input.php");
 require("../database.php");
+
+if (!in_array($_SERVER["REQUEST_METHOD"], ["GET", "POST"], true)) {
+    http_response_code(405);
+    header('Allow: GET, POST');
+    exit;
+}
 
 $message = "";
 $reset_link = null;
@@ -16,16 +23,14 @@ if (!$simulation_enabled) {
     if (!csrf_valid($_POST['csrf_token'] ?? null)) {
         $message = "The request could not be validated. Please reload the page and try again.";
     } elseif (
-        !isset($_POST["email"], $_POST["captcha_answer"])
-        || !is_string($_POST["email"])
-        || !is_string($_POST["captcha_answer"])
+        ($email = http_string_parameter($_POST, 'email', 100)) === null
+        || ($captcha_answer = http_string_parameter($_POST, 'captcha_answer', 5)) === null
     ) {
         $message = "Please enter a valid email address and CAPTCHA.";
     } else {
-        $email = trim($_POST["email"]);
-        $captcha_answer = strtoupper(trim($_POST["captcha_answer"]));
+        $captcha_answer = strtoupper($captcha_answer);
 
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 100) {
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $message = "Please enter a valid email address.";
         } elseif (
             !isset($_SESSION['captcha'])
@@ -55,6 +60,8 @@ if (!$simulation_enabled) {
                 if (!$ip_allowed || !$account_allowed) {
                     $message = "If an account exists for this address, a reset link has been generated.";
                 } else {
+                    $stmt = null;
+                    $update = null;
                     try {
                         $stmt = $db->prepare("SELECT id FROM users WHERE email = ?");
                         $stmt->bind_param("s", $email);
@@ -81,10 +88,21 @@ if (!$simulation_enabled) {
                                 $reset_link = "reset_password.php?token=" . urlencode($token);
                             }
                             $update->close();
+                            $update = null;
+                        }
+                        if ($result instanceof mysqli_result) {
+                            $result->free();
                         }
                         $stmt->close();
+                        $stmt = null;
                     } catch (mysqli_sql_exception $exception) {
                         error_log("OPNG request_reset.php: " . $exception->getMessage());
+                        if ($update instanceof mysqli_stmt) {
+                            $update->close();
+                        }
+                        if ($stmt instanceof mysqli_stmt) {
+                            $stmt->close();
+                        }
                         $message = "The password reset service is temporarily unavailable.";
                     }
                 }
@@ -161,11 +179,11 @@ require(__DIR__ . '/../includes/layout_header.php');
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
             <p>
                 <label for="email" data-i18n="email">Email:</label>
-                <input id="email" type="email" name="email" required>
+                <input id="email" type="email" name="email" maxlength="100" required>
             </p>
             <p>
                 <label for="captcha_answer" data-i18n="captcha_label">Please enter the captcha text:</label>
-                <input id="captcha_answer" type="text" name="captcha_answer" required>
+                <input id="captcha_answer" type="text" name="captcha_answer" maxlength="5" required>
                 <img src="captcha.php" alt="CAPTCHA" class="captcha-image" data-i18n-alt="captcha_alt">
                 <button type="button" class="refresh-captcha" data-i18n="refresh_captcha">🔄 Refresh</button>
             </p>

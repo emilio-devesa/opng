@@ -3,11 +3,18 @@ require("../includes/session.php");
 session_start_secured();
 require("../includes/csrf.php");
 require("../includes/ratelimit.php");
+require("../includes/http_input.php");
 
 require("../database.php");
 
+if (!in_array($_SERVER["REQUEST_METHOD"], ["GET", "POST"], true)) {
+    http_response_code(405);
+    header("Allow: GET, POST");
+    exit;
+}
+
 // Obtener la URL de redirección o establecer index.php como predeterminado
-$redirect_url = $_SESSION['redirect_after_login'] ?? '../index.php';
+$redirect_url = http_string_parameter($_SESSION, 'redirect_after_login', 2048, false) ?? '../index.php';
 
 // (S6) Evitar open redirect: solo se aceptan rutas relativas internas
 if (preg_match('#^(?:[a-z][a-z0-9+.-]*:|//)#i', $redirect_url)) {
@@ -23,7 +30,12 @@ if (isset($_SESSION['user_id'])) {
     exit();
 }
 
-if (!isset($_SESSION["login_attempts"])) {
+if (
+    !isset($_SESSION["login_attempts"], $_SESSION["last_attempt_time"])
+    || !is_int($_SESSION["login_attempts"])
+    || !is_int($_SESSION["last_attempt_time"])
+    || $_SESSION["login_attempts"] < 0
+) {
     $_SESSION["login_attempts"] = 0;
     $_SESSION["last_attempt_time"] = time();
 }
@@ -36,25 +48,21 @@ if ($_SESSION["login_attempts"] >= 5 && (time() - $_SESSION["last_attempt_time"]
 
 $csrf_token = csrf_token();
 
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
     // Verificar si el token CSRF existe y es válido
     if (!csrf_valid($_POST['csrf_token'] ?? null)) {
         header("Location: ../error.php?msg=" . urlencode("Error: invalid CSRF token."));
         exit;
     }
     
-    if (
-        !isset($_POST["email"], $_POST["password"])
-        || !is_string($_POST["email"])
-        || !is_string($_POST["password"])
-    ) {
+    $email = http_string_parameter($_POST, 'email', 100);
+    $password = http_string_parameter($_POST, 'password', 72, false);
+    if ($email === null || $password === null) {
         header("Location: ../error.php?msg=" . urlencode("Invalid email or password."));
         exit;
     }
 
-    $email = trim($_POST["email"]);
-    $password = $_POST["password"];
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 100) {
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         header("Location: ../error.php?msg=" . urlencode("Invalid email or password."));
         exit;
     }
@@ -75,6 +83,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 
     // Buscar el usuario
+    $stmt = null;
     try {
         $stmt = $db->prepare("SELECT id, username, password_hash, role FROM users WHERE email = ?");
         $stmt->bind_param("s", $email);
@@ -88,10 +97,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             exit;
         }
         $user = $result->fetch_assoc();
+        $result->free();
         $stmt->close();
+        $stmt = null;
         $db->close();
     } catch (mysqli_sql_exception $exception) {
         error_log("OPNG login.php: " . $exception->getMessage());
+        if ($stmt instanceof mysqli_stmt) {
+            $stmt->close();
+        }
         $db->close();
         header("Location: ../error.php?msg=" . urlencode("Authentication service is temporarily unavailable."));
         exit;
@@ -130,8 +144,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     header("Location: ../error.php?msg=" . urlencode($error_message));
     exit;
 }
-    $notice = isset($_GET['msg']) && is_string($_GET['msg']) ? $_GET['msg'] : '';
+    $notice = http_string_parameter($_GET, 'msg', 128) ?? '';
     $notice_key = $notice === 'Registration successful. Please sign in.' ? 'registration_success' : '';
+    $notice = $notice_key !== '' ? $notice : '';
     $lang_attr = 'en';
     $page_title = 'Sign in';
     $page_title_i18n = 'login_title';
@@ -149,11 +164,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
             <p>
                 <label for="email" data-i18n="email">Email:</label>
-                <input id="email" type="email" name="email" autocomplete="username" value="<?php echo htmlspecialchars($_POST['email'] ?? '', ENT_QUOTES, 'UTF-8'); ?>" required>
+                <input id="email" type="email" name="email" maxlength="100" autocomplete="username" value="<?php echo htmlspecialchars(http_string_parameter($_POST, 'email', 100) ?? '', ENT_QUOTES, 'UTF-8'); ?>" required>
             </p>
             <p>
                 <label for="password" data-i18n="password">Password:</label>
-                <input id="password" type="password" name="password" autocomplete="current-password" required>
+                <input id="password" type="password" name="password" maxlength="72" autocomplete="current-password" required>
             </p>
             <button type="submit" data-i18n="login">Sign in</button>
         </form>

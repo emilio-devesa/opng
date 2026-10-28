@@ -8,9 +8,11 @@ require("includes/db.php");
 require("includes/ratelimit.php");
 require("includes/paste_validation.php");
 require("includes/user_quota.php");
+require("includes/http_input.php");
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header("Location: error.php?msg=" . urlencode("Request method not allowed."));
+    http_response_code(405);
+    header('Allow: POST');
     exit;
 }
 
@@ -19,19 +21,13 @@ if (!csrf_valid($_POST['csrf_token'] ?? null)) {
     exit;
 }
 
-if (
-    !isset($_POST['input_text'], $_POST['input_language'], $_POST['input_topic'])
-    || !is_string($_POST['input_text'])
-    || !is_string($_POST['input_language'])
-    || !is_string($_POST['input_topic'])
-) {
+$text = http_string_parameter($_POST, 'input_text', OPNG_MAX_PASTE_BYTES + 1);
+$topic = http_string_parameter($_POST, 'input_topic', OPNG_MAX_TOPIC_BYTES + 1);
+$language = http_string_parameter($_POST, 'input_language', 255);
+if ($text === null || $topic === null || $language === null) {
     header("Location: error.php?msg=" . urlencode("Invalid paste data."));
     exit;
 }
-
-$text = trim($_POST['input_text']);
-$topic = trim($_POST['input_topic']);
-$language = trim($_POST['input_language']);
 
 $validation_error = paste_validation_error($text, $topic);
 if ($validation_error !== null || $language === '') {
@@ -47,7 +43,7 @@ try {
     exit;
 }
 if (!isset($rules[$language])) {
-    header("Location: error.php?msg=" . urlencode("Error: The selected language ('" . $language . "') is not valid."));
+    header("Location: error.php?msg=" . urlencode("Invalid language."));
     exit;
 }
 
@@ -67,6 +63,14 @@ try {
 
     $id = bin2hex(random_bytes(8));
     $user_id = $_SESSION['user_id'] ?? null;
+    if ($user_id !== null) {
+        $user_id = http_positive_integer($user_id);
+        if ($user_id === null) {
+            $db->close();
+            header("Location: error.php?msg=" . urlencode("Authentication service is temporarily unavailable."));
+            exit;
+        }
+    }
     $transaction_started = false;
     if ($user_id !== null) {
         $db->begin_transaction();
@@ -106,6 +110,7 @@ try {
         exit;
     }
     $stmt->close();
+    $stmt = null;
     if ($transaction_started && !$db->commit()) {
         error_log("OPNG submit.php: failed to commit the paste transaction");
         $db->rollback();
@@ -116,6 +121,9 @@ try {
     $db->close();
 } catch (mysqli_sql_exception $exception) {
     error_log("OPNG submit.php: " . $exception->getMessage());
+    if (isset($stmt) && $stmt instanceof mysqli_stmt) {
+        $stmt->close();
+    }
     if (isset($transaction_started) && $transaction_started) {
         $db->rollback();
     }

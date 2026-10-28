@@ -8,27 +8,26 @@ require("includes/db.php");
 require("includes/csrf.php");
 require("includes/rules.php");
 require("includes/paste_permissions.php");
+require("includes/http_input.php");
+
+if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+    http_response_code(405);
+    header('Allow: GET');
+    exit;
+}
 
 // Obtener el rol y el ID del usuario (si está autenticado)
 $role = $_SESSION['role'] ?? 'guest';
 $user_id = $_SESSION['user_id'] ?? null;
 $role = is_string($role) ? $role : 'guest';
-$user_id = is_int($user_id) || (is_string($user_id) && ctype_digit($user_id))
-    ? (int) $user_id
-    : null;
+$user_id = http_positive_integer($user_id);
 
 // Verificar y obtener el ID
-if (
-    !isset($_GET['id'])
-    || !is_string($_GET['id'])
-    || $_GET['id'] === ''
-    || !ctype_alnum($_GET['id'])
-) {
+$id = http_string_parameter($_GET, 'id', 255, false);
+if ($id === null || !http_valid_entry_id($id)) {
     header("Location: error.php?msg=" . urlencode("Invalid ID"));
     exit;
 }
-
-$id = trim($_GET['id']);
 
 // Conectar a la base de datos
 $db = db_connect();
@@ -38,13 +37,30 @@ if (!$db) {
 }
 
 // Obtener la entrada desde la base de datos
-$stmt = $db->prepare("SELECT id, user_id, language, text, topic, date FROM entries WHERE id = ?");
-$stmt->bind_param("s", $id);
-$stmt->execute();
-$result = $stmt->get_result();
-$array = $result->fetch_assoc();
-$stmt->close();
-$db->close();
+$array = null;
+try {
+    $stmt = $db->prepare("SELECT id, user_id, language, text, topic, date FROM entries WHERE id = ?");
+    $stmt->bind_param("s", $id);
+    if (!$stmt->execute()) {
+        throw new RuntimeException('Entry lookup query failed.');
+    }
+    $result = $stmt->get_result();
+    if (!$result) {
+        throw new RuntimeException('Entry lookup result is unavailable.');
+    }
+    $array = $result->fetch_assoc();
+    $result->free();
+    $stmt->close();
+    $db->close();
+} catch (mysqli_sql_exception | RuntimeException $exception) {
+    error_log('OPNG view.php: ' . $exception->getMessage());
+    if (isset($stmt) && $stmt instanceof mysqli_stmt) {
+        $stmt->close();
+    }
+    $db->close();
+    header("Location: error.php?msg=" . urlencode("Database operation failed."));
+    exit;
+}
 
 if (!$array) {
     header("Location: error.php?msg=" . urlencode("Entry not found"));
@@ -69,14 +85,20 @@ $lang_attr = 'en';
 $page_title = $array['topic'];
 $base = '';
 // Mensajes que llegan vía ?msg= (p. ej. tras editar el paste en update.php)
-$flash = isset($_GET['msg']) && is_string($_GET['msg'])
-    ? htmlspecialchars($_GET['msg'], ENT_QUOTES, 'UTF-8')
-    : "";
+$flash_message = http_string_parameter($_GET, 'msg', 128) ?? '';
 
 // Pestañas de la vista: Ver / Editar / Responder
-$tab = isset($_GET['tab']) && is_string($_GET['tab']) ? $_GET['tab'] : 'view';
+$tab = http_string_parameter($_GET, 'tab', 5, false);
+if (array_key_exists('tab', $_GET) && $tab === null) {
+    header("Location: error.php?msg=" . urlencode("Invalid paste view."));
+    exit;
+}
+$tab ??= 'view';
 $valid_tabs = ['view', 'edit', 'reply'];
-if (!in_array($tab, $valid_tabs, true)) { $tab = 'view'; }
+if (!in_array($tab, $valid_tabs, true)) {
+    header("Location: error.php?msg=" . urlencode("Invalid paste view."));
+    exit;
+}
 if ($tab === 'edit' && !$can_edit) { $tab = 'view'; }
 
 $rules = [];
@@ -97,10 +119,13 @@ $highlight_language_class = match (strtolower($language)) {
     'php' => 'language-php',
     default => '',
 };
-$flash_key = match ($_GET['msg'] ?? '') {
+$flash_key = match ($flash_message) {
     'Paste updated successfully' => 'paste_updated',
     default => '',
 };
+$flash = $flash_key !== ''
+    ? htmlspecialchars($flash_message, ENT_QUOTES, 'UTF-8')
+    : '';
 
 require(__DIR__ . "/includes/layout_header.php");
 ?>

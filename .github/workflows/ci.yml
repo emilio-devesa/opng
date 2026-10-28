@@ -35,6 +35,9 @@ jobs:
       - name: Input limits regression test
         run: php tests/input_validation_test.php
 
+      - name: HTTP parameter contract regression test
+        run: php tests/http_input_test.php
+
       - name: Search, cursor, and quota regression test
         run: php tests/search_pagination_test.php
 

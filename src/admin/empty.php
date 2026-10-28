@@ -4,6 +4,7 @@ require_once('../includes/session.php');
 session_start_secured();
 require_once('../includes/csrf.php');
 require_once('../database.php');
+require_once('../includes/http_input.php');
 
 // Verificar que el usuario esté autenticado y sea administrador
 // (fix S1/R1: require_once('login.php') no es un guarda de acceso válido)
@@ -13,7 +14,7 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'admin') {
 }
 
 // Verificar que la solicitud es POST
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     // Sin POST: mostrar la página de confirmación
     $csrf_token = csrf_token();
     $lang_attr = 'en';
@@ -26,12 +27,17 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             <p><strong data-i18n="empty_warning">This action will permanently delete all stored pastes.</strong></p>
             <p data-i18n="empty_confirm">Are you sure you want to continue?</p>
             <form method="post">
-                <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
                 <button type="submit" class="danger" data-i18n="empty_yes">Yes, empty it</button>
             </form>
             <a href="admin.php" data-i18n="cancel">Cancel</a>
     <?php
     require(__DIR__ . "/../includes/layout_footer.php");
+    exit;
+}
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    header('Allow: GET, POST');
     exit;
 }
 

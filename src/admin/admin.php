@@ -33,7 +33,7 @@ require(__DIR__ . "/../includes/layout_header.php");
             <span id="drop_confirm" data-i18n="drop_confirm" hidden>Are you sure you want to drop this entry? This action cannot be undone.</span>
             <label for="input_ID" data-i18n="id_to_remove">ID to remove:</label>
             <input type="text" id="input_ID" name="input_ID" required>
-            <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
             <button type="submit" data-i18n="drop_entry" title="Drop">Drop Entry</button>
         </form>
     </fieldset>

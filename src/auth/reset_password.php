@@ -4,7 +4,14 @@ session_start_secured();
 require("../includes/csrf.php");
 require("../includes/password_validation.php");
 require_once("../includes/password_reset.php");
+require("../includes/http_input.php");
 require("../database.php");
+
+if (!in_array($_SERVER["REQUEST_METHOD"], ["GET", "POST"], true)) {
+    http_response_code(405);
+    header('Allow: GET, POST');
+    exit;
+}
 
 $token = "";
 $token_hash = null;
@@ -19,8 +26,8 @@ if ($_SERVER["REQUEST_METHOD"] === "GET" && !empty($_SESSION['reset_password_suc
 } elseif (!$simulation_enabled) {
     $error_message = "Password resets are unavailable for this installation. Please contact the administrator.";
 } elseif ($_SERVER["REQUEST_METHOD"] === "GET") {
-    $candidate = $_GET["token"] ?? null;
-    if (is_string($candidate)) {
+    $candidate = http_string_parameter($_GET, 'token', 64, false);
+    if ($candidate !== null) {
         $token = $candidate;
         $token_hash = password_reset_token_hash($token);
     }
@@ -32,6 +39,7 @@ if ($_SERVER["REQUEST_METHOD"] === "GET" && !empty($_SESSION['reset_password_suc
         if (!$db) {
             $error_message = "The password reset service is temporarily unavailable.";
         } else {
+            $stmt = null;
             try {
                 $stmt = $db->prepare(
                     "SELECT id FROM users WHERE reset_token = ? AND reset_token_expires > NOW()"
@@ -42,14 +50,22 @@ if ($_SERVER["REQUEST_METHOD"] === "GET" && !empty($_SESSION['reset_password_suc
                 if (!$result) {
                     error_log("OPNG reset_password.php: could not read token lookup result");
                     $error_message = "The password reset service is temporarily unavailable.";
-                } elseif ($result->fetch_assoc() !== null) {
-                    $show_form = true;
                 } else {
-                    $error_message = "Invalid or expired reset link.";
+                    $token_record = $result->fetch_assoc();
+                    $result->free();
+                    if ($token_record !== null) {
+                        $show_form = true;
+                    } else {
+                        $error_message = "Invalid or expired reset link.";
+                    }
                 }
                 $stmt->close();
+                $stmt = null;
             } catch (mysqli_sql_exception $exception) {
                 error_log("OPNG reset_password.php: " . $exception->getMessage());
+                if ($stmt instanceof mysqli_stmt) {
+                    $stmt->close();
+                }
                 $error_message = "The password reset service is temporarily unavailable.";
             }
             $db->close();
@@ -59,15 +75,12 @@ if ($_SERVER["REQUEST_METHOD"] === "GET" && !empty($_SESSION['reset_password_suc
     if (!csrf_valid($_POST['csrf_token'] ?? null)) {
         $error_message = "The request could not be validated. Please reload the page and try again.";
     } elseif (
-        !isset($_POST["token"], $_POST["password"])
-        || !is_string($_POST["token"])
-        || !is_string($_POST["password"])
+        ($token = http_string_parameter($_POST, 'token', 64, false)) === null
+        || ($password = http_string_parameter($_POST, 'password', 72, false)) === null
     ) {
         $error_message = "Invalid reset request.";
     } else {
-        $token = $_POST["token"];
         $token_hash = password_reset_token_hash($token);
-        $password = $_POST["password"];
 
         if ($token_hash === null) {
             $error_message = "Invalid or expired reset link.";
@@ -80,6 +93,7 @@ if ($_SERVER["REQUEST_METHOD"] === "GET" && !empty($_SESSION['reset_password_suc
             if (!$db) {
                 $error_message = "The password reset service is temporarily unavailable.";
             } else {
+                $stmt = null;
                 try {
                     $password_hash = password_hash($password, PASSWORD_DEFAULT);
                     // The conditional update consumes the token exactly once, including concurrent submissions.
@@ -96,8 +110,12 @@ if ($_SERVER["REQUEST_METHOD"] === "GET" && !empty($_SESSION['reset_password_suc
                         $error_message = "Invalid or expired reset link.";
                     }
                     $stmt->close();
+                    $stmt = null;
                 } catch (mysqli_sql_exception $exception) {
                     error_log("OPNG reset_password.php: " . $exception->getMessage());
+                    if ($stmt instanceof mysqli_stmt) {
+                        $stmt->close();
+                    }
                     $error_message = "The password reset service is temporarily unavailable.";
                 }
                 $db->close();
@@ -108,7 +126,6 @@ if ($_SERVER["REQUEST_METHOD"] === "GET" && !empty($_SESSION['reset_password_suc
                 header("Location: reset_password.php", true, 303);
                 exit;
             }
-
         }
     }
 }

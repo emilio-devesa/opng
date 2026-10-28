@@ -16,6 +16,12 @@
 require(__DIR__ . '/../includes/session.php');
 session_start_secured();
 
+if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+    http_response_code(405);
+    header('Allow: GET');
+    exit;
+}
+
 // --- Código aleatorio -------------------------------------------------------
 // Sin caracteres ambiguos (I, O, 0, 1) para reducir errores humanos.
 $alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';

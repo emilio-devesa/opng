@@ -4,6 +4,7 @@ require_once('../includes/session.php');
 session_start_secured();
 require_once('../includes/csrf.php');
 require_once('../database.php');
+require_once('../includes/http_input.php');
 
 // Verificar si el usuario está autenticado
 if (!isset($_SESSION['user_id'])) {
@@ -13,7 +14,8 @@ if (!isset($_SESSION['user_id'])) {
 
 // Verificar que la solicitud es POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header("Location: ../error.php?msg=" . urlencode("Request method not allowed."));
+    http_response_code(405);
+    header('Allow: POST');
     exit;
 }
 
@@ -24,19 +26,22 @@ if (!csrf_valid($_POST['csrf_token'] ?? null)) {
 }
 
 // Validar el ID proporcionado
-if (
-    !isset($_POST['input_ID'])
-    || !is_string($_POST['input_ID'])
-    || $_POST['input_ID'] === ''
-    || !ctype_alnum($_POST['input_ID'])
-) {
+$input_ID = http_string_parameter($_POST, 'input_ID', 255, false);
+if ($input_ID === null || !http_valid_entry_id($input_ID)) {
     header("Location: ../error.php?msg=" . urlencode("Invalid ID"));
     exit;
 }
-$input_ID = trim($_POST['input_ID']);
 
-$user_id = $_SESSION['user_id'];
+$user_id = http_positive_integer($_SESSION['user_id'] ?? null);
+if ($user_id === null) {
+    header("Location: ../error.php?msg=" . urlencode("Unauthorized access"));
+    exit;
+}
 $user_role = $_SESSION['role'] ?? 'user'; // "admin" o "user"
+if (!is_string($user_role) || !in_array($user_role, ['admin', 'user'], true)) {
+    header("Location: ../error.php?msg=" . urlencode("Unauthorized access"));
+    exit;
+}
 
 // Conectar a la base de datos
 $db = database_connect();
@@ -45,39 +50,36 @@ if (!$db) {
     exit;
 }
 
-// Si el usuario es administrador, puede eliminar cualquier paste
-if ($user_role === "admin") {
-    $stmt = $db->prepare("DELETE FROM entries WHERE id = ?");
-    if (!$stmt) {
-        $db->close();
-        header("Location: ../error.php?msg=" . urlencode("Error preparing the query."));
-        exit;
+try {
+    // Si el usuario es administrador, puede eliminar cualquier paste.
+    if ($user_role === "admin") {
+        $stmt = $db->prepare("DELETE FROM entries WHERE id = ?");
+        $stmt->bind_param("s", $input_ID);
+    } else {
+        $stmt = $db->prepare("DELETE FROM entries WHERE id = ? AND user_id = ?");
+        $stmt->bind_param("si", $input_ID, $user_id);
     }
-    $stmt->bind_param("s", $input_ID);
-} else {
-    // (R2) Un usuario solo puede eliminar SUS propios pastes.
-    // Antes también se permitía borrar pastes sin dueño (user_id IS NULL),
-    // lo que dejaba a cualquier registrado borrar pastes anónimos ajenos.
-    $stmt = $db->prepare("DELETE FROM entries WHERE id = ? AND user_id = ?");
-    if (!$stmt) {
-        $db->close();
-        header("Location: ../error.php?msg=" . urlencode("Error preparing the query."));
-        exit;
+
+    if (!$stmt->execute()) {
+        throw new RuntimeException('Entry deletion query failed.');
     }
-    $stmt->bind_param("si", $input_ID, $user_id);
+    $deleted = $stmt->affected_rows === 1;
+    $stmt->close();
+} catch (mysqli_sql_exception | RuntimeException $exception) {
+    error_log("OPNG drop_id.php: " . $exception->getMessage());
+    if (isset($stmt) && $stmt instanceof mysqli_stmt) {
+        $stmt->close();
+    }
+    $db->close();
+    header("Location: ../error.php?msg=" . urlencode("Database operation failed."));
+    exit;
 }
 
-$stmt->execute();
-
-// Verificar si la eliminación fue exitosa
-if ($stmt->affected_rows === 1) {
-    $stmt->close();
-    $db->close();
+$db->close();
+if ($deleted) {
     header("Location: ../index.php?msg=" . urlencode("Paste deleted successfully"));
     exit;
 }
 
-$stmt->close();
-$db->close();
 header("Location: ../error.php?msg=" . urlencode("You don't have permission to delete this paste"));
 exit;

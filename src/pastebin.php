@@ -5,6 +5,13 @@ session_start_secured();
 require("includes/db.php");
 require("includes/csrf.php");
 require("includes/rules.php");
+require("includes/http_input.php");
+
+if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+    http_response_code(405);
+    header('Allow: GET');
+    exit;
+}
 
 $csrf_token = csrf_token();
 
@@ -33,7 +40,7 @@ require(__DIR__ . "/includes/layout_header.php");
     <h2 data-i18n="create_new">Create New Entry</h2>
     <form method="post" action="submit.php" class="editor-form">
         <!-- Protección CSRF -->
-        <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
+        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
 
         <label data-i18n="topic:" for="input_topic">Topic:</label>
         <input type="text" id="input_topic" name="input_topic" maxlength="255" required>

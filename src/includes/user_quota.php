@@ -10,10 +10,20 @@ const OPNG_USER_QUOTA_BYTES = 100 * 1024 * 1024;
 function lock_user_quota(mysqli $db, int $userId): ?array
 {
     $stmt = $db->prepare('SELECT role FROM users WHERE id = ? FOR UPDATE');
-    $stmt->bind_param('i', $userId);
-    $stmt->execute();
-    $account = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
+    try {
+        $stmt->bind_param('i', $userId);
+        if (!$stmt->execute()) {
+            throw new mysqli_sql_exception('Account quota lookup failed.');
+        }
+        $result = $stmt->get_result();
+        if (!$result) {
+            throw new mysqli_sql_exception('Account quota result is unavailable.');
+        }
+        $account = $result->fetch_assoc();
+        $result->free();
+    } finally {
+        $stmt->close();
+    }
 
     if ($account === null) {
         return null;
@@ -30,10 +40,20 @@ function lock_user_quota(mysqli $db, int $userId): ?array
     $stmt = $db->prepare(
         'SELECT COALESCE(SUM(OCTET_LENGTH(text)), 0) AS used_bytes FROM entries WHERE user_id = ?'
     );
-    $stmt->bind_param('i', $userId);
-    $stmt->execute();
-    $usage = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
+    try {
+        $stmt->bind_param('i', $userId);
+        if (!$stmt->execute()) {
+            throw new mysqli_sql_exception('Account usage lookup failed.');
+        }
+        $result = $stmt->get_result();
+        if (!$result) {
+            throw new mysqli_sql_exception('Account usage result is unavailable.');
+        }
+        $usage = $result->fetch_assoc();
+        $result->free();
+    } finally {
+        $stmt->close();
+    }
 
     return [
         'role' => $role,

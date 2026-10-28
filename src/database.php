@@ -7,7 +7,7 @@
 
 require_once(__DIR__ . "/includes/db.php");
 
-function database_connect() {
+function database_connect(): ?mysqli {
     return db_connect();
 }
 ?>
