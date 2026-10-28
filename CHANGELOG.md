@@ -13,6 +13,7 @@
 - **Index:** "Create New Entry" button now left-aligned; search form made smaller and right-aligned; theme toggle and language selector kept in line with the title, aligned right.
 - **Index:** list toolbar row with "Create" (left) + pagination (center) + search form (right); added "Back to top" link.
 - **View:** stacked the view/edit/reply boxes vertically (`.container` column) so the code/edit/reply text fields get full width instead of squeezed side-by-side columns.
+- **View:** converted the three boxes into tabs (Ver / Editar / Responder) via `?tab=` (with `can_edit` guard for the Edit tab).
 
 ### 🚨 Security — PHP engine vulnerabilities ("PHP2Shell", October 2026)
 - Updated requirements: passing from "PHP 7.4+" to patched PHP releases only (**8.2.35 / 8.3.36 / 8.4.27 / 8.5.12 or higher**), due to:
