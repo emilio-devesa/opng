@@ -26,19 +26,19 @@ Open Pastebin NG is **free software** released under the **[GNU GPL license](LIC
 ## 🖼️ Screenshots
 
 ### 📌 Homepage (List of Pastes)
-![Homepage](screenshots/homepage.png)
+![Homepage](screenshots/opng-homepage.jpg)
 
 ### 📌 Create a New Paste
-![New Paste](screenshots/create_paste.png)
+![New Paste](screenshots/opng-create-paste.jpg)
 
 ### 📌 View a Paste with Syntax Highlighting
-![View Paste](screenshots/view_paste.png)
+![View Paste](screenshots/opng-view-paste.jpg)
 
 ### 📌 Edit a Paste
-![View Paste](screenshots/edit_paste.png)
+![View Paste](screenshots/opng-edit-reply-paste.jpg)
 
 ### 📌 Admin Panel
-![Admin Panel](screenshots/admin_panel.png)
+![Admin Panel](screenshots/opng-admin-panel.jpg)
 
 ---
 
