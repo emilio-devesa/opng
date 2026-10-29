@@ -41,7 +41,7 @@ The shared interface uses a strict same-origin Content Security Policy. Keep scr
 ![View Paste](screenshots/opng-view-paste.jpg)
 
 ### 📌 Edit a Paste
-![View Paste](screenshots/opng-edit-reply-paste.jpg)
+![Edit Paste](screenshots/opng-edit-reply-paste.jpg)
 
 ### 📌 Admin Panel
 ![Admin Panel](screenshots/opng-admin-panel.jpg)
