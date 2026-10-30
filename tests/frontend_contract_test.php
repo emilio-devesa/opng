@@ -50,6 +50,14 @@ $required_keys = [
     'storage_quota_notice',
     'error_invalid_cursor',
     'error_storage_quota',
+    'error_invalid_sort',
+    'error_empty_text',
+    'error_text_too_large',
+    'error_topic_required',
+    'error_topic_too_large',
+    'error_language_required',
+    'length_mb_remaining',
+    'length_meter_label',
     'home',
     'search_clear',
     'admin_search_entries',
@@ -159,6 +167,7 @@ foreach ([
     '/src/assets/js/copy.js',
     '/src/assets/js/search-clear.js',
     '/src/assets/js/admin-tools.js',
+    '/src/assets/js/length-meter.js',
 ] as $script_path) {
     if (!is_file($root . $script_path)) {
         $failures[] = "Frontend resource is missing: {$script_path}";
@@ -316,6 +325,40 @@ if (
     || preg_match('/\.admin-field-clear\s*\{[^}]*margin:\s*0\s*!important;/s', $admin_styles) !== 1
 ) {
     $failures[] = 'Admin clear buttons are affected by search-submit spacing or lack a zero-margin alignment reset';
+}
+
+$pastebin_page = file_get_contents($root . '/src/pastebin.php');
+$view_page = file_get_contents($root . '/src/view.php');
+$length_script = file_get_contents($root . '/src/assets/js/length-meter.js');
+if (
+    !is_string($pastebin_page)
+    || !str_contains($pastebin_page, 'data-length-meter-for="input_text"')
+    || !is_string($view_page)
+    || !str_contains($view_page, 'data-length-meter-for="edit_text"')
+    || !str_contains($view_page, 'data-length-meter-for="reply_text"')
+    || !is_string($length_script)
+    || !str_contains($length_script, 'TextEncoder')
+    || !str_contains($length_script, 'data-length-meter-for')
+) {
+    $failures[] = 'Paste length meter is missing from create/edit/reply forms or its script';
+}
+
+$register_page = file_get_contents($root . '/src/auth/register.php');
+if (
+    !is_string($register_page)
+    || !str_contains($register_page, 'value="<?php echo htmlspecialchars($posted_username')
+    || !str_contains($register_page, 'value="<?php echo htmlspecialchars($posted_email')
+) {
+    $failures[] = 'Registration form does not preserve username/email on validation errors';
+}
+
+$error_page = file_get_contents($root . '/src/error.php');
+if (
+    !is_string($error_page)
+    || !str_contains($error_page, 'opng_error_text($message_key)')
+    || str_contains($error_page, "'An error occurred.'")
+) {
+    $failures[] = 'Error page must render the server-side fallback from the catalog';
 }
 
 foreach ($failures as $failure) {

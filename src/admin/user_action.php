@@ -5,6 +5,7 @@ require_once('../includes/csrf.php');
 require_once('../includes/http_input.php');
 require_once('../includes/account_role.php');
 require_once('../database.php');
+require_once("../includes/error_messages.php");
 
 function redirect_admin(string $message): never
 {
@@ -14,8 +15,7 @@ function redirect_admin(string $message): never
 
 $current_user_id = http_positive_integer($_SESSION['user_id'] ?? null);
 if ($current_user_id === null) {
-    header("Location: ../error.php?msg=" . urlencode("Access denied. You don't have permission to perform this action."));
-    exit;
+    opng_error_redirect('error_permission', '../error.php');
 }
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -23,8 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 if (!csrf_valid($_POST['csrf_token'] ?? null)) {
-    header("Location: ../error.php?msg=" . urlencode("Error: invalid CSRF token."));
-    exit;
+    opng_error_redirect('error_csrf', '../error.php');
 }
 
 $target_user_id = http_positive_integer($_POST['admin_record_number'] ?? null);
@@ -56,8 +55,7 @@ try {
         $db->rollback();
         $transaction_started = false;
         $db->close();
-        header("Location: ../error.php?msg=" . urlencode("Access denied. You don't have permission to perform this action."));
-        exit;
+        opng_error_redirect('error_permission', '../error.php');
     }
 
     $stmt = $db->prepare('SELECT role FROM users WHERE id = ? FOR UPDATE');

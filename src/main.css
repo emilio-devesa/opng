@@ -795,6 +795,68 @@ textarea[name="input_text"] {
     font-size: 0.875rem;
 }
 
+.form-error {
+    margin: 0 0 1rem;
+    padding: 0.75rem 0.9rem;
+    border: 1px solid var(--danger);
+    border-radius: 10px;
+    background: var(--danger-soft);
+    color: var(--danger);
+    font-weight: 600;
+}
+
+/* Remaining paste length: small, right-aligned, below the textarea. */
+.length-meter {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.35rem;
+    color: var(--muted);
+    font-size: 0.78rem;
+    line-height: 1.2;
+}
+
+.length-meter-bar {
+    width: 120px;
+    height: 6px;
+    appearance: none;
+    -webkit-appearance: none;
+    border: 0;
+    border-radius: 999px;
+    background: var(--surface-2);
+    overflow: hidden;
+}
+
+.length-meter-bar::-webkit-progress-bar {
+    background: var(--surface-2);
+    border-radius: 999px;
+}
+
+.length-meter-bar::-webkit-progress-value {
+    background: var(--accent);
+    border-radius: 999px;
+    transition: width 0.15s ease;
+}
+
+.length-meter-bar::-moz-progress-bar {
+    background: var(--accent);
+    border-radius: 999px;
+}
+
+.length-meter.over-limit {
+    color: var(--danger);
+    font-weight: 600;
+}
+
+.length-meter.over-limit .length-meter-bar::-webkit-progress-value {
+    background: var(--danger);
+}
+
+.length-meter.over-limit .length-meter-bar::-moz-progress-bar {
+    background: var(--danger);
+}
+
 .visually-hidden {
     position: absolute;
     width: 1px;

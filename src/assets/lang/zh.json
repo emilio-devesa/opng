@@ -192,5 +192,13 @@
     "paste_deleted": "Paste 已删除。",
     "all_pastes_deleted": "所有 pastes 均已删除。",
     "paste_updated": "Paste 更新成功。",
+    "error_invalid_sort": "排序顺序无效。",
+    "error_empty_text": "文本不能为空。",
+    "error_text_too_large": "文本不能超过 1 MiB。",
+    "error_topic_required": "主题为必填项。",
+    "error_topic_too_large": "主题不能超过 255 字节。",
+    "error_language_required": "语言为必填项。",
+    "length_mb_remaining": "剩余 MB",
+    "length_meter_label": "粘贴内容长度",
     "generic_error": "发生错误。"
 }

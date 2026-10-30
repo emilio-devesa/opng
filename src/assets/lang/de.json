@@ -192,5 +192,13 @@
     "paste_deleted": "Paste erfolgreich gelöscht.",
     "all_pastes_deleted": "Alle Pastes wurden gelöscht.",
     "paste_updated": "Paste erfolgreich aktualisiert.",
+    "error_invalid_sort": "Die Sortierreihenfolge ist ungültig.",
+    "error_empty_text": "Der Text darf nicht leer sein.",
+    "error_text_too_large": "Der Text darf 1 MiB nicht überschreiten.",
+    "error_topic_required": "Das Thema ist erforderlich.",
+    "error_topic_too_large": "Das Thema darf 255 Bytes nicht überschreiten.",
+    "error_language_required": "Die Sprache ist erforderlich.",
+    "length_mb_remaining": "MB verbleibend",
+    "length_meter_label": "Paste-Länge",
     "generic_error": "Ein Fehler ist aufgetreten."
 }

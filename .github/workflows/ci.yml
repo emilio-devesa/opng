@@ -35,6 +35,12 @@ jobs:
       - name: Input limits regression test
         run: php tests/input_validation_test.php
 
+      - name: Paste text preservation regression test
+        run: php tests/paste_text_preservation_test.php
+
+      - name: Error message catalog regression test
+        run: php tests/error_messages_test.php
+
       - name: HTTP parameter contract regression test
         run: php tests/http_input_test.php
 
@@ -69,6 +75,7 @@ jobs:
           node --check src/assets/js/copy.js
           node --check src/assets/js/search-clear.js
           node --check src/assets/js/admin-tools.js
+          node --check src/assets/js/length-meter.js
 
       - name: Frontend contract and translation regression test
         run: php tests/frontend_contract_test.php

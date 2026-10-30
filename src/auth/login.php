@@ -6,6 +6,7 @@ require("../includes/ratelimit.php");
 require("../includes/http_input.php");
 
 require("../database.php");
+require("../includes/error_messages.php");
 
 if (!in_array($_SERVER["REQUEST_METHOD"], ["GET", "POST"], true)) {
     http_response_code(405);
@@ -20,8 +21,6 @@ $redirect_url = http_string_parameter($_SESSION, 'redirect_after_login', 2048, f
 if (preg_match('#^(?:[a-z][a-z0-9+.-]*:|//)#i', $redirect_url)) {
     $redirect_url = '../index.php';
 }
-
-$error_message = "";
 
 // Si el usuario ya está autenticado, redirigir a la página de inicio
 // (antes se comprobaba $_SESSION['logged_in'], que nunca se establece)
@@ -42,8 +41,7 @@ if (
 
 // Si hay más de 5 intentos en 10 minutos, bloquear
 if ($_SESSION["login_attempts"] >= 5 && (time() - $_SESSION["last_attempt_time"] < 600)) {
-    header("Location: ../error.php?msg=" . urlencode("Too many login attempts. Please try again in 10 minutes."));
-    exit;
+    opng_error_redirect('error_login_rate_limit', '../error.php');
 }
 
 $csrf_token = csrf_token();
@@ -51,35 +49,30 @@ $csrf_token = csrf_token();
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     // Verificar si el token CSRF existe y es válido
     if (!csrf_valid($_POST['csrf_token'] ?? null)) {
-        header("Location: ../error.php?msg=" . urlencode("Error: invalid CSRF token."));
-        exit;
+        opng_error_redirect('error_csrf', '../error.php');
     }
     
     $email = http_string_parameter($_POST, 'email', 100);
     $password = http_string_parameter($_POST, 'password', 72, false);
     if ($email === null || $password === null) {
-        header("Location: ../error.php?msg=" . urlencode("Invalid email or password."));
-        exit;
+        opng_error_redirect('error_invalid_credentials', '../error.php');
     }
 
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        header("Location: ../error.php?msg=" . urlencode("Invalid email or password."));
-        exit;
+        opng_error_redirect('error_invalid_credentials', '../error.php');
     }
 
     // Conectar a la BD
     $db = database_connect();
     if (!$db) {
-        header("Location: ../error.php?msg=" . urlencode("Authentication service is temporarily unavailable."));
-        exit;
+        opng_error_redirect('error_auth_unavailable', '../error.php');
     }
 
     // (S5) Rate limit persistente por IP + cuenta. El contador de sesión de
     // arriba se puede saltar borrando la cookie; este no.
     if (!rate_limit_hit($db, 'login', client_ip() . '|' . strtolower($email), 5, 600)) {
         $db->close();
-        header("Location: ../error.php?msg=" . urlencode("Too many login attempts. Please try again in 10 minutes."));
-        exit;
+        opng_error_redirect('error_login_rate_limit', '../error.php');
     }
 
     // Buscar el usuario
@@ -93,8 +86,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             error_log("OPNG login.php: could not read account lookup result");
             $stmt->close();
             $db->close();
-            header("Location: ../error.php?msg=" . urlencode("Authentication service is temporarily unavailable."));
-            exit;
+            opng_error_redirect('error_auth_unavailable', '../error.php');
         }
         $user = $result->fetch_assoc();
         $result->free();
@@ -107,8 +99,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $stmt->close();
         }
         $db->close();
-        header("Location: ../error.php?msg=" . urlencode("Authentication service is temporarily unavailable."));
-        exit;
+        opng_error_redirect('error_auth_unavailable', '../error.php');
     }
 
     // Perform the same bcrypt check when no account exists to reduce enumeration timing.
@@ -137,12 +128,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     // Cualquier camino que llegue aquí es un fallo de autenticación.
     $_SESSION["login_attempts"]++;
     $_SESSION["last_attempt_time"] = time();
-    $error_message = "Invalid email or password.";
     // Redirigir ANTES de emitir cualquier salida
     // (fix H3/U5: anteriormente el header() se llamaba dentro del <body>,
     // lo que provocaba "headers already sent" y el error nunca se mostraba)
-    header("Location: ../error.php?msg=" . urlencode($error_message));
-    exit;
+    opng_error_redirect('error_invalid_credentials', '../error.php');
 }
     $notice = http_string_parameter($_GET, 'msg', 128) ?? '';
     $notice_key = $notice === 'Registration successful. Please sign in.' ? 'registration_success' : '';

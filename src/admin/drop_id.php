@@ -6,11 +6,11 @@ require_once('../includes/csrf.php');
 require_once('../database.php');
 require_once('../includes/http_input.php');
 require_once('../includes/account_role.php');
+require_once("../includes/error_messages.php");
 
 // Verificar si el usuario está autenticado
 if (!isset($_SESSION['user_id'])) {
-    header("Location: ../error.php?msg=" . urlencode("Unauthorized access"));
-    exit;
+    opng_error_redirect('error_permission', '../error.php');
 }
 
 // Verificar que la solicitud es POST
@@ -22,27 +22,23 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 // Verificar token CSRF
 if (!csrf_valid($_POST['csrf_token'] ?? null)) {
-    header("Location: ../error.php?msg=" . urlencode("Error: invalid CSRF token."));
-    exit;
+    opng_error_redirect('error_csrf', '../error.php');
 }
 
 // Validar el ID proporcionado
 $input_ID = http_string_parameter($_POST, 'input_ID', 255, false);
 if ($input_ID === null || !http_valid_entry_id($input_ID)) {
-    header("Location: ../error.php?msg=" . urlencode("Invalid ID"));
-    exit;
+    opng_error_redirect('error_invalid_id', '../error.php');
 }
 
 $user_id = http_positive_integer($_SESSION['user_id'] ?? null);
 if ($user_id === null) {
-    header("Location: ../error.php?msg=" . urlencode("Unauthorized access"));
-    exit;
+    opng_error_redirect('error_permission', '../error.php');
 }
 // Conectar a la base de datos
 $db = database_connect();
 if (!$db) {
-    header("Location: ../error.php?msg=" . urlencode("Database connection error."));
-    exit;
+    opng_error_redirect('error_database_unavailable', '../error.php');
 }
 
 $transaction_started = false;
@@ -54,8 +50,7 @@ try {
         $db->rollback();
         $transaction_started = false;
         $db->close();
-        header("Location: ../error.php?msg=" . urlencode("Unauthorized access"));
-        exit;
+        opng_error_redirect('error_permission', '../error.php');
     }
 
     // Si el usuario es administrador, puede eliminar cualquier paste.
@@ -85,8 +80,7 @@ try {
         $db->rollback();
     }
     $db->close();
-    header("Location: ../error.php?msg=" . urlencode("Database operation failed."));
-    exit;
+    opng_error_redirect('error_database_operation', '../error.php');
 }
 
 $db->close();
@@ -95,5 +89,4 @@ if ($deleted) {
     exit;
 }
 
-header("Location: ../error.php?msg=" . urlencode("You don't have permission to delete this paste"));
-exit;
+opng_error_redirect('error_permission', '../error.php');

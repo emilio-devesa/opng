@@ -5,6 +5,7 @@ require("../includes/csrf.php");
 require("../includes/ratelimit.php");
 require("../includes/password_validation.php");
 require("../includes/http_input.php");
+require("../includes/error_messages.php");
 require("../database.php");
 
 if (!in_array($_SERVER["REQUEST_METHOD"], ["GET", "POST"], true)) {
@@ -13,99 +14,96 @@ if (!in_array($_SERVER["REQUEST_METHOD"], ["GET", "POST"], true)) {
     exit;
 }
 
-if ($_SERVER["REQUEST_METHOD"] === "POST") {
-    // Protección CSRF
-    if (!csrf_valid($_POST['csrf_token'] ?? null)) {
-        header("Location: ../error.php?msg=" . urlencode("Error: invalid CSRF token."));
-        exit;
-    }
+$form_error_key = '';
+$posted_username = '';
+$posted_email = '';
 
-    $username = http_string_parameter($_POST, 'username', 50);
-    $email = http_string_parameter($_POST, 'email', 100);
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+    // Keep the submitted values so the form can be re-rendered with an inline
+    // error instead of sending the user to a bare error page.
+    $posted_username = http_string_parameter($_POST, 'username', 50) ?? '';
+    $posted_email = http_string_parameter($_POST, 'email', 100) ?? '';
     $password = http_string_parameter($_POST, 'password', 72, false);
     $captcha_answer = http_string_parameter($_POST, 'captcha_answer', 5);
-    if ($username === null || $email === null || $password === null || $captcha_answer === null) {
-        header("Location: ../error.php?msg=" . urlencode("Invalid registration data."));
-        exit;
-    }
 
-    $captcha_answer = strtoupper($captcha_answer);
+    if (!csrf_valid($_POST['csrf_token'] ?? null)) {
+        $form_error_key = 'error_csrf';
+    } elseif ($password === null || $captcha_answer === null) {
+        $form_error_key = 'error_invalid_registration';
+    } else {
+        $captcha_answer = strtoupper($captcha_answer);
+        $password_error = password_validation_error($password);
 
-    $password_error = password_validation_error($password);
-    if (
-        $username === ''
-        || preg_match('//u', $username) !== 1
-        || preg_match('/\p{C}/u', $username) === 1
-        || !filter_var($email, FILTER_VALIDATE_EMAIL)
-        || $password_error !== null
-    ) {
-        $validation_message = $password_error ?? "Please check the username and email limits.";
-        header("Location: ../error.php?msg=" . urlencode($validation_message));
-        exit;
-    }
+        if (
+            $posted_username === ''
+            || preg_match('//u', $posted_username) !== 1
+            || preg_match('/\p{C}/u', $posted_username) === 1
+            || !filter_var($posted_email, FILTER_VALIDATE_EMAIL)
+        ) {
+            $form_error_key = 'error_invalid_registration';
+        } elseif ($password_error !== null) {
+            $form_error_key = 'password_policy';
+        } else {
+            $db = database_connect();
+            if (!$db) {
+                $form_error_key = 'error_database_unavailable';
+            } elseif (!rate_limit_hit($db, 'register', client_ip(), 5, 3600)) {
+                $db->close();
+                $form_error_key = 'error_registration_rate_limit';
+            } elseif (
+                !isset($_SESSION['captcha'])
+                || !is_string($_SESSION['captcha'])
+                || $captcha_answer !== $_SESSION['captcha']
+            ) {
+                $db->close();
+                $form_error_key = 'captcha_incorrect';
+            } else {
+                unset($_SESSION['captcha']); // Evita reutilización del CAPTCHA
 
-    // Conectar a la BD
-    $db = database_connect();
-    if (!$db) {
-        header("Location: ../error.php?msg=" . urlencode("Database connection error."));
-        exit;
-    }
+                $stmt = null;
+                try {
+                    $stmt = $db->prepare("SELECT id FROM users WHERE email = ?");
+                    $stmt->bind_param("s", $posted_email);
+                    $stmt->execute();
+                    $stmt->store_result();
+                    if ($stmt->num_rows > 0) {
+                        $stmt->close();
+                        $stmt = null;
+                        $db->close();
+                        $form_error_key = 'error_email_registered';
+                    } else {
+                        $stmt->close();
+                        $stmt = null;
 
-    // (R8/S5) Rate limit de registro por IP: 5 por hora.
-    if (!rate_limit_hit($db, 'register', client_ip(), 5, 3600)) {
-        $db->close();
-        header("Location: ../error.php?msg=" . urlencode("Too many registration attempts. Please try again later."));
-        exit;
-    }
-
-    if (!isset($_SESSION['captcha']) || !is_string($_SESSION['captcha']) ||
-        $captcha_answer !== $_SESSION['captcha']) {
-        $db->close();
-        header("Location: ../error.php?msg=" . urlencode("Incorrect CAPTCHA. Try again."));
-        exit;
-    }
-    unset($_SESSION['captcha']); // Evita reutilización del CAPTCHA
-
-    $stmt = null;
-    try {
-        $stmt = $db->prepare("SELECT id FROM users WHERE email = ?");
-        $stmt->bind_param("s", $email);
-        $stmt->execute();
-        $stmt->store_result();
-        if ($stmt->num_rows > 0) {
-            $stmt->close();
-            $stmt = null;
-            $db->close();
-            header("Location: ../error.php?msg=" . urlencode("This email is already registered."));
-            exit;
+                        $passwordHash = password_hash($password, PASSWORD_BCRYPT);
+                        $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, 'user')");
+                        $stmt->bind_param("sss", $posted_username, $posted_email, $passwordHash);
+                        if (!$stmt->execute()) {
+                            error_log("OPNG register.php: " . $stmt->error);
+                            $stmt->close();
+                            $db->close();
+                            $form_error_key = 'error_registration';
+                        } else {
+                            $stmt->close();
+                            $db->close();
+                            header("Location: login.php?msg=" . urlencode("Registration successful. Please sign in."));
+                            exit;
+                        }
+                    }
+                } catch (mysqli_sql_exception $exception) {
+                    error_log("OPNG register.php: " . $exception->getMessage());
+                    if ($stmt instanceof mysqli_stmt) {
+                        $stmt->close();
+                    }
+                    $db->close();
+                    $form_error_key = 'error_auth_unavailable';
+                }
+            }
         }
-        $stmt->close();
-        $stmt = null;
-
-        $passwordHash = password_hash($password, PASSWORD_BCRYPT);
-        $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, 'user')");
-        $stmt->bind_param("sss", $username, $email, $passwordHash);
-        if (!$stmt->execute()) {
-            error_log("OPNG register.php: " . $stmt->error);
-            $stmt->close();
-            $db->close();
-            header("Location: ../error.php?msg=" . urlencode("Registration error."));
-            exit;
-        }
-        $stmt->close();
-        $stmt = null;
-        $db->close();
-        header("Location: login.php?msg=" . urlencode("Registration successful. Please sign in."));
-        exit;
-    } catch (mysqli_sql_exception $exception) {
-        error_log("OPNG register.php: " . $exception->getMessage());
-        if ($stmt instanceof mysqli_stmt) {
-            $stmt->close();
-        }
-        $db->close();
-        header("Location: ../error.php?msg=" . urlencode("Registration service is temporarily unavailable."));
-        exit;
     }
+
+    // Every POST path either redirects on success or records an error key.
+    http_response_code(opng_error_status($form_error_key));
 }
     $lang_attr = 'en';
     $page_title = 'Sign up';
@@ -115,15 +113,20 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 ?>
     <section class="auth-page">
         <h2 data-i18n="register_title">Sign up</h2>
+        <?php if ($form_error_key !== ''): ?>
+            <p class="form-error" role="alert" data-i18n="<?php echo htmlspecialchars($form_error_key, ENT_QUOTES, 'UTF-8'); ?>">
+                <?php echo htmlspecialchars(opng_error_text($form_error_key), ENT_QUOTES, 'UTF-8'); ?>
+            </p>
+        <?php endif; ?>
         <form method="post" class="auth-form">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
             <p>
                 <label for="username" data-i18n="username">Username:</label>
-                <input id="username" type="text" name="username" maxlength="50" autocomplete="username" required>
+                <input id="username" type="text" name="username" maxlength="50" autocomplete="username" value="<?php echo htmlspecialchars($posted_username, ENT_QUOTES, 'UTF-8'); ?>" required>
             </p>
             <p>
                 <label for="email" data-i18n="email">Email:</label>
-                <input id="email" type="email" name="email" maxlength="100" autocomplete="email" required>
+                <input id="email" type="email" name="email" maxlength="100" autocomplete="email" value="<?php echo htmlspecialchars($posted_email, ENT_QUOTES, 'UTF-8'); ?>" required>
             </p>
             <p>
                 <label for="password" data-i18n="password">Password:</label>

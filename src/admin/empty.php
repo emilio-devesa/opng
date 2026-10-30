@@ -6,31 +6,28 @@ require_once('../includes/csrf.php');
 require_once('../database.php');
 require_once('../includes/http_input.php');
 require_once('../includes/account_role.php');
+require_once("../includes/error_messages.php");
 
 // Verificar que el usuario esté autenticado y sea administrador
 // (fix S1/R1: require_once('login.php') no es un guarda de acceso válido)
 if (http_positive_integer($_SESSION['user_id'] ?? null) === null) {
-    header("Location: ../error.php?msg=" . urlencode("Access denied. You don't have permission to view this page."));
-    exit;
+    opng_error_redirect('error_permission', '../error.php');
 }
 
 $db = database_connect();
 if (!$db) {
-    header("Location: ../error.php?msg=" . urlencode("Database connection error."));
-    exit;
+    opng_error_redirect('error_database_unavailable', '../error.php');
 }
 try {
     $current_role = refresh_account_role($db);
 } catch (mysqli_sql_exception | RuntimeException $exception) {
     error_log('OPNG empty.php: ' . $exception->getMessage());
     $db->close();
-    header("Location: ../error.php?msg=" . urlencode("Database operation failed."));
-    exit;
+    opng_error_redirect('error_database_operation', '../error.php');
 }
 if ($current_role !== 'admin') {
     $db->close();
-    header("Location: ../error.php?msg=" . urlencode("Access denied. You don't have permission to view this page."));
-    exit;
+    opng_error_redirect('error_permission', '../error.php');
 }
 
 // Verificar que la solicitud es POST
@@ -64,8 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 // Verificar token CSRF
 if (!csrf_valid($_POST['csrf_token'] ?? null)) {
-    header("Location: ../error.php?msg=" . urlencode("Error: invalid CSRF token."));
-    exit;
+    opng_error_redirect('error_csrf', '../error.php');
 }
 
 // DELETE works with the runtime DML account; TRUNCATE would require DROP privileges.
@@ -77,8 +73,7 @@ try {
         $db->rollback();
         $transaction_started = false;
         $db->close();
-        header("Location: ../error.php?msg=" . urlencode("Access denied. You don't have permission to perform this action."));
-        exit;
+        opng_error_redirect('error_permission', '../error.php');
     }
     if (!$db->query("DELETE FROM entries")) {
         throw new RuntimeException('Entries could not be removed.');
@@ -93,7 +88,7 @@ try {
     if ($transaction_started) {
         $db->rollback();
     }
-    header("Location: ../error.php?msg=" . urlencode("Error while emptying the database"));
+    opng_error_redirect('error_empty_pastes', '../error.php');
 }
 
 $db->close();

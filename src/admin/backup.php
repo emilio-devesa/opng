@@ -5,6 +5,7 @@ require_once('../includes/http_input.php');
 require_once('../includes/account_role.php');
 require_once('../includes/sql_backup.php');
 require_once('../database.php');
+require_once("../includes/error_messages.php");
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     http_response_code(405);
@@ -14,14 +15,12 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 
 $session_user_id = http_positive_integer($_SESSION['user_id'] ?? null);
 if ($session_user_id === null) {
-    header("Location: ../error.php?msg=" . urlencode("Access denied. You don't have permission to download a backup."));
-    exit;
+    opng_error_redirect('error_permission', '../error.php');
 }
 
 $db = database_connect();
 if (!$db) {
-    header("Location: ../error.php?msg=" . urlencode("Database connection error."));
-    exit;
+    opng_error_redirect('error_database_unavailable', '../error.php');
 }
 
 $temporary_stream = fopen('php://temp/maxmemory:2097152', 'w+b');
@@ -34,8 +33,7 @@ try {
     if (refresh_account_role($db) !== 'admin') {
         $db->close();
         fclose($temporary_stream);
-        header("Location: ../error.php?msg=" . urlencode("Access denied. You don't have permission to download a backup."));
-        exit;
+        opng_error_redirect('error_permission', '../error.php');
     }
 
     $db->begin_transaction(MYSQLI_TRANS_START_READ_ONLY | MYSQLI_TRANS_START_WITH_CONSISTENT_SNAPSHOT);
@@ -140,8 +138,7 @@ try {
     }
     $db->close();
     fclose($temporary_stream);
-    header("Location: ../error.php?msg=" . urlencode("Database operation failed."));
-    exit;
+    opng_error_redirect('error_database_operation', '../error.php');
 }
 
 if (fseek($temporary_stream, 0) !== 0) {

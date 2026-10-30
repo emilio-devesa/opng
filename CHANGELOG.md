@@ -1,6 +1,25 @@
 # Open Pastebin NG - Changelog
 ============================
 
+## Unreleased (audit v0.9 — Phase 1: integrity and error reporting)
+### 🧱 Data integrity
+- **Paste text is no longer trimmed on save.** `submit.php` and `update.php` now read `input_text` with `trim: false`, preserving leading indentation and trailing newlines (relevant for Python, YAML, Makefiles and copy/paste fidelity). Whitespace-only pastes are still rejected by `paste_validation_error()`.
+- Added `tests/paste_text_preservation_test.php`, which covers the `http_string_parameter()` trimming contract and asserts that both save paths opt out of trimming.
+
+### 🧭 Error handling
+- **Error redirects now use canonical i18n keys instead of free-text messages.** Added `src/includes/error_messages.php` with the `OPNG_ERROR_KEYS` allowlist plus `opng_error_key()`, `opng_error_status()`, `opng_error_text()` and `opng_error_redirect()` helpers; replaced ~95 text-based redirects across `src/` (auth, admin, index, view, submit, update, pastebin).
+- `error.php` validates the incoming key against the allowlist, always renders a server-side English fallback from `assets/lang/en.json` (so the page still explains the problem without JavaScript) and returns the HTTP status associated with the key.
+- `paste_validation_error()` now returns canonical keys (`error_empty_text`, `error_text_too_large`, `error_topic_required`, `error_topic_too_large`); the new keys and `error_invalid_sort` were added to all six catalogs.
+- Added `tests/error_messages_test.php` to verify catalog coverage for every key, the server-side fallback, and that no legacy text-based redirect remains in `src/`.
+
+### 🧾 Forms and UX
+- **Registration errors are shown inline** in `src/auth/register.php` instead of redirecting to `error.php`, and the form repopulates `username` and `email` (never the password) after a failed attempt.
+- **Live remaining-length meter** for create/edit/reply textareas: `src/assets/js/length-meter.js` counts UTF-8 bytes, updates a small right-aligned progress bar and switches to the danger color past the 1 MiB limit. Translations added as `length_mb_remaining` / `length_meter_label` in all six catalogs.
+
+### 🌐 Languages
+- Split the legacy `Java/C/C++` rule into **C**, **C++** and **Java**, and added **Ruby** to `src/rules.xml`, matching the README and the bundled Highlight.js build. `view.php` maps each rule to its `language-*` class and keeps a `java/c/c++` → `language-cpp` fallback for existing pastes; edit/reply selects preselect `C++` for legacy values.
+- Updated `tools/seed.php` language distribution and snippets for C, C++, Java and Ruby.
+
 ## Version 0.8 (2026)
 ### 🛠️ Administration and database recovery
 - Reorganized the admin panel around entry management, user management and database actions; added parameterized search with ID selection, role updates, and guarded account deletion with a choice to anonymize or delete associated pastes.

@@ -6,17 +6,16 @@ require("../includes/csrf.php");
 require("../database.php");
 require("../includes/http_input.php");
 require("../includes/account_role.php");
+require("../includes/error_messages.php");
 
 $session_user_id = http_positive_integer($_SESSION['user_id'] ?? null);
 if ($session_user_id === null) {
-    header("Location: ../error.php?msg=" . urlencode("Access denied. You don't have permission to view this page."));
-    exit;
+    opng_error_redirect('error_permission', '../error.php');
 }
 
 $db = database_connect();
 if (!$db) {
-    header("Location: ../error.php?msg=" . urlencode("Database connection error."));
-    exit;
+    opng_error_redirect('error_database_unavailable', '../error.php');
 }
 
 try {
@@ -24,13 +23,11 @@ try {
 } catch (mysqli_sql_exception | RuntimeException $exception) {
     error_log("OPNG admin.php: " . $exception->getMessage());
     $db->close();
-    header("Location: ../error.php?msg=" . urlencode("Database operation failed."));
-    exit;
+    opng_error_redirect('error_database_operation', '../error.php');
 }
 if ($current_role !== 'admin') {
     $db->close();
-    header("Location: ../error.php?msg=" . urlencode("Access denied. You don't have permission to view this page."));
-    exit;
+    opng_error_redirect('error_permission', '../error.php');
 }
 
 $csrf_token = csrf_token();

@@ -192,5 +192,13 @@
     "paste_deleted": "Paste eliminado correctamente.",
     "all_pastes_deleted": "Se han eliminado todos los pastes.",
     "paste_updated": "Paste actualizado correctamente.",
+    "error_invalid_sort": "El orden de clasificación no es válido.",
+    "error_empty_text": "El texto no puede estar vacío.",
+    "error_text_too_large": "El texto no puede superar 1 MiB.",
+    "error_topic_required": "El tema es obligatorio.",
+    "error_topic_too_large": "El tema no puede superar 255 bytes.",
+    "error_language_required": "El lenguaje es obligatorio.",
+    "length_mb_remaining": "MB restantes",
+    "length_meter_label": "Longitud del paste",
     "generic_error": "Se ha producido un error."
 }

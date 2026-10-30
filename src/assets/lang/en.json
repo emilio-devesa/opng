@@ -192,5 +192,13 @@
     "paste_deleted": "Paste deleted successfully.",
     "all_pastes_deleted": "All pastes have been deleted.",
     "paste_updated": "Paste updated successfully.",
+    "error_invalid_sort": "The sort order is invalid.",
+    "error_empty_text": "The text cannot be empty.",
+    "error_text_too_large": "The text cannot exceed 1 MiB.",
+    "error_topic_required": "The topic is required.",
+    "error_topic_too_large": "The topic cannot exceed 255 bytes.",
+    "error_language_required": "The language is required.",
+    "length_mb_remaining": "MB remaining",
+    "length_meter_label": "Paste length",
     "generic_error": "An error occurred."
 }

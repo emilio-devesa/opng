@@ -6,6 +6,7 @@ require("includes/db.php");
 require("includes/topic_search.php");
 require("includes/pagination_cursor.php");
 require("includes/http_input.php");
+require("includes/error_messages.php");
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     http_response_code(405);
@@ -15,20 +16,17 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 
 // ------------------ Búsqueda ------------------
 if (array_key_exists('q', $_GET) && http_string_parameter($_GET, 'q', OPNG_MAX_SEARCH_QUERY_BYTES) === null) {
-    header("Location: error.php?msg=" . urlencode("Invalid search query."));
-    exit;
+    opng_error_redirect('error_invalid_search');
 }
 $q = http_string_parameter($_GET, 'q', OPNG_MAX_SEARCH_QUERY_BYTES) ?? "";
 $search_expression = $q === '' ? null : topic_search_expression($q);
 if ($q !== '' && $search_expression === null) {
-    header("Location: error.php?msg=" . urlencode("Invalid search query."));
-    exit;
+    opng_error_redirect('error_invalid_search');
 }
 
 $sort_value = http_string_parameter($_GET, 'sort', 16, false);
 if (array_key_exists('sort', $_GET) && ($sort_value === null || entry_sort_expression($sort_value) === null)) {
-    header("Location: error.php?msg=" . urlencode("Invalid sort order."));
-    exit;
+    opng_error_redirect('error_invalid_sort');
 }
 $sort = $sort_value ?? 'date';
 $default_sort = !array_key_exists('sort', $_GET);
@@ -37,8 +35,7 @@ if (
     (array_key_exists('order', $_GET) && $order_value === null)
     || ($order_value !== null && !in_array($order_value, ['asc', 'desc'], true))
 ) {
-    header("Location: error.php?msg=" . urlencode("Invalid sort order."));
-    exit;
+    opng_error_redirect('error_invalid_sort');
 }
 $sort_order = $order_value ?? ($default_sort ? 'desc' : 'asc');
 
@@ -56,8 +53,7 @@ if (array_key_exists('cursor', $_GET) || array_key_exists('direction', $_GET)) {
         || !is_string($direction_value)
         || !in_array($direction_value, ['older', 'newer'], true)
     ) {
-        header("Location: error.php?msg=" . urlencode("Invalid pagination cursor."));
-        exit;
+        opng_error_redirect('error_invalid_cursor');
     }
     $direction = $direction_value;
     $cursor_token = encode_listing_cursor($cursor);
@@ -65,8 +61,7 @@ if (array_key_exists('cursor', $_GET) || array_key_exists('direction', $_GET)) {
 
 $db = db_connect();
 if (!$db) {
-    header("Location: error.php?msg=" . urlencode("Database connection error."));
-    exit;
+    opng_error_redirect('error_database_unavailable');
 }
 
 $conditions = [];
@@ -117,8 +112,7 @@ try {
         $stmt->close();
     }
     $db->close();
-    header("Location: error.php?msg=" . urlencode("Database operation failed."));
-    exit;
+    opng_error_redirect('error_database_operation');
 }
 
 $has_more = count($entries) > 20;

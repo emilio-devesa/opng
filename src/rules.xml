@@ -2,8 +2,11 @@
 <RULES>
     <RULE name="Plaintext" />
     <RULE name="Bash" />
-	<RULE name="Pascal" />
-	<RULE name="Python" />
+    <RULE name="C" />
+    <RULE name="C++" />
+    <RULE name="Java" />
+    <RULE name="Pascal" />
     <RULE name="PHP" />
-	<RULE name="Java/C/C++" />
+    <RULE name="Python" />
+    <RULE name="Ruby" />
 </RULES>

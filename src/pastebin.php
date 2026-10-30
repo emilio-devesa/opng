@@ -6,6 +6,7 @@ require("includes/db.php");
 require("includes/csrf.php");
 require("includes/rules.php");
 require("includes/http_input.php");
+require("includes/error_messages.php");
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     http_response_code(405);
@@ -18,8 +19,7 @@ $csrf_token = csrf_token();
 // Conexión temprana para fallar rápido si la BD no está disponible
 $db = db_connect();
 if (!$db) {
-    header("Location: error.php?msg=" . urlencode("Database connection error."));
-    exit;
+    opng_error_redirect('error_database_unavailable');
 }
 $db->close();
 
@@ -27,8 +27,7 @@ $rules = [];
 try {
     $rules = load_rules();
 } catch (RuntimeException $exception) {
-    header("Location: error.php?msg=" . urlencode("Language configuration is unavailable."));
-    exit;
+    opng_error_redirect('error_language_config');
 }
 
 $lang_attr = 'en';
@@ -56,7 +55,12 @@ require(__DIR__ . "/includes/layout_header.php");
 
         <label data-i18n="text" for="input_text">Enter your text here</label>
         <textarea id="input_text" name="input_text" rows="25" cols="80" maxlength="1048576" required></textarea>
+        <div class="length-meter" data-length-meter-for="input_text" data-max-bytes="1048576">
+            <progress class="length-meter-bar" max="1048576" value="0" aria-label="Paste length" data-i18n-aria-label="length_meter_label"></progress>
+            <span class="length-meter-text"><span class="length-meter-value">1.00</span> <span data-i18n="length_mb_remaining">MB remaining</span></span>
+        </div>
         <p class="form-help" data-i18n="storage_quota_notice">Normal accounts can store up to 100 MiB across all pastes. Administrators are exempt.</p>
         <button data-i18n="submit" id="submit" type="submit">Submit</button>
     </form>
+    <script src="assets/js/length-meter.js?v=<?php echo filemtime(__DIR__ . '/assets/js/length-meter.js'); ?>" defer></script>
 <?php require(__DIR__ . "/includes/layout_footer.php"); ?>

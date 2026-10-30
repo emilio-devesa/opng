@@ -192,5 +192,13 @@
     "paste_deleted": "Paste supprimé avec succès.",
     "all_pastes_deleted": "Tous les pastes ont été supprimés.",
     "paste_updated": "Paste modifié avec succès.",
+    "error_invalid_sort": "L'ordre de tri est invalide.",
+    "error_empty_text": "Le texte ne peut pas être vide.",
+    "error_text_too_large": "Le texte ne peut pas dépasser 1 Mio.",
+    "error_topic_required": "Le sujet est obligatoire.",
+    "error_topic_too_large": "Le sujet ne peut pas dépasser 255 octets.",
+    "error_language_required": "La langue est obligatoire.",
+    "length_mb_remaining": "Mo restants",
+    "length_meter_label": "Longueur du paste",
     "generic_error": "Une erreur s'est produite."
 }
