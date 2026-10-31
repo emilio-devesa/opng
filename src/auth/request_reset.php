@@ -5,7 +5,10 @@ require("../includes/csrf.php");
 require("../includes/ratelimit.php");
 require_once("../includes/password_reset.php");
 require("../includes/http_input.php");
+require("../includes/assets.php");
 require("../database.php");
+
+$asset_version = opng_asset_version();
 
 if (!in_array($_SERVER["REQUEST_METHOD"], ["GET", "POST"], true)) {
     http_response_code(405);
@@ -189,7 +192,7 @@ require(__DIR__ . '/../includes/layout_header.php');
             </p>
             <button type="submit" data-i18n="send_reset_link">Send Reset Link</button>
         </form>
-        <script src="../assets/js/refresh-captcha.js?v=<?php echo filemtime(__DIR__ . '/../assets/js/refresh-captcha.js'); ?>"></script>
+        <script src="../assets/js/refresh-captcha.js?v=<?php echo $asset_version; ?>"></script>
     <?php endif; ?>
     <p><a href="login.php" data-i18n="return_to_sign_in">Return to sign in</a></p>
     </section>

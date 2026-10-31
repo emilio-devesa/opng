@@ -7,6 +7,9 @@ require("includes/csrf.php");
 require("includes/rules.php");
 require("includes/http_input.php");
 require("includes/error_messages.php");
+require("includes/assets.php");
+
+$asset_version = opng_asset_version();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     http_response_code(405);
@@ -62,5 +65,5 @@ require(__DIR__ . "/includes/layout_header.php");
         <p class="form-help" data-i18n="storage_quota_notice">Normal accounts can store up to 100 MiB across all pastes. Administrators are exempt.</p>
         <button data-i18n="submit" id="submit" type="submit">Submit</button>
     </form>
-    <script src="assets/js/length-meter.js?v=<?php echo filemtime(__DIR__ . '/assets/js/length-meter.js'); ?>" defer></script>
+    <script src="assets/js/length-meter.js?v=<?php echo $asset_version; ?>" defer></script>
 <?php require(__DIR__ . "/includes/layout_footer.php"); ?>

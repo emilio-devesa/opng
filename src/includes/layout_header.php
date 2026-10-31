@@ -9,14 +9,8 @@ if (!isset($base)) { $base = ''; }
 $page_title = $page_title ?? 'Open Pastebin NG';
 $logged_in = isset($_SESSION['user_id']);
 $show_search = isset($show_search) && $show_search;
-$language_catalog_version = 0;
-foreach (['en', 'es', 'de', 'fr', 'pt', 'zh'] as $language_code) {
-    $catalog_mtime = filemtime(__DIR__ . '/../assets/lang/' . $language_code . '.json');
-    if ($catalog_mtime === false) {
-        throw new RuntimeException('A language catalog is unavailable.');
-    }
-    $language_catalog_version = max($language_catalog_version, $catalog_mtime);
-}
+require_once(__DIR__ . '/assets.php');
+$asset_version = opng_asset_version();
 $page_title_i18n_attribute = '';
 if (isset($page_title_i18n) && is_string($page_title_i18n)) {
     $page_title_i18n_attribute = ' data-i18n="' . htmlspecialchars($page_title_i18n, ENT_QUOTES, 'UTF-8') . '"';
@@ -34,7 +28,7 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style
     <meta name="referrer" content="no-referrer">
     <?php endif; ?>
     <title<?php echo $page_title_i18n_attribute; ?>><?php echo htmlspecialchars($page_title, ENT_QUOTES, 'UTF-8'); ?></title>
-    <link rel="stylesheet" href="<?php echo $base; ?>main.css?v=<?php echo filemtime(__DIR__ . '/../main.css'); ?>">
+    <link rel="stylesheet" href="<?php echo $base; ?>main.css?v=<?php echo $asset_version; ?>">
 </head>
 <body>
     <header id="SiteHeader">
@@ -90,10 +84,10 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style
         </form>
         <?php endif; ?>
     </header>
-    <script src="<?php echo $base; ?>assets/js/dark-mode.js?v=<?php echo filemtime(__DIR__ . '/../assets/js/dark-mode.js'); ?>" data-base="<?php echo $base; ?>"></script>
-    <script src="<?php echo $base; ?>assets/js/language.js?v=<?php echo filemtime(__DIR__ . '/../assets/js/language.js'); ?>" data-base="<?php echo $base; ?>" data-language-version="<?php echo $language_catalog_version; ?>"></script>
-    <script src="<?php echo $base; ?>assets/js/confirm.js?v=<?php echo filemtime(__DIR__ . '/../assets/js/confirm.js'); ?>"></script>
+    <script src="<?php echo $base; ?>assets/js/dark-mode.js?v=<?php echo $asset_version; ?>" data-base="<?php echo $base; ?>"></script>
+    <script src="<?php echo $base; ?>assets/js/language.js?v=<?php echo $asset_version; ?>" data-base="<?php echo $base; ?>" data-language-version="<?php echo $asset_version; ?>"></script>
+    <script src="<?php echo $base; ?>assets/js/confirm.js?v=<?php echo $asset_version; ?>"></script>
     <?php if ($show_search): ?>
-    <script src="<?php echo $base; ?>assets/js/search-clear.js?v=<?php echo filemtime(__DIR__ . '/../assets/js/search-clear.js'); ?>" defer></script>
+    <script src="<?php echo $base; ?>assets/js/search-clear.js?v=<?php echo $asset_version; ?>" defer></script>
     <?php endif; ?>
     <div id="Content">

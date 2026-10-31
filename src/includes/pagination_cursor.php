@@ -103,14 +103,18 @@ function entry_cursor_condition(array $cursor, string $direction): array
 
 /**
  * SQL expression for each supported global listing sort.
+ *
+ * topic, language and date are NOT NULL in the migrated schema, so the bare
+ * columns can use their (column, id) indexes. author is derived from the
+ * LEFT JOIN and keeps COALESCE for anonymous pastes.
  */
 function entry_sort_expression(string $sort): ?string
 {
     return match ($sort) {
-        'topic' => "COALESCE(entries.topic, '')",
+        'topic' => 'entries.topic',
         'author' => "COALESCE(users.username, 'Guest')",
-        'language' => "COALESCE(entries.language, '')",
-        'date' => "COALESCE(entries.date, '0000-00-00 00:00:00')",
+        'language' => 'entries.language',
+        'date' => 'entries.date',
         default => null,
     };
 }
@@ -184,7 +188,7 @@ function entry_listing_sort_value(string $sort, array $row): string
         'topic' => $row['topic'] ?? '',
         'author' => $row['username'] ?? 'Guest',
         'language' => $row['language'] ?? '',
-        'date' => $row['date'] ?? '0000-00-00 00:00:00',
+        'date' => $row['date'] ?? '',
         default => throw new InvalidArgumentException('Unsupported listing sort.'),
     };
 
@@ -222,5 +226,88 @@ function listing_cursor_condition(array $cursor, string $direction): array
     return [
         'sql' => "({$expression} {$operator} ? OR ({$expression} = ? AND entries.id {$operator} ?))",
         'params' => [$cursor['value'], $cursor['value'], $cursor['id']],
+    ];
+}
+
+/**
+ * Build the public listing query shared by index.php and the query-plan test,
+ * so the test always exercises the production WHERE/ORDER BY clauses.
+ *
+ * @param array{sort: string, order: string, value: string, id: string}|null $cursor
+ * @return array{sql: string, params: list<string>}
+ */
+function build_listing_query(
+    ?string $search_expression,
+    ?array $cursor,
+    ?string $direction,
+    string $sort,
+    string $sort_order
+): array {
+    if (!in_array($sort_order, ['asc', 'desc'], true)) {
+        throw new InvalidArgumentException('Invalid listing order.');
+    }
+    if ($direction !== null && !in_array($direction, ['older', 'newer'], true)) {
+        throw new InvalidArgumentException('Invalid listing direction.');
+    }
+
+    $conditions = [];
+    $params = [];
+    if ($search_expression !== null) {
+        $conditions[] = 'MATCH(entries.topic) AGAINST (? IN BOOLEAN MODE)';
+        $params[] = $search_expression;
+    }
+    if ($cursor !== null) {
+        if ($direction === null) {
+            throw new InvalidArgumentException('A listing cursor requires a direction.');
+        }
+        $cursor_condition = listing_cursor_condition($cursor, $direction);
+        $conditions[] = $cursor_condition['sql'];
+        array_push($params, ...$cursor_condition['params']);
+    }
+
+    $where_sql = $conditions === [] ? '' : ' WHERE ' . implode(' AND ', $conditions);
+    $sort_expression = entry_sort_expression($sort);
+    if ($sort_expression === null) {
+        throw new InvalidArgumentException('Unsupported listing sort.');
+    }
+    $query_order = $sort_order;
+    if ($direction === 'newer') {
+        $query_order = $query_order === 'asc' ? 'desc' : 'asc';
+    }
+
+    $sql = "SELECT entries.id, entries.user_id, users.username, entries.topic, entries.language, entries.date
+             FROM entries
+             LEFT JOIN users ON entries.user_id = users.id"
+             . $where_sql .
+             " ORDER BY {$sort_expression} {$query_order}, entries.id {$query_order} LIMIT 21";
+
+    return ['sql' => $sql, 'params' => $params];
+}
+
+/**
+ * Keyset condition for the admin listings, which order DESC by
+ * (value_column, id_column). "older" moves to smaller values and "newer" moves
+ * back to larger values.
+ *
+ * @param array{id: string, date: string} $cursor
+ * @return array{sql: string, params: list<string>}
+ */
+function admin_keyset_condition(string $value_column, string $id_column, array $cursor, string $direction): array
+{
+    if (!in_array($direction, ['older', 'newer'], true)) {
+        throw new InvalidArgumentException('Invalid admin listing direction.');
+    }
+    if (
+        !in_array($value_column, ['entries.date', 'users.created_at'], true)
+        || !in_array($id_column, ['entries.id', 'users.id'], true)
+    ) {
+        throw new InvalidArgumentException('Invalid admin listing column.');
+    }
+
+    $operator = $direction === 'older' ? '<' : '>';
+
+    return [
+        'sql' => "({$value_column} {$operator} ? OR ({$value_column} = ? AND {$id_column} {$operator} ?))",
+        'params' => [$cursor['date'], $cursor['date'], $cursor['id']],
     ];
 }

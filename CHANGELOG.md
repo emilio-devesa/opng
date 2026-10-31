@@ -20,6 +20,22 @@
 - Split the legacy `Java/C/C++` rule into **C**, **C++** and **Java**, and added **Ruby** to `src/rules.xml`, matching the README and the bundled Highlight.js build. `view.php` maps each rule to its `language-*` class and keeps a `java/c/c++` → `language-cpp` fallback for existing pastes; edit/reply selects preselect `C++` for legacy values.
 - Updated `tools/seed.php` language distribution and snippets for C, C++, Java and Ruby.
 
+## Unreleased (audit v0.9 — Phase 2: performance and scalability)
+### ⚡ Listing and schema
+- **Removed `COALESCE()` from listing sorts.** `entries.date` is now `DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP`, `entries.topic` is `VARCHAR(255) NOT NULL` and `entries.language` is `NOT NULL`; legacy `NULL` dates become `1970-01-01 00:00:00` during the idempotent installer migration. The public listing now uses bare `date`/`topic`/`language` columns so `idx_entries_cursor`, `idx_entries_topic` and `idx_entries_language` can serve `ORDER BY` without filesort. The migration account needs `UPDATE` for the one-time backfills.
+- Extracted `build_listing_query()` so the production `WHERE`/`ORDER BY` and the query-plan test share the same SQL (M9). The performance test now refreshes statistics with `ANALYZE TABLE` after its synthetic 5,000-row load.
+
+### 🖥️ Admin panel
+- **Dashboard metrics are cached in MySQL** (`admin_metrics_cache`, 5-minute TTL) and invalidated by entry deletion, database emptying and user-management actions.
+- Entry and user result lists now use keyset cursors (`date,id` / `created_at,id`) instead of `OFFSET`; topic search uses `MATCH ... AGAINST`, while author/username/email keep substring `LIKE` matching.
+
+### 🎨 Rendering and assets
+- **Line numbers are capped at 5,000**; longer pastes render the full code without a gutter and show a translated notice. Highlight.js is only loaded for non-Plaintext pastes.
+- A single memoized `opng_asset_version()` now supplies the cache-busting version for CSS, JavaScript, vendor bundles and language catalogs instead of repeated `filemtime()` calls per asset.
+
+### 🔐 Rate limiting
+- Rate-limit hits are recorded with a single `INSERT ... ON DUPLICATE KEY UPDATE` statement using `LAST_INSERT_ID(expr)`, reducing four queries to one (plus an opportunistic cleanup), with a read fallback for drivers that do not expose the expression value.
+
 ## Version 0.8 (2026)
 ### 🛠️ Administration and database recovery
 - Reorganized the admin panel around entry management, user management and database actions; added parameterized search with ID selection, role updates, and guarded account deletion with a choice to anonymize or delete associated pastes.

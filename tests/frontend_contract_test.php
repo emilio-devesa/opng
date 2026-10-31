@@ -58,6 +58,7 @@ $required_keys = [
     'error_language_required',
     'length_mb_remaining',
     'length_meter_label',
+    'line_numbers_hidden',
     'home',
     'search_clear',
     'admin_search_entries',
@@ -277,15 +278,41 @@ if (
 }
 
 $metrics_source = file_get_contents($root . '/src/admin/admin.php');
+$metrics_include = file_get_contents($root . '/src/includes/admin_metrics.php');
 if (
     !is_string($metrics_source)
-    || !str_contains($metrics_source, 'SUM(OCTET_LENGTH(text))')
-    || !str_contains($metrics_source, 'LIMIT 5')
     || !str_contains($metrics_source, 'admin-pie-chart')
     || !str_contains($metrics_source, 'admin_metrics_rest')
     || str_contains($metrics_source, 'style=')
+    || !is_string($metrics_include)
+    || !str_contains($metrics_include, 'SUM(OCTET_LENGTH(text))')
+    || !str_contains($metrics_include, 'LIMIT 5')
+    || !str_contains($metrics_include, 'admin_metrics_cache')
+    || !str_contains($metrics_include, 'OPNG_ADMIN_METRICS_TTL')
 ) {
-    $failures[] = 'Admin metrics are missing paste storage aggregation, top-five grouping, accessible pie graphics, or CSP-safe markup';
+    $failures[] = 'Admin metrics are missing paste storage aggregation, top-five grouping, caching, accessible pie graphics, or CSP-safe markup';
+}
+
+$cache_invalidation_files = [
+    '/src/admin/drop_id.php',
+    '/src/admin/empty.php',
+    '/src/admin/user_action.php',
+];
+foreach ($cache_invalidation_files as $invalidation_path) {
+    $invalidation_source = file_get_contents($root . $invalidation_path);
+    if (!is_string($invalidation_source) || !str_contains($invalidation_source, 'admin_metrics_invalidate($db)')) {
+        $failures[] = "Admin action does not invalidate the metrics cache: {$invalidation_path}";
+    }
+}
+
+if (
+    !is_string($admin_page)
+    || str_contains($admin_page, 'OFFSET ')
+    || !str_contains($admin_page, 'admin_keyset_condition(')
+    || !str_contains($admin_page, 'entry_direction')
+    || !str_contains($admin_page, 'user_direction')
+) {
+    $failures[] = 'Admin listings must page with keyset cursors instead of OFFSET';
 }
 
 $database_delete_page = file_get_contents($root . '/src/admin/delete_database.php');
@@ -359,6 +386,59 @@ if (
     || str_contains($error_page, "'An error occurred.'")
 ) {
     $failures[] = 'Error page must render the server-side fallback from the catalog';
+}
+
+$asset_helper = file_get_contents($root . '/src/includes/assets.php');
+$asset_consumers = [
+    '/src/includes/layout_header.php',
+    '/src/admin/admin.php',
+    '/src/auth/register.php',
+    '/src/auth/request_reset.php',
+    '/src/view.php',
+    '/src/pastebin.php',
+];
+if (
+    !is_string($asset_helper)
+    || !str_contains($asset_helper, 'function opng_asset_version()')
+    || !str_contains($asset_helper, 'static $version = null;')
+) {
+    $failures[] = 'The shared asset-version helper is missing or not memoized';
+}
+foreach ($asset_consumers as $consumer_path) {
+    $consumer = file_get_contents($root . $consumer_path);
+    if (!is_string($consumer) || !str_contains($consumer, '<?php echo $asset_version; ?>')) {
+        $failures[] = "Page does not reuse the shared asset version: {$consumer_path}";
+    }
+}
+if (is_string($layout) && str_contains($layout, 'filemtime(')) {
+    $failures[] = 'The shared layout still calls filemtime() per asset';
+}
+
+if (
+    !is_string($view_page)
+    || !str_contains($view_page, 'OPNG_MAX_RENDERED_LINE_NUMBERS')
+    || !str_contains($view_page, 'line_numbers_hidden')
+    || !str_contains($view_page, 'no-line-numbers')
+    || str_contains($view_page, "assets/vendor/highlight.min.js?v=<?php echo filemtime")
+) {
+    $failures[] = 'View page must cap rendered line numbers and only load the highlighter when needed';
+}
+if (
+    !is_string($admin_styles)
+    || !str_contains($admin_styles, '.code-view.no-line-numbers')
+    || !str_contains($admin_styles, '.line-numbers-notice')
+) {
+    $failures[] = 'Line-number cap styles are missing from the stylesheet';
+}
+
+$rate_limit_source = file_get_contents($root . '/src/includes/ratelimit.php');
+if (
+    !is_string($rate_limit_source)
+    || !str_contains($rate_limit_source, 'ON DUPLICATE KEY UPDATE')
+    || !str_contains($rate_limit_source, 'LAST_INSERT_ID(')
+    || str_contains($rate_limit_source, 'INSERT IGNORE INTO rate_limits')
+) {
+    $failures[] = 'Rate limiting must record a hit with a single upsert statement';
 }
 
 foreach ($failures as $failure) {

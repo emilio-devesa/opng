@@ -28,7 +28,7 @@ while ($row = $result->fetch_assoc()) {
 }
 $result->free();
 sort($table_names);
-if ($table_names !== ['entries', 'rate_limits', 'users']) {
+if ($table_names !== ['admin_metrics_cache', 'entries', 'rate_limits', 'users']) {
     throw new RuntimeException('The installer did not leave exactly the lowercase application tables.');
 }
 echo "PASS: application tables use lowercase names on a case-sensitive server\n";
@@ -49,6 +49,52 @@ if ($column === null || $column['DATA_TYPE'] !== 'mediumtext') {
     throw new RuntimeException('The entries.text column was not widened to MEDIUMTEXT.');
 }
 
+$date_column = $db->query(
+    "SELECT DATA_TYPE, IS_NULLABLE
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'entries'
+       AND COLUMN_NAME = 'date'"
+)->fetch_assoc();
+if (
+    $date_column === null
+    || $date_column['DATA_TYPE'] !== 'datetime'
+    || $date_column['IS_NULLABLE'] !== 'NO'
+) {
+    throw new RuntimeException('entries.date was not migrated to NOT NULL DATETIME.');
+}
+
+$topic_column = $db->query(
+    "SELECT DATA_TYPE, IS_NULLABLE, CHARACTER_MAXIMUM_LENGTH
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'entries'
+       AND COLUMN_NAME = 'topic'"
+)->fetch_assoc();
+if (
+    $topic_column === null
+    || $topic_column['DATA_TYPE'] !== 'varchar'
+    || (int) $topic_column['CHARACTER_MAXIMUM_LENGTH'] !== 255
+    || $topic_column['IS_NULLABLE'] !== 'NO'
+) {
+    throw new RuntimeException('entries.topic was not migrated to VARCHAR(255) NOT NULL.');
+}
+
+$language_column = $db->query(
+    "SELECT DATA_TYPE, IS_NULLABLE
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'entries'
+       AND COLUMN_NAME = 'language'"
+)->fetch_assoc();
+if (
+    $language_column === null
+    || $language_column['DATA_TYPE'] !== 'varchar'
+    || $language_column['IS_NULLABLE'] !== 'NO'
+) {
+    throw new RuntimeException('entries.language was not migrated to NOT NULL.');
+}
+
 $index = $db->query(
     "SELECT INDEX_NAME FROM information_schema.STATISTICS
      WHERE TABLE_SCHEMA = DATABASE()
@@ -59,7 +105,7 @@ if ($index === null) {
     throw new RuntimeException('The entries date index is missing.');
 }
 
-foreach (['idx_entries_cursor', 'idx_entries_user', 'ft_entries_topic'] as $required_index) {
+foreach (['idx_entries_cursor', 'idx_entries_user', 'idx_entries_topic', 'idx_entries_language', 'ft_entries_topic'] as $required_index) {
     $stmt = $db->prepare(
         "SELECT INDEX_TYPE FROM information_schema.STATISTICS
          WHERE TABLE_SCHEMA = DATABASE()

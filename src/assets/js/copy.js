@@ -7,13 +7,15 @@ document.addEventListener("DOMContentLoaded", function () {
 
     if (!copyButton || !codeBlock || !status || !copiedMessage || !errorMessage) return;
 
-    if (!window.hljs) {
-        console.error("Syntax highlighting library did not load.");
-    } else if (!codeBlock.classList.contains("language-plaintext")) {
-        try {
-            window.hljs.highlightElement(codeBlock);
-        } catch (error) {
-            console.error("Could not highlight paste text:", error);
+    if (!codeBlock.classList.contains("language-plaintext")) {
+        if (!window.hljs) {
+            console.error("Syntax highlighting library did not load.");
+        } else {
+            try {
+                window.hljs.highlightElement(codeBlock);
+            } catch (error) {
+                console.error("Could not highlight paste text:", error);
+            }
         }
     }
 

@@ -6,6 +6,7 @@ require_once('../includes/http_input.php');
 require_once('../includes/account_role.php');
 require_once('../database.php');
 require_once("../includes/error_messages.php");
+require_once('../includes/admin_metrics.php');
 
 function redirect_admin(string $message): never
 {
@@ -137,6 +138,7 @@ try {
 
     $db->commit();
     $transaction_started = false;
+    admin_metrics_invalidate($db);
     $db->close();
 } catch (mysqli_sql_exception | RuntimeException $exception) {
     error_log('OPNG user_action.php: ' . $exception->getMessage());

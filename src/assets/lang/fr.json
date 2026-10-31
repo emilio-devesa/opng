@@ -200,5 +200,6 @@
     "error_language_required": "La langue est obligatoire.",
     "length_mb_remaining": "Mo restants",
     "length_meter_label": "Longueur du paste",
+    "line_numbers_hidden": "Les numéros de ligne sont masqués pour les pastes très longs.",
     "generic_error": "Une erreur s'est produite."
 }

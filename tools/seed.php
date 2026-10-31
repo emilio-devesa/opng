@@ -33,6 +33,8 @@ $db->set_charset('utf8mb4');
 // ---------------------------------------------------------------------------
 $db->query("DELETE FROM entries WHERE id LIKE 'seed%'");
 $db->query("DELETE FROM users WHERE email LIKE '%@example.test'");
+// The dashboard aggregates are cached; a reseed changes every count.
+$db->query("DELETE FROM admin_metrics_cache");
 
 // ---------------------------------------------------------------------------
 // Usuarios

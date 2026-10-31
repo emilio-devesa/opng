@@ -136,7 +136,7 @@ jobs:
           CREATE USER 'opng_runtime'@'%' IDENTIFIED BY 'runtime-ci-password';
           GRANT SELECT, INSERT, UPDATE, DELETE ON opng_ci.* TO 'opng_runtime'@'%';
           CREATE USER 'opng_migrator'@'%' IDENTIFIED BY 'migrator-ci-password';
-          GRANT SELECT, INSERT, CREATE, ALTER, INDEX, DROP ON opng_ci.* TO 'opng_migrator'@'%';
+          GRANT SELECT, INSERT, UPDATE, CREATE, ALTER, INDEX, DROP ON opng_ci.* TO 'opng_migrator'@'%';
 
           USE opng_ci;
           CREATE TABLE Users (
@@ -213,7 +213,7 @@ jobs:
           mysql --protocol=TCP -h 127.0.0.1 -uroot -pci-root-password <<'SQL'
           CREATE DATABASE opng_ambiguous CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
           GRANT SELECT, INSERT, UPDATE, DELETE ON opng_ambiguous.* TO 'opng_runtime'@'%';
-          GRANT SELECT, INSERT, CREATE, ALTER, INDEX, DROP ON opng_ambiguous.* TO 'opng_migrator'@'%';
+          GRANT SELECT, INSERT, UPDATE, CREATE, ALTER, INDEX, DROP ON opng_ambiguous.* TO 'opng_migrator'@'%';
           USE opng_ambiguous;
           CREATE TABLE Entries (id INT PRIMARY KEY);
           CREATE TABLE entries (id INT PRIMARY KEY);

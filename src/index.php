@@ -64,32 +64,9 @@ if (!$db) {
     opng_error_redirect('error_database_unavailable');
 }
 
-$conditions = [];
-$params = [];
-if ($search_expression !== null) {
-    $conditions[] = 'MATCH(entries.topic) AGAINST (? IN BOOLEAN MODE)';
-    $params[] = $search_expression;
-}
-if ($cursor !== null) {
-    $cursor_condition = listing_cursor_condition($cursor, $direction);
-    $conditions[] = $cursor_condition['sql'];
-    array_push($params, ...$cursor_condition['params']);
-}
-
-$where_sql = $conditions === [] ? '' : ' WHERE ' . implode(' AND ', $conditions);
-$sort_expression = entry_sort_expression($sort);
-if ($sort_expression === null) {
-    throw new LogicException('Validated listing sort has no SQL expression.');
-}
-$query_order = $sort_order;
-if ($direction === 'newer') {
-    $query_order = $query_order === 'asc' ? 'desc' : 'asc';
-}
-$list_sql = "SELECT entries.id, entries.user_id, users.username, entries.topic, entries.language, entries.date
-             FROM entries
-             LEFT JOIN users ON entries.user_id = users.id"
-             . $where_sql .
-             " ORDER BY {$sort_expression} {$query_order}, entries.id {$query_order} LIMIT 21";
+$listing = build_listing_query($search_expression, $cursor, $direction, $sort, $sort_order);
+$list_sql = $listing['sql'];
+$params = $listing['params'];
 $entries = [];
 try {
     $stmt = $db->prepare($list_sql);

@@ -73,7 +73,7 @@ assert_value(
 );
 assert_value(
     [
-        'sql' => "(COALESCE(entries.topic, '') > ? OR (COALESCE(entries.topic, '') = ? AND entries.id > ?))",
+        'sql' => '(entries.topic > ? OR (entries.topic = ? AND entries.id > ?))',
         'params' => ['Alpha', 'Alpha', 'entry-1'],
     ],
     listing_cursor_condition($listing_cursor, 'older'),
@@ -97,6 +97,59 @@ assert_value(
     'Guest',
     entry_listing_sort_value('author', ['username' => null]),
     'anonymous entries sort by their displayed author label'
+);
+
+$default_listing = build_listing_query(null, null, null, 'date', 'desc');
+assert_value(
+    true,
+    str_contains($default_listing['sql'], 'ORDER BY entries.date desc, entries.id desc LIMIT 21'),
+    'the default listing orders by the bare date column so the cursor index is usable'
+);
+assert_value(
+    false,
+    str_contains($default_listing['sql'], 'COALESCE(entries.date'),
+    'the default listing no longer wraps the date in COALESCE'
+);
+assert_value([], $default_listing['params'], 'the default listing has no bound parameters');
+
+$filtered_listing = build_listing_query('+needle*', [
+    'sort' => 'topic',
+    'order' => 'asc',
+    'value' => 'Alpha',
+    'id' => 'entry-1',
+], 'older', 'topic', 'asc');
+assert_value(
+    ['+needle*', 'Alpha', 'Alpha', 'entry-1'],
+    $filtered_listing['params'],
+    'the shared listing builder keeps search and cursor parameters in order'
+);
+assert_value(
+    true,
+    str_contains($filtered_listing['sql'], 'MATCH(entries.topic) AGAINST (? IN BOOLEAN MODE)'),
+    'the shared listing builder includes the FULLTEXT search clause'
+);
+
+assert_value(
+    [
+        'sql' => '(entries.date < ? OR (entries.date = ? AND entries.id < ?))',
+        'params' => ['2025-11-02 12:30:45', '2025-11-02 12:30:45', 'seed0059'],
+    ],
+    admin_keyset_condition('entries.date', 'entries.id', [
+        'id' => 'seed0059',
+        'date' => '2025-11-02 12:30:45',
+    ], 'older'),
+    'admin entry keyset pagination uses a stable date/id boundary'
+);
+assert_value(
+    [
+        'sql' => '(users.created_at > ? OR (users.created_at = ? AND users.id > ?))',
+        'params' => ['2025-11-02 12:30:45', '2025-11-02 12:30:45', '42'],
+    ],
+    admin_keyset_condition('users.created_at', 'users.id', [
+        'id' => '42',
+        'date' => '2025-11-02 12:30:45',
+    ], 'newer'),
+    'admin user keyset pagination can move back to newer rows'
 );
 
 $under_quota = ['role' => 'user', 'used_bytes' => OPNG_USER_QUOTA_BYTES - 100];

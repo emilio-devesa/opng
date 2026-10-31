@@ -7,6 +7,7 @@ require_once('../database.php');
 require_once('../includes/http_input.php');
 require_once('../includes/account_role.php');
 require_once("../includes/error_messages.php");
+require_once('../includes/admin_metrics.php');
 
 // Verificar si el usuario está autenticado
 if (!isset($_SESSION['user_id'])) {
@@ -71,6 +72,7 @@ try {
         throw new RuntimeException('Entry deletion transaction could not be committed.');
     }
     $transaction_started = false;
+    admin_metrics_invalidate($db);
 } catch (mysqli_sql_exception | RuntimeException $exception) {
     error_log("OPNG drop_id.php: " . $exception->getMessage());
     if (isset($stmt) && $stmt instanceof mysqli_stmt) {

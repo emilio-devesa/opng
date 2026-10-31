@@ -6,6 +6,7 @@ require("../includes/ratelimit.php");
 require("../includes/password_validation.php");
 require("../includes/http_input.php");
 require("../includes/error_messages.php");
+require("../includes/assets.php");
 require("../database.php");
 
 if (!in_array($_SERVER["REQUEST_METHOD"], ["GET", "POST"], true)) {
@@ -17,6 +18,7 @@ if (!in_array($_SERVER["REQUEST_METHOD"], ["GET", "POST"], true)) {
 $form_error_key = '';
 $posted_username = '';
 $posted_email = '';
+$asset_version = opng_asset_version();
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     // Keep the submitted values so the form can be re-rendered with an inline
@@ -143,5 +145,5 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         </form>
         <p><a href="login.php" data-i18n="have_account">Already have an account? Sign in</a></p>
     </section>
-    <script src="../assets/js/refresh-captcha.js?v=<?php echo filemtime(__DIR__ . '/../assets/js/refresh-captcha.js'); ?>"></script>
+    <script src="../assets/js/refresh-captcha.js?v=<?php echo $asset_version; ?>"></script>
 <?php require(__DIR__ . '/../includes/layout_footer.php'); ?>

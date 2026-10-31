@@ -200,5 +200,6 @@
     "error_language_required": "Die Sprache ist erforderlich.",
     "length_mb_remaining": "MB verbleibend",
     "length_meter_label": "Paste-Länge",
+    "line_numbers_hidden": "Zeilennummern werden bei sehr langen Pastes ausgeblendet.",
     "generic_error": "Ein Fehler ist aufgetreten."
 }

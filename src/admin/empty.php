@@ -7,6 +7,7 @@ require_once('../database.php');
 require_once('../includes/http_input.php');
 require_once('../includes/account_role.php');
 require_once("../includes/error_messages.php");
+require_once('../includes/admin_metrics.php');
 
 // Verificar que el usuario esté autenticado y sea administrador
 // (fix S1/R1: require_once('login.php') no es un guarda de acceso válido)
@@ -82,6 +83,7 @@ try {
         throw new RuntimeException('Empty-database transaction could not be committed.');
     }
     $transaction_started = false;
+    admin_metrics_invalidate($db);
     header("Location: ../index.php?msg=" . urlencode("All pastes have been deleted"));
 } catch (mysqli_sql_exception | RuntimeException $exception) {
     error_log("OPNG empty.php: failed to delete entries: " . $exception->getMessage());

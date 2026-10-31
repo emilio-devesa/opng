@@ -140,10 +140,10 @@ try {
         CREATE TABLE IF NOT EXISTS entries (
             id VARCHAR(255) PRIMARY KEY,
             user_id INT,
-            date DATETIME DEFAULT CURRENT_TIMESTAMP,
-            language VARCHAR(20),
+            date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            language VARCHAR(20) NOT NULL DEFAULT '',
             text MEDIUMTEXT,
-            topic TEXT
+            topic VARCHAR(255) NOT NULL DEFAULT ''
         ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
     ");
     echo "OK: table entries\n";
@@ -169,6 +169,89 @@ try {
         );
     }
 
+    // Ordering by entries.date only uses idx_entries_cursor when the column is
+    // NOT NULL; COALESCE() in the ORDER BY forced a full scan + filesort.
+    $date_column = $conn->query(
+        "SELECT DATA_TYPE, IS_NULLABLE
+         FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'entries'
+           AND COLUMN_NAME = 'date'"
+    )->fetch_assoc();
+    if ($date_column === null) {
+        install_fail("The 'entries.date' column is missing; schema migration stopped.");
+    }
+    if ($date_column['DATA_TYPE'] !== 'datetime') {
+        install_fail(
+            "Unsupported type for 'entries.date'; schema migration stopped.",
+            'Found column type: ' . $date_column['DATA_TYPE']
+        );
+    }
+    if ($date_column['IS_NULLABLE'] === 'YES') {
+        $conn->query("UPDATE entries SET date = '1970-01-01 00:00:00' WHERE date IS NULL");
+        $conn->query('ALTER TABLE entries MODIFY `date` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP');
+        echo "OK: made entries.date NOT NULL (legacy NULLs moved to 1970-01-01)\n";
+    }
+
+    // topic and language are required by the application. Storing them as
+    // NOT NULL VARCHAR columns lets the listing indexes serve ORDER BY without
+    // COALESCE() and keeps keyset pagination NULL-free.
+    $topic_column = $conn->query(
+        "SELECT DATA_TYPE, IS_NULLABLE, CHARACTER_MAXIMUM_LENGTH
+         FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'entries'
+           AND COLUMN_NAME = 'topic'"
+    )->fetch_assoc();
+    if ($topic_column === null) {
+        install_fail("The 'entries.topic' column is missing; schema migration stopped.");
+    }
+    if ($topic_column['DATA_TYPE'] === 'text') {
+        $long_topics = $conn->query(
+            'SELECT COUNT(*) AS total FROM entries WHERE OCTET_LENGTH(topic) > 255'
+        )->fetch_assoc();
+        if ($long_topics === null || (int) $long_topics['total'] > 0) {
+            install_fail(
+                "entries.topic contains values longer than 255 bytes; schema migration stopped.",
+                'Rows over the limit: ' . (string) ($long_topics['total'] ?? 'unknown')
+            );
+        }
+        $conn->query("UPDATE entries SET topic = '' WHERE topic IS NULL");
+        $conn->query('ALTER TABLE entries MODIFY `topic` VARCHAR(255) NOT NULL');
+        echo "OK: converted entries.topic to VARCHAR(255) NOT NULL\n";
+    } elseif ($topic_column['DATA_TYPE'] !== 'varchar' || (int) $topic_column['CHARACTER_MAXIMUM_LENGTH'] !== 255) {
+        install_fail(
+            "Unsupported type for 'entries.topic'; schema migration stopped.",
+            'Found column type: ' . $topic_column['DATA_TYPE']
+        );
+    } elseif ($topic_column['IS_NULLABLE'] === 'YES') {
+        $conn->query("UPDATE entries SET topic = '' WHERE topic IS NULL");
+        $conn->query('ALTER TABLE entries MODIFY `topic` VARCHAR(255) NOT NULL');
+        echo "OK: made entries.topic NOT NULL\n";
+    }
+
+    $language_column = $conn->query(
+        "SELECT DATA_TYPE, IS_NULLABLE
+         FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'entries'
+           AND COLUMN_NAME = 'language'"
+    )->fetch_assoc();
+    if ($language_column === null) {
+        install_fail("The 'entries.language' column is missing; schema migration stopped.");
+    }
+    if ($language_column['DATA_TYPE'] !== 'varchar') {
+        install_fail(
+            "Unsupported type for 'entries.language'; schema migration stopped.",
+            'Found column type: ' . $language_column['DATA_TYPE']
+        );
+    }
+    if ($language_column['IS_NULLABLE'] === 'YES') {
+        $conn->query("UPDATE entries SET language = '' WHERE language IS NULL");
+        $conn->query("ALTER TABLE entries MODIFY `language` VARCHAR(20) NOT NULL DEFAULT ''");
+        echo "OK: made entries.language NOT NULL\n";
+    }
+
     $conn->query("
         CREATE TABLE IF NOT EXISTS rate_limits (
             action VARCHAR(32) NOT NULL,
@@ -180,6 +263,16 @@ try {
         ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
     ");
     echo "OK: table rate_limits\n";
+
+    $conn->query("
+        CREATE TABLE IF NOT EXISTS admin_metrics_cache (
+            cache_key VARCHAR(32) NOT NULL PRIMARY KEY,
+            payload MEDIUMTEXT NOT NULL,
+            expires_at INT UNSIGNED NOT NULL,
+            KEY idx_admin_metrics_expiry (expires_at)
+        ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+    ");
+    echo "OK: table admin_metrics_cache\n";
 
     $index = $conn->query(
         "SELECT INDEX_NAME
@@ -200,6 +293,8 @@ try {
     $required_indexes = [
         'idx_entries_cursor' => 'CREATE INDEX `idx_entries_cursor` ON entries (`date`, `id`)',
         'idx_entries_user' => 'CREATE INDEX `idx_entries_user` ON entries (`user_id`)',
+        'idx_entries_topic' => 'CREATE INDEX `idx_entries_topic` ON entries (`topic`, `id`)',
+        'idx_entries_language' => 'CREATE INDEX `idx_entries_language` ON entries (`language`, `id`)',
         'ft_entries_topic' => 'CREATE FULLTEXT INDEX `ft_entries_topic` ON entries (`topic`)',
     ];
     foreach ($required_indexes as $index_name => $create_sql) {

@@ -200,5 +200,6 @@
     "error_language_required": "语言为必填项。",
     "length_mb_remaining": "剩余 MB",
     "length_meter_label": "粘贴内容长度",
+    "line_numbers_hidden": "超长粘贴内容会隐藏行号。",
     "generic_error": "发生错误。"
 }

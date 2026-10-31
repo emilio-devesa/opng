@@ -53,69 +53,59 @@ function record_rate_limit_hit(mysqli $db, string $action, string $key, int $lim
     $stmt = null;
 
     try {
-        // 1. Asegurar la fila (sin modificar el contador todavía).
+        // Record the hit and return the new counter in a single statement.
+        // LAST_INSERT_ID(expr) exposes the updated value through insert_id;
+        // this replaces the previous INSERT IGNORE + UPDATE + SELECT sequence.
         $stmt = $db->prepare(
-            "INSERT IGNORE INTO rate_limits (action, key_hash, window_start, hits) VALUES (?, ?, ?, 0)"
+            "INSERT INTO rate_limits (action, key_hash, window_start, hits)
+             VALUES (?, ?, ?, LAST_INSERT_ID(1))
+             ON DUPLICATE KEY UPDATE
+                hits = LAST_INSERT_ID(IF(window_start = ?, hits + 1, 1)),
+                window_start = ?"
         );
         if (!$stmt) {
             error_log('OPNG ratelimit.php: ' . $db->error);
             return false;
         }
-        $stmt->bind_param('ssi', $action, $key_hash, $window_start);
+        $stmt->bind_param('ssiii', $action, $key_hash, $window_start, $window_start, $window_start);
         if (!$stmt->execute()) {
             error_log('OPNG ratelimit.php: ' . $stmt->error);
             return false;
         }
+        $hits = (int) $db->insert_id;
         $stmt->close();
         $stmt = null;
 
-        // 2. Incrementar, reiniciando el contador si cambió la ventana.
-        //    (Evitamos VALUES() en ON DUPLICATE KEY por compatibilidad MySQL/MariaDB.)
-        $stmt = $db->prepare(
-            "UPDATE rate_limits
-            SET hits = IF(window_start = ?, hits + 1, 1),
-                window_start = ?
-          WHERE action = ? AND key_hash = ?"
-        );
-        if (!$stmt) {
-            error_log('OPNG ratelimit.php: ' . $db->error);
-            return false;
+        // Some MySQL/MariaDB drivers do not expose LAST_INSERT_ID(expr) when
+        // the table has no AUTO_INCREMENT column. Fall back to a read.
+        if ($hits < 1) {
+            $stmt = $db->prepare("SELECT hits FROM rate_limits WHERE action = ? AND key_hash = ?");
+            if (!$stmt) {
+                error_log('OPNG ratelimit.php: ' . $db->error);
+                return false;
+            }
+            $stmt->bind_param('ss', $action, $key_hash);
+            if (!$stmt->execute()) {
+                error_log('OPNG ratelimit.php: ' . $stmt->error);
+                return false;
+            }
+            $result = $stmt->get_result();
+            if (!$result) {
+                error_log('OPNG ratelimit.php: could not read rate-limit count');
+                return false;
+            }
+            $row = $result->fetch_assoc();
+            $result->free();
+            $stmt->close();
+            $stmt = null;
+            if (!$row) {
+                error_log('OPNG ratelimit.php: rate-limit row disappeared');
+                return false;
+            }
+            $hits = (int) $row['hits'];
         }
-        $stmt->bind_param('iiss', $window_start, $window_start, $action, $key_hash);
-        if (!$stmt->execute()) {
-            error_log('OPNG ratelimit.php: ' . $stmt->error);
-            return false;
-        }
-        $stmt->close();
-        $stmt = null;
 
-        // 3. Leer el contador actual.
-        $stmt = $db->prepare("SELECT hits FROM rate_limits WHERE action = ? AND key_hash = ?");
-        if (!$stmt) {
-            error_log('OPNG ratelimit.php: ' . $db->error);
-            return false;
-        }
-        $stmt->bind_param('ss', $action, $key_hash);
-        if (!$stmt->execute()) {
-            error_log('OPNG ratelimit.php: ' . $stmt->error);
-            return false;
-        }
-        $result = $stmt->get_result();
-        if (!$result) {
-            error_log('OPNG ratelimit.php: could not read rate-limit count');
-            return false;
-        }
-        $row = $result->fetch_assoc();
-        $result->free();
-        $stmt->close();
-        $stmt = null;
-        if (!$row) {
-            error_log('OPNG ratelimit.php: rate-limit row disappeared');
-            return false;
-        }
-        $hits = (int) $row['hits'];
-
-        // 4. Limpieza oportunista de ventanas antiguas (1% de las llamadas).
+        // Cleanup of expired windows (1% of the calls).
         if (random_int(1, 100) === 1) {
             $threshold = time() - 86400;
             if (!$db->query("DELETE FROM rate_limits WHERE window_start < $threshold")) {

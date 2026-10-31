@@ -454,6 +454,17 @@ form.search-form button {
     user-select: none;
 }
 
+.code-view.no-line-numbers {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.line-numbers-notice {
+    margin: 0.35rem 0 0;
+    color: var(--muted);
+    font-size: 0.8rem;
+    text-align: right;
+}
+
 /* ========================= */
 /* CÓDIGO */
 /* ========================= */

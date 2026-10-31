@@ -102,8 +102,10 @@ CREATE DATABASE opng CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER 'opng_runtime'@'localhost' IDENTIFIED BY 'REPLACE_WITH_RUNTIME_SECRET';
 GRANT SELECT, INSERT, UPDATE, DELETE ON opng.* TO 'opng_runtime'@'localhost';
 CREATE USER 'opng_migrator'@'localhost' IDENTIFIED BY 'REPLACE_WITH_MIGRATION_SECRET';
-GRANT SELECT, INSERT, CREATE, ALTER, INDEX, DROP ON opng.* TO 'opng_migrator'@'localhost';
+GRANT SELECT, INSERT, UPDATE, CREATE, ALTER, INDEX, DROP ON opng.* TO 'opng_migrator'@'localhost';
 ```
+
+The `UPDATE` privilege is needed only for one-time backfills of legacy `NULL` dates/topics during an upgrade.
 
 The **runtime** account is for normal web requests and has DML access only. The **migration** account is used only from the CLI to install/upgrade schema; revoke or drop it after use. The installer does not create or drop databases.
 
@@ -116,7 +118,7 @@ OPNG_INSTALL_DB_PASS='your-migration-secret' \
 php src/install.php
 ```
 
-The CLI installer creates lowercase `users`, `entries` and `rate_limits` tables and the listing, cursor, owner and FULLTEXT topic indexes. It safely renames the legacy `Users`/`Entries` names only when the lowercase destination does not exist; ambiguous case variants stop the migration without deleting data. Existing `entries.text` is widened to `MEDIUMTEXT` for 1 MiB pastes. Re-run it with the migration account after schema upgrades; index creation is idempotent. Back up the database before schema migrations. Remove `install.php` from a public document root after installation even though it refuses web execution.
+The CLI installer creates lowercase `users`, `entries`, `rate_limits` and `admin_metrics_cache` tables and the listing, cursor, owner, topic and language indexes plus the FULLTEXT topic index. It safely renames the legacy `Users`/`Entries` names only when the lowercase destination does not exist; ambiguous case variants stop the migration without deleting data. Existing `entries.text` is widened to `MEDIUMTEXT` for 1 MiB pastes, legacy `NULL` dates become `1970-01-01 00:00:00` so `date` can be `NOT NULL`, and `topic`/`language` become `NOT NULL` (`topic` as `VARCHAR(255)`) so the date, topic and language sorts can use their indexes. Re-run it with the migration account after schema upgrades; index creation is idempotent. Back up the database before schema migrations. Remove `install.php` from a public document root after installation even though it refuses web execution.
 
 4️⃣ **Enforce input and request limits**
 
@@ -151,8 +153,8 @@ The topic search uses a MySQL/MariaDB FULLTEXT index and requires all entered wo
 From the homepage you can:
 
 - 📝 **Create a new paste**: Enter your text or code, select a language and submit. The create, edit and reply editors show a small remaining-length meter (MB and progress bar) below the textarea.
-- 🔍 **View, edit and reply to a paste**: Click on the topic you want to view. The view page uses tabs — **View** (code), **Edit** (author or admin only) and **Reply** (creates a new paste). Includes syntax highlighting, line numbers and one-click copy.
-- 🛠️ **Manage the application (Admin panel)**: Log in to `admin/admin.php` to search entries and users, remove entries, change user roles, delete accounts, and review paste/user totals, language distribution, the five most active users, and stored paste-text bytes. When deleting an account, choose whether to preserve its pastes as anonymous or delete them too.
+- 🔍 **View, edit and reply to a paste**: Click on the topic you want to view. The view page uses tabs — **View** (code), **Edit** (author or admin only) and **Reply** (creates a new paste). Includes syntax highlighting, line numbers (hidden with a notice above 5,000 lines so huge pastes stay light) and one-click copy.
+- 🛠️ **Manage the application (Admin panel)**: Log in to `admin/admin.php` to search entries and users, remove entries, change user roles, delete accounts, and review paste/user totals, language distribution, the five most active users, and stored paste-text bytes. Dashboard aggregates are cached in MySQL for five minutes and invalidated by destructive admin actions. Entry and user result lists page with keyset cursors; entry topic search uses the FULLTEXT index, while author/username/email search keeps substring matching. When deleting an account, choose whether to preserve its pastes as anonymous or delete them too.
 - 💾 **Download a database backup**: Administrators can download a SQL backup from the database actions panel. It contains account password hashes and password-reset tokens, so store it securely. Importing the backup drops and recreates its listed tables; test restoration only against a disposable database.
 - ⚠️ **Delete the database**: This remains a manual operation in MAMP's database administration tool. The web runtime account intentionally has no `DROP` permission, and the admin panel only provides the guarded instructions.
 

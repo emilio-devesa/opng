@@ -11,6 +11,9 @@ require("includes/paste_permissions.php");
 require("includes/http_input.php");
 require("includes/account_role.php");
 require("includes/error_messages.php");
+require("includes/assets.php");
+
+$asset_version = opng_asset_version();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     http_response_code(405);
@@ -72,6 +75,10 @@ $language = trim($array['language']);
 // Keep line counting constant-memory for large, newline-heavy pastes.
 $line_count = substr_count($array['text'], "\n") + 1;
 $textarea_rows = min(max($line_count, 10), 50);
+// Rendering one number per line produces ~8 MB of HTML for a newline-heavy
+// 1 MiB paste. Cap the gutter; the code itself is always shown in full.
+const OPNG_MAX_RENDERED_LINE_NUMBERS = 5000;
+$show_line_numbers = $line_count <= OPNG_MAX_RENDERED_LINE_NUMBERS;
 // Preselect the closest current language when editing a paste saved with the
 // legacy combined "Java/C/C++" value.
 $selected_language = $language === 'Java/C/C++' ? 'C++' : $language;
@@ -153,10 +160,15 @@ require(__DIR__ . "/includes/layout_header.php");
                 <div><dt data-i18n="date">Date:</dt><dd><?php echo htmlspecialchars($array['date'], ENT_QUOTES, 'UTF-8'); ?></dd></div>
                 <div><dt data-i18n="id">ID:</dt><dd><?php echo htmlspecialchars($array['id'], ENT_QUOTES, 'UTF-8'); ?></dd></div>
             </dl>
-            <div class="code-view">
+            <div class="code-view<?php echo $show_line_numbers ? '' : ' no-line-numbers'; ?>">
+                <?php if ($show_line_numbers): ?>
                 <pre class="line-numbers" aria-hidden="true"><?php for ($line = 1; $line <= $line_count; $line++) { echo $line . ($line < $line_count ? "\n" : ""); } ?></pre>
+                <?php endif; ?>
                 <pre class="code-content"><code id="code-block"<?php echo $highlight_language_class !== '' ? ' class="' . htmlspecialchars($highlight_language_class, ENT_QUOTES, 'UTF-8') . '"' : ''; ?>><?php echo htmlspecialchars($array['text'], ENT_QUOTES, 'UTF-8'); ?></code></pre>
             </div>
+            <?php if (!$show_line_numbers): ?>
+            <p class="line-numbers-notice" data-i18n="line_numbers_hidden">Line numbers are hidden for very long pastes.</p>
+            <?php endif; ?>
             <div class="paste-actions">
                 <div class="copy-controls">
                     <button id="copy-button" type="button" data-i18n="copy" class="copy-button">Copy</button>
@@ -231,9 +243,11 @@ require(__DIR__ . "/includes/layout_header.php");
         <?php endif; ?>
     </div>
     <?php if ($tab === 'view'): ?>
-    <script src="assets/vendor/highlight.min.js?v=<?php echo filemtime(__DIR__ . '/assets/vendor/highlight.min.js'); ?>" defer></script>
-    <script src="assets/js/copy.js?v=<?php echo filemtime(__DIR__ . '/assets/js/copy.js'); ?>" defer></script>
+    <?php if ($highlight_language_class !== 'language-plaintext'): ?>
+    <script src="assets/vendor/highlight.min.js?v=<?php echo $asset_version; ?>" defer></script>
     <?php endif; ?>
-    <script src="assets/js/length-meter.js?v=<?php echo filemtime(__DIR__ . '/assets/js/length-meter.js'); ?>" defer></script>
+    <script src="assets/js/copy.js?v=<?php echo $asset_version; ?>" defer></script>
+    <?php endif; ?>
+    <script src="assets/js/length-meter.js?v=<?php echo $asset_version; ?>" defer></script>
 
 <?php require(__DIR__ . "/includes/layout_footer.php"); ?>

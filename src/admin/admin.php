@@ -7,6 +7,12 @@ require("../database.php");
 require("../includes/http_input.php");
 require("../includes/account_role.php");
 require("../includes/error_messages.php");
+require("../includes/topic_search.php");
+require("../includes/pagination_cursor.php");
+require("../includes/admin_metrics.php");
+require("../includes/assets.php");
+
+$asset_version = opng_asset_version();
 
 $session_user_id = http_positive_integer($_SESSION['user_id'] ?? null);
 if ($session_user_id === null) {
@@ -35,8 +41,10 @@ $entry_results = [];
 $user_results = [];
 $entry_search_submitted = isset($_GET['search_entries']);
 $user_search_submitted = isset($_GET['search_users']);
-$entry_has_next = false;
-$user_has_next = false;
+$entry_has_older = false;
+$entry_has_newer = false;
+$user_has_older = false;
+$user_has_newer = false;
 $entry_search_error = '';
 $user_search_error = '';
 $entry_topic = http_string_parameter($_GET, 'entry_topic', 255) ?? '';
@@ -44,26 +52,42 @@ $entry_author = http_string_parameter($_GET, 'entry_author', 50) ?? '';
 $entry_date = http_string_parameter($_GET, 'entry_date', 10) ?? '';
 $user_query = http_string_parameter($_GET, 'user_query', 100) ?? '';
 $user_date = http_string_parameter($_GET, 'user_date', 10) ?? '';
-$entry_offset_parameter = http_string_parameter($_GET, 'entry_offset', 7, false);
-$user_offset_parameter = http_string_parameter($_GET, 'user_offset', 7, false);
-$entry_offset_value = $entry_offset_parameter ?? '0';
-$user_offset_value = $user_offset_parameter ?? '0';
-$entry_offset = ctype_digit($entry_offset_value) ? (int) $entry_offset_value : null;
-$user_offset = ctype_digit($user_offset_value) ? (int) $user_offset_value : null;
-if (
-    (array_key_exists('entry_offset', $_GET) && ($entry_offset_parameter === null || $entry_offset === null || $entry_offset > 1_000_000))
-    || ($entry_offset !== null && $entry_offset > 1_000_000)
-) {
-    $entry_search_error = 'admin_search_invalid';
+
+$entry_cursor_value = http_string_parameter($_GET, 'entry_cursor', 2048, false);
+$entry_direction_value = http_string_parameter($_GET, 'entry_direction', 5, false);
+$entry_cursor = null;
+$entry_direction = 'older';
+if ($entry_cursor_value !== null) {
+    $entry_cursor = decode_entry_cursor($entry_cursor_value);
+    if (
+        $entry_cursor === null
+        || !is_string($entry_direction_value)
+        || !in_array($entry_direction_value, ['older', 'newer'], true)
+    ) {
+        $entry_search_error = 'admin_search_invalid';
+        $entry_cursor = null;
+    } else {
+        $entry_direction = $entry_direction_value;
+    }
 }
-if (
-    (array_key_exists('user_offset', $_GET) && ($user_offset_parameter === null || $user_offset === null || $user_offset > 1_000_000))
-    || ($user_offset !== null && $user_offset > 1_000_000)
-) {
-    $user_search_error = 'admin_search_invalid';
+
+$user_cursor_value = http_string_parameter($_GET, 'user_cursor', 2048, false);
+$user_direction_value = http_string_parameter($_GET, 'user_direction', 5, false);
+$user_cursor = null;
+$user_direction = 'older';
+if ($user_cursor_value !== null) {
+    $user_cursor = decode_entry_cursor($user_cursor_value);
+    if (
+        $user_cursor === null
+        || !is_string($user_direction_value)
+        || !in_array($user_direction_value, ['older', 'newer'], true)
+    ) {
+        $user_search_error = 'admin_search_invalid';
+        $user_cursor = null;
+    } else {
+        $user_direction = $user_direction_value;
+    }
 }
-$entry_offset ??= 0;
-$user_offset ??= 0;
 
 if (
     (array_key_exists('entry_topic', $_GET) && http_string_parameter($_GET, 'entry_topic', 255) === null)
@@ -110,8 +134,13 @@ if ($entry_search_submitted && $entry_search_error === '') {
     $filters = [];
     $params = [];
     if ($entry_topic !== '') {
-        $filters[] = 'entries.topic LIKE ?';
-        $params[] = '%' . $entry_topic . '%';
+        $topic_expression = topic_search_expression($entry_topic);
+        if ($topic_expression === null) {
+            $entry_search_error = 'admin_search_invalid';
+        } else {
+            $filters[] = 'MATCH(entries.topic) AGAINST (? IN BOOLEAN MODE)';
+            $params[] = $topic_expression;
+        }
     }
     if ($entry_author !== '') {
         $filters[] = "COALESCE(users.username, 'Guest') LIKE ?";
@@ -133,12 +162,23 @@ if ($entry_search_submitted && $entry_search_error === '') {
     if ($entry_search_error === '') {
         $stmt = null;
         try {
+            if ($entry_cursor !== null) {
+                $cursor_condition = admin_keyset_condition(
+                    'entries.date',
+                    'entries.id',
+                    $entry_cursor,
+                    $entry_direction
+                );
+                $filters[] = $cursor_condition['sql'];
+                array_push($params, ...$cursor_condition['params']);
+            }
+            $query_order = $entry_direction === 'newer' ? 'ASC' : 'DESC';
             $sql = 'SELECT entries.id, entries.topic, COALESCE(users.username, \'Guest\') AS author, entries.date
                     FROM entries
                     LEFT JOIN users ON entries.user_id = users.id
-                    WHERE ' . implode(' AND ', $filters) . '
-                    ORDER BY entries.date DESC, entries.id DESC
-                    LIMIT 21 OFFSET ' . $entry_offset;
+                    WHERE ' . implode(' AND ', $filters) . "
+                    ORDER BY entries.date {$query_order}, entries.id {$query_order}
+                    LIMIT 21";
             $stmt = $db->prepare($sql);
             if (!$stmt->execute($params)) {
                 throw new RuntimeException('Entry search query failed.');
@@ -152,9 +192,19 @@ if ($entry_search_submitted && $entry_search_error === '') {
             }
             $result->free();
             $stmt->close();
-            $entry_has_next = count($entry_results) > 20;
-            if ($entry_has_next) {
+            $entry_has_more = count($entry_results) > 20;
+            if ($entry_has_more) {
                 array_pop($entry_results);
+            }
+            $entry_is_newer = $entry_direction === 'newer';
+            if ($entry_is_newer) {
+                $entry_results = array_reverse($entry_results);
+            }
+            $entry_has_older = $entry_results !== [] && ($entry_is_newer || $entry_has_more);
+            $entry_has_newer = $entry_results !== [] && (!$entry_is_newer || $entry_has_more);
+            if ($entry_results === [] && $entry_cursor !== null) {
+                $entry_has_older = $entry_is_newer;
+                $entry_has_newer = !$entry_is_newer;
             }
         } catch (mysqli_sql_exception | RuntimeException $exception) {
             error_log("OPNG admin.php: " . $exception->getMessage());
@@ -191,11 +241,22 @@ if ($user_search_submitted && $user_search_error === '') {
     if ($user_search_error === '') {
         $stmt = null;
         try {
+            if ($user_cursor !== null) {
+                $cursor_condition = admin_keyset_condition(
+                    'users.created_at',
+                    'users.id',
+                    $user_cursor,
+                    $user_direction
+                );
+                $filters[] = $cursor_condition['sql'];
+                array_push($params, ...$cursor_condition['params']);
+            }
+            $query_order = $user_direction === 'newer' ? 'ASC' : 'DESC';
             $sql = 'SELECT users.id, users.username, users.email, users.created_at, users.role
                     FROM users
-                    WHERE ' . implode(' AND ', $filters) . '
-                    ORDER BY users.created_at DESC, users.id DESC
-                    LIMIT 21 OFFSET ' . $user_offset;
+                    WHERE ' . implode(' AND ', $filters) . "
+                    ORDER BY users.created_at {$query_order}, users.id {$query_order}
+                    LIMIT 21";
             $stmt = $db->prepare($sql);
             if (!$stmt->execute($params)) {
                 throw new RuntimeException('User search query failed.');
@@ -209,9 +270,19 @@ if ($user_search_submitted && $user_search_error === '') {
             }
             $result->free();
             $stmt->close();
-            $user_has_next = count($user_results) > 20;
-            if ($user_has_next) {
+            $user_has_more = count($user_results) > 20;
+            if ($user_has_more) {
                 array_pop($user_results);
+            }
+            $user_is_newer = $user_direction === 'newer';
+            if ($user_is_newer) {
+                $user_results = array_reverse($user_results);
+            }
+            $user_has_older = $user_results !== [] && ($user_is_newer || $user_has_more);
+            $user_has_newer = $user_results !== [] && (!$user_is_newer || $user_has_more);
+            if ($user_results === [] && $user_cursor !== null) {
+                $user_has_older = $user_is_newer;
+                $user_has_newer = !$user_is_newer;
             }
         } catch (mysqli_sql_exception | RuntimeException $exception) {
             error_log("OPNG admin.php: " . $exception->getMessage());
@@ -230,67 +301,12 @@ $metrics_paste_bytes = 0;
 $metrics_languages = [];
 $metrics_active_users = [];
 try {
-    $summary_result = $db->query(
-        'SELECT
-            (SELECT COUNT(*) FROM entries) AS total_entries,
-            (SELECT COUNT(*) FROM users) AS total_users,
-            (SELECT COALESCE(SUM(OCTET_LENGTH(text)), 0) FROM entries) AS paste_bytes'
-    );
-    $summary_row = $summary_result->fetch_assoc();
-    $summary_result->free();
-    if (!is_array($summary_row)) {
-        throw new RuntimeException('Admin metrics summary is unavailable.');
-    }
-    $metrics_total_entries = (int) $summary_row['total_entries'];
-    $metrics_total_users = (int) $summary_row['total_users'];
-    $metrics_paste_bytes = (int) $summary_row['paste_bytes'];
-
-    $language_result = $db->query(
-        "SELECT COALESCE(NULLIF(language, ''), '') AS language, COUNT(*) AS paste_count
-         FROM entries
-         GROUP BY COALESCE(NULLIF(language, ''), '')
-         ORDER BY paste_count DESC, language ASC"
-    );
-    while ($language_row = $language_result->fetch_assoc()) {
-        if (!is_string($language_row['language'] ?? null)) {
-            throw new RuntimeException('Admin language metrics contain an invalid label.');
-        }
-        $metrics_languages[] = [
-            'label' => $language_row['language'],
-            'value' => (int) $language_row['paste_count'],
-        ];
-    }
-    $language_result->free();
-
-    $active_users_result = $db->query(
-        'SELECT users.username, COUNT(*) AS paste_count
-         FROM entries
-         INNER JOIN users ON entries.user_id = users.id
-         GROUP BY users.id, users.username
-         ORDER BY paste_count DESC, users.username ASC
-         LIMIT 5'
-    );
-    $top_user_entries = 0;
-    while ($active_user_row = $active_users_result->fetch_assoc()) {
-        if (!is_string($active_user_row['username'] ?? null)) {
-            throw new RuntimeException('Admin user metrics contain an invalid label.');
-        }
-        $paste_count = (int) $active_user_row['paste_count'];
-        $metrics_active_users[] = [
-            'label' => $active_user_row['username'],
-            'value' => $paste_count,
-        ];
-        $top_user_entries += $paste_count;
-    }
-    $active_users_result->free();
-
-    $remaining_user_entries = $metrics_total_entries - $top_user_entries;
-    if ($remaining_user_entries > 0) {
-        $metrics_active_users[] = [
-            'label' => '',
-            'value' => $remaining_user_entries,
-        ];
-    }
+    $metrics = admin_metrics_load($db);
+    $metrics_total_entries = $metrics['total_entries'];
+    $metrics_total_users = $metrics['total_users'];
+    $metrics_paste_bytes = $metrics['paste_bytes'];
+    $metrics_languages = $metrics['languages'];
+    $metrics_active_users = $metrics['active_users'];
 } catch (mysqli_sql_exception | RuntimeException $exception) {
     error_log('OPNG admin.php: metrics query failed: ' . $exception->getMessage());
     $metrics_error = true;
@@ -309,14 +325,26 @@ $entry_page_base = [
     'entry_date' => $entry_date,
     'search_entries' => '1',
 ];
+$entry_newer_cursor = $entry_results !== []
+    ? encode_entry_cursor([
+        'id' => $entry_results[0]['id'],
+        'date' => $entry_results[0]['date'],
+    ])
+    : ($entry_cursor_value ?? '');
+$entry_older_cursor = $entry_results !== []
+    ? encode_entry_cursor([
+        'id' => $entry_results[count($entry_results) - 1]['id'],
+        'date' => $entry_results[count($entry_results) - 1]['date'],
+    ])
+    : ($entry_cursor_value ?? '');
 $entry_previous_href = '?' . http_build_query(
-    $entry_page_base + ['entry_offset' => max(0, $entry_offset - 20)],
+    $entry_page_base + ['entry_direction' => 'newer', 'entry_cursor' => $entry_newer_cursor],
     '',
     '&',
     PHP_QUERY_RFC3986
 );
 $entry_next_href = '?' . http_build_query(
-    $entry_page_base + ['entry_offset' => $entry_offset + 20],
+    $entry_page_base + ['entry_direction' => 'older', 'entry_cursor' => $entry_older_cursor],
     '',
     '&',
     PHP_QUERY_RFC3986
@@ -326,14 +354,26 @@ $user_page_base = [
     'user_date' => $user_date,
     'search_users' => '1',
 ];
+$user_newer_cursor = $user_results !== []
+    ? encode_entry_cursor([
+        'id' => (string) $user_results[0]['id'],
+        'date' => $user_results[0]['created_at'],
+    ])
+    : ($user_cursor_value ?? '');
+$user_older_cursor = $user_results !== []
+    ? encode_entry_cursor([
+        'id' => (string) $user_results[count($user_results) - 1]['id'],
+        'date' => $user_results[count($user_results) - 1]['created_at'],
+    ])
+    : ($user_cursor_value ?? '');
 $user_previous_href = '?' . http_build_query(
-    $user_page_base + ['user_offset' => max(0, $user_offset - 20)],
+    $user_page_base + ['user_direction' => 'newer', 'user_cursor' => $user_newer_cursor],
     '',
     '&',
     PHP_QUERY_RFC3986
 );
 $user_next_href = '?' . http_build_query(
-    $user_page_base + ['user_offset' => $user_offset + 20],
+    $user_page_base + ['user_direction' => 'older', 'user_cursor' => $user_older_cursor],
     '',
     '&',
     PHP_QUERY_RFC3986
@@ -430,7 +470,7 @@ require(__DIR__ . "/../includes/layout_header.php");
                     <?php if ($metrics_active_users === []): ?>
                         <p data-i18n="admin_metrics_no_data">No data available.</p>
                     <?php else: ?>
-                        <?php $user_offset = 0.0; ?>
+                        <?php $slice_offset = 0.0; ?>
                         <svg class="admin-pie-chart" viewBox="0 0 42 42" aria-hidden="true">
                             <circle class="admin-pie-base" cx="21" cy="21" r="15.9155"></circle>
                             <?php foreach ($metrics_active_users as $slice_index => $user_slice): ?>
@@ -438,8 +478,8 @@ require(__DIR__ . "/../includes/layout_header.php");
                                 <?php $slice_color = ($slice_index % 8) + 1; ?>
                                 <circle class="admin-pie-slice admin-pie-color-<?php echo $slice_color; ?>" cx="21" cy="21" r="15.9155"
                                     stroke-dasharray="<?php echo number_format($slice_share, 4, '.', ''); ?> <?php echo number_format(100 - $slice_share, 4, '.', ''); ?>"
-                                    stroke-dashoffset="<?php echo number_format(-$user_offset, 4, '.', ''); ?>"></circle>
-                                <?php $user_offset += $slice_share; ?>
+                                    stroke-dashoffset="<?php echo number_format(-$slice_offset, 4, '.', ''); ?>"></circle>
+                                <?php $slice_offset += $slice_share; ?>
                             <?php endforeach; ?>
                         </svg>
                         <ul class="admin-pie-legend">
@@ -505,12 +545,12 @@ require(__DIR__ . "/../includes/layout_header.php");
                     </table>
                 </div>
             <?php endif; ?>
-            <?php if ($entry_offset > 0 || $entry_has_next): ?>
+            <?php if ($entry_has_newer || $entry_has_older): ?>
                 <nav class="pagination admin-pagination" aria-label="Pagination" data-i18n-aria-label="pagination">
-                    <?php if ($entry_offset > 0): ?>
+                    <?php if ($entry_has_newer): ?>
                         <a href="<?php echo htmlspecialchars($entry_previous_href, ENT_QUOTES, 'UTF-8'); ?>" data-i18n="previous">« Previous</a>
                     <?php endif; ?>
-                    <?php if ($entry_has_next): ?>
+                    <?php if ($entry_has_older): ?>
                         <a href="<?php echo htmlspecialchars($entry_next_href, ENT_QUOTES, 'UTF-8'); ?>" data-i18n="next">Next »</a>
                     <?php endif; ?>
                 </nav>
@@ -573,12 +613,12 @@ require(__DIR__ . "/../includes/layout_header.php");
                     </table>
                 </div>
             <?php endif; ?>
-            <?php if ($user_offset > 0 || $user_has_next): ?>
+            <?php if ($user_has_newer || $user_has_older): ?>
                 <nav class="pagination admin-pagination" aria-label="Pagination" data-i18n-aria-label="pagination">
-                    <?php if ($user_offset > 0): ?>
+                    <?php if ($user_has_newer): ?>
                         <a href="<?php echo htmlspecialchars($user_previous_href, ENT_QUOTES, 'UTF-8'); ?>" data-i18n="previous">« Previous</a>
                     <?php endif; ?>
-                    <?php if ($user_has_next): ?>
+                    <?php if ($user_has_older): ?>
                         <a href="<?php echo htmlspecialchars($user_next_href, ENT_QUOTES, 'UTF-8'); ?>" data-i18n="next">Next »</a>
                     <?php endif; ?>
                 </nav>
@@ -633,5 +673,5 @@ require(__DIR__ . "/../includes/layout_header.php");
         </div>
     </fieldset>
 
-    <script src="../assets/js/admin-tools.js?v=<?php echo filemtime(__DIR__ . '/../assets/js/admin-tools.js'); ?>" defer></script>
+    <script src="../assets/js/admin-tools.js?v=<?php echo $asset_version; ?>" defer></script>
 <?php require(__DIR__ . "/../includes/layout_footer.php"); ?>
