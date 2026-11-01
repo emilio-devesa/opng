@@ -8,11 +8,22 @@
 // emails en claro.
 //
 // Uso:
-//   if (!rate_limit_hit($db, 'login', client_ip() . '|' . $email, 5, 600)) { ... }
+//   $result = rate_limit_hit($db, 'login', client_ip() . '|' . $email, 5, 600);
+//   if ($result === RateLimitResult::Limited) { ... }      // 429
+//   if ($result === RateLimitResult::Unavailable) { ... }  // 503
 //
 // `$limit` es el número máximo de intentos permitidos dentro de `$window`
-// segundos. Si la tabla no existe o hay un error de BD, se deniega la acción
-// (fail-closed) y se registra el error para no omitir silenciosamente el límite.
+// segundos. El resultado distingue un límite superado (`Limited`) de un fallo
+// de base de datos (`Unavailable`): así una caída de MySQL no se presenta al
+// usuario como "demasiados intentos" (M14). En ambos casos la acción se deniega
+// (fail-closed) y el error se registra.
+
+enum RateLimitResult
+{
+    case Allowed;
+    case Limited;
+    case Unavailable;
+}
 
 /**
  * IP del cliente. No se confía en X-Forwarded-For por defecto porque el
@@ -28,24 +39,24 @@ function client_ip(): string
 }
 
 /**
- * Registra un intento para (acción, clave) y devuelve true si sigue dentro
- * del límite.
+ * Registra un intento para (acción, clave) y devuelve si sigue dentro del
+ * límite o si la comprobación no se pudo completar.
  */
-function rate_limit_hit(mysqli $db, string $action, string $key, int $limit, int $window): bool
+function rate_limit_hit(mysqli $db, string $action, string $key, int $limit, int $window): RateLimitResult
 {
     try {
         return record_rate_limit_hit($db, $action, $key, $limit, $window);
     } catch (mysqli_sql_exception $exception) {
         error_log('OPNG ratelimit.php: ' . $exception->getMessage());
-        return false;
+        return RateLimitResult::Unavailable;
     }
 }
 
-function record_rate_limit_hit(mysqli $db, string $action, string $key, int $limit, int $window): bool
+function record_rate_limit_hit(mysqli $db, string $action, string $key, int $limit, int $window): RateLimitResult
 {
     if ($limit < 1 || $window < 1 || $action === '' || strlen($action) > 32) {
         error_log('OPNG ratelimit.php: invalid rate-limit configuration');
-        return false;
+        return RateLimitResult::Unavailable;
     }
 
     $window_start = intdiv(time(), $window) * $window;
@@ -65,12 +76,12 @@ function record_rate_limit_hit(mysqli $db, string $action, string $key, int $lim
         );
         if (!$stmt) {
             error_log('OPNG ratelimit.php: ' . $db->error);
-            return false;
+            return RateLimitResult::Unavailable;
         }
         $stmt->bind_param('ssiii', $action, $key_hash, $window_start, $window_start, $window_start);
         if (!$stmt->execute()) {
             error_log('OPNG ratelimit.php: ' . $stmt->error);
-            return false;
+            return RateLimitResult::Unavailable;
         }
         $hits = (int) $db->insert_id;
         $stmt->close();
@@ -82,17 +93,17 @@ function record_rate_limit_hit(mysqli $db, string $action, string $key, int $lim
             $stmt = $db->prepare("SELECT hits FROM rate_limits WHERE action = ? AND key_hash = ?");
             if (!$stmt) {
                 error_log('OPNG ratelimit.php: ' . $db->error);
-                return false;
+                return RateLimitResult::Unavailable;
             }
             $stmt->bind_param('ss', $action, $key_hash);
             if (!$stmt->execute()) {
                 error_log('OPNG ratelimit.php: ' . $stmt->error);
-                return false;
+                return RateLimitResult::Unavailable;
             }
             $result = $stmt->get_result();
             if (!$result) {
                 error_log('OPNG ratelimit.php: could not read rate-limit count');
-                return false;
+                return RateLimitResult::Unavailable;
             }
             $row = $result->fetch_assoc();
             $result->free();
@@ -100,7 +111,7 @@ function record_rate_limit_hit(mysqli $db, string $action, string $key, int $lim
             $stmt = null;
             if (!$row) {
                 error_log('OPNG ratelimit.php: rate-limit row disappeared');
-                return false;
+                return RateLimitResult::Unavailable;
             }
             $hits = (int) $row['hits'];
         }
@@ -113,7 +124,7 @@ function record_rate_limit_hit(mysqli $db, string $action, string $key, int $lim
             }
         }
 
-        return $hits <= $limit;
+        return $hits <= $limit ? RateLimitResult::Allowed : RateLimitResult::Limited;
     } finally {
         if ($stmt instanceof mysqli_stmt) {
             $stmt->close();

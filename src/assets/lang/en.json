@@ -201,5 +201,22 @@
     "length_mb_remaining": "MB remaining",
     "length_meter_label": "Paste length",
     "line_numbers_hidden": "Line numbers are hidden for very long pastes.",
-    "generic_error": "An error occurred."
+    "generic_error": "An error occurred.",
+    "error_service_unavailable": "The service is temporarily unavailable. Please try again later.",
+    "error_global_storage_quota": "The server's global paste storage quota has been reached. Try again later.",
+    "admin_storage_quota": "Global paste storage",
+    "admin_storage_quota_warning": "The global paste storage quota is almost full. New pastes will be rejected when it is reached.",
+    "admin_audit_log": "Audit log",
+    "admin_audit_unavailable": "The audit log is unavailable until the database is upgraded.",
+    "admin_audit_empty": "No administrative actions have been recorded yet.",
+    "admin_audit_actor": "Administrator",
+    "admin_audit_action": "Action",
+    "admin_audit_target": "Target",
+    "admin_audit_date": "Date",
+    "admin_audit_ip": "IP hash",
+    "audit_entry_delete": "Entry deleted",
+    "audit_database_empty": "Database emptied",
+    "audit_user_role": "User role changed",
+    "audit_user_delete": "User deleted",
+    "audit_backup_download": "Backup downloaded"
 }

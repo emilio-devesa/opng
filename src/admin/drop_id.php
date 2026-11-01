@@ -8,6 +8,7 @@ require_once('../includes/http_input.php');
 require_once('../includes/account_role.php');
 require_once("../includes/error_messages.php");
 require_once('../includes/admin_metrics.php');
+require_once('../includes/audit_log.php');
 
 // Verificar si el usuario está autenticado
 if (!isset($_SESSION['user_id'])) {
@@ -68,6 +69,9 @@ try {
     }
     $deleted = $stmt->affected_rows === 1;
     $stmt->close();
+    if ($deleted) {
+        audit_log_record($db, $user_id, 'entry.delete', $input_ID);
+    }
     if (!$db->commit()) {
         throw new RuntimeException('Entry deletion transaction could not be committed.');
     }

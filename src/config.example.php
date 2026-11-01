@@ -17,6 +17,13 @@
  *     OPNG_DB_PASS  (default: empty)
  *     OPNG_DB_NAME  (default: opng)
  *
+ * Optional runtime limits:
+ *
+ *     OPNG_FORCE_HTTPS=1          Mark the session cookie Secure when TLS
+ *                                 terminates at a proxy that PHP cannot see.
+ *     OPNG_STORAGE_QUOTA_BYTES    Global paste-text quota in bytes
+ *                                 (default: 10 GiB).
+ *
  * The CLI installer uses a separate, temporary migration account:
  *
  *     OPNG_INSTALL_DB_HOST (defaults to OPNG_DB_HOST)

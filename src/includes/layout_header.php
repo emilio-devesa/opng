@@ -17,7 +17,8 @@ if (isset($page_title_i18n) && is_string($page_title_i18n)) {
 }
 require_once(__DIR__ . '/csrf.php');
 $logout_csrf_token = $logged_in ? csrf_token() : '';
-header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'");
+header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
+header('X-Frame-Options: DENY');
 ?>
 <!DOCTYPE html>
 <html lang="<?php echo htmlspecialchars($lang_attr ?? 'en', ENT_QUOTES, 'UTF-8'); ?>">

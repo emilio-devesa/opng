@@ -45,6 +45,29 @@ if (!isset($rules[$language])) {
     opng_error_redirect('error_invalid_language');
 }
 
+$user_id = $_SESSION['user_id'] ?? null;
+if ($user_id !== null) {
+    $user_id = http_positive_integer($user_id);
+    if ($user_id === null) {
+        opng_error_redirect('error_auth_unavailable');
+    }
+}
+
+// Guests must solve the local CAPTCHA before creating an anonymous paste.
+if ($user_id === null) {
+    $captcha_answer = http_string_parameter($_POST, 'captcha_answer', 5);
+    $captcha_code = $_SESSION['captcha'] ?? null;
+    if (
+        $captcha_answer === null
+        || !is_string($captcha_code)
+        || !hash_equals($captcha_code, strtoupper($captcha_answer))
+    ) {
+        unset($_SESSION['captcha']);
+        opng_error_redirect('captcha_incorrect');
+    }
+    unset($_SESSION['captcha']);
+}
+
 // Conectar a la base de datos
 $db = db_connect();
 if (!$db) {
@@ -52,20 +75,32 @@ if (!$db) {
 }
 
 try {
-    if (!rate_limit_hit($db, 'submit', client_ip(), 5, 60)) {
+    // Authenticated accounts get a larger budget than anonymous guests.
+    $rate_limit_action = $user_id === null ? 'submit_guest' : 'submit_user';
+    $rate_limit_max = $user_id === null ? 5 : 20;
+    $limit_result = rate_limit_hit($db, $rate_limit_action, client_ip(), $rate_limit_max, 60);
+    if ($limit_result === RateLimitResult::Unavailable) {
+        $db->close();
+        opng_error_redirect('error_service_unavailable');
+    }
+    if ($limit_result === RateLimitResult::Limited) {
         $db->close();
         opng_error_redirect('error_paste_rate_limit');
     }
 
-    $id = bin2hex(random_bytes(8));
-    $user_id = $_SESSION['user_id'] ?? null;
-    if ($user_id !== null) {
-        $user_id = http_positive_integer($user_id);
-        if ($user_id === null) {
-            $db->close();
-            opng_error_redirect('error_auth_unavailable');
-        }
+    // Global soft cap for all paste text, configurable with
+    // OPNG_STORAGE_QUOTA_BYTES (default 10 GiB).
+    $global_used = global_storage_usage($db);
+    if ($global_used === null) {
+        $db->close();
+        opng_error_redirect('error_database_operation');
     }
+    if (!global_quota_allows($global_used, strlen($text))) {
+        $db->close();
+        opng_error_redirect('error_global_storage_quota');
+    }
+
+    $id = bin2hex(random_bytes(8));
     $transaction_started = false;
     if ($user_id !== null) {
         $db->begin_transaction();

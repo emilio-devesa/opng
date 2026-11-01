@@ -7,6 +7,7 @@ require_once('../includes/account_role.php');
 require_once('../database.php');
 require_once("../includes/error_messages.php");
 require_once('../includes/admin_metrics.php');
+require_once('../includes/audit_log.php');
 
 function redirect_admin(string $message): never
 {
@@ -135,6 +136,15 @@ try {
             ? 'user_deleted_preserved'
             : 'user_deleted_entries';
     }
+
+    audit_log_record(
+        $db,
+        $current_user_id,
+        $action === 'role' ? 'user.role' : 'user.delete',
+        $action === 'role'
+            ? 'user:' . $target_user_id . ' role:' . $new_role
+            : 'user:' . $target_user_id . ' pastes:' . $delete_mode
+    );
 
     $db->commit();
     $transaction_started = false;

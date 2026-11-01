@@ -201,5 +201,22 @@
     "length_mb_remaining": "MB restantes",
     "length_meter_label": "Comprimento do paste",
     "line_numbers_hidden": "Os números de linha são ocultados em pastes muito longos.",
-    "generic_error": "Ocorreu um erro."
+    "generic_error": "Ocorreu um erro.",
+    "error_service_unavailable": "O serviço está temporariamente indisponível. Tente novamente mais tarde.",
+    "error_global_storage_quota": "A cota global de armazenamento de pastes foi atingida. Tente novamente mais tarde.",
+    "admin_storage_quota": "Armazenamento global de pastes",
+    "admin_storage_quota_warning": "A cota global de armazenamento está quase cheia. Novos pastes serão rejeitados quando for atingida.",
+    "admin_audit_log": "Registo de auditoria",
+    "admin_audit_unavailable": "O registo de auditoria não está disponível até a base de dados ser atualizada.",
+    "admin_audit_empty": "Ainda não foram registadas ações administrativas.",
+    "admin_audit_actor": "Administrador",
+    "admin_audit_action": "Ação",
+    "admin_audit_target": "Alvo",
+    "admin_audit_date": "Data",
+    "admin_audit_ip": "Hash de IP",
+    "audit_entry_delete": "Entrada eliminada",
+    "audit_database_empty": "Base de dados esvaziada",
+    "audit_user_role": "Função de utilizador alterada",
+    "audit_user_delete": "Utilizador eliminado",
+    "audit_backup_download": "Cópia de segurança descarregada"
 }

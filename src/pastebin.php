@@ -33,6 +33,8 @@ try {
     opng_error_redirect('error_language_config');
 }
 
+$is_guest = !isset($_SESSION['user_id']);
+
 $lang_attr = 'en';
 $page_title = 'Open Pastebin NG - Create New Entry';
 $page_title_i18n = 'title_pastebin';
@@ -62,8 +64,19 @@ require(__DIR__ . "/includes/layout_header.php");
             <progress class="length-meter-bar" max="1048576" value="0" aria-label="Paste length" data-i18n-aria-label="length_meter_label"></progress>
             <span class="length-meter-text"><span class="length-meter-value">1.00</span> <span data-i18n="length_mb_remaining">MB remaining</span></span>
         </div>
+        <?php if ($is_guest): ?>
+        <p>
+            <label for="captcha_answer" data-i18n="captcha_label">Please enter the captcha text:</label>
+            <input id="captcha_answer" type="text" name="captcha_answer" maxlength="5" autocomplete="off" required>
+            <img src="auth/captcha.php" alt="CAPTCHA" class="captcha-image" data-i18n-alt="captcha_alt">
+            <button type="button" class="refresh-captcha" data-i18n="refresh_captcha">🔄 Refresh</button>
+        </p>
+        <?php endif; ?>
         <p class="form-help" data-i18n="storage_quota_notice">Normal accounts can store up to 100 MiB across all pastes. Administrators are exempt.</p>
         <button data-i18n="submit" id="submit" type="submit">Submit</button>
     </form>
     <script src="assets/js/length-meter.js?v=<?php echo $asset_version; ?>" defer></script>
+    <?php if ($is_guest): ?>
+    <script src="assets/js/refresh-captcha.js?v=<?php echo $asset_version; ?>"></script>
+    <?php endif; ?>
 <?php require(__DIR__ . "/includes/layout_footer.php"); ?>

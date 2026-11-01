@@ -1,16 +1,22 @@
 <?php
 require_once('../includes/session.php');
 session_start_secured();
+require_once('../includes/csrf.php');
 require_once('../includes/http_input.php');
 require_once('../includes/account_role.php');
 require_once('../includes/sql_backup.php');
+require_once('../includes/audit_log.php');
 require_once('../database.php');
 require_once("../includes/error_messages.php");
 
-if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
-    header('Allow: GET');
+    header('Allow: POST');
     exit;
+}
+
+if (!csrf_valid($_POST['csrf_token'] ?? null)) {
+    opng_error_redirect('error_csrf', '../error.php');
 }
 
 $session_user_id = http_positive_integer($_SESSION['user_id'] ?? null);
@@ -128,6 +134,7 @@ try {
 
     $write($temporary_stream, "SET FOREIGN_KEY_CHECKS=1;\n");
     $db->commit();
+    audit_log_record($db, $session_user_id, 'backup.download', $database_name);
     $db->close();
 } catch (mysqli_sql_exception | RuntimeException $exception) {
     error_log('OPNG backup.php: ' . $exception->getMessage());

@@ -15,8 +15,11 @@ function session_start_secured() {
 
     // Trust the web server's HTTPS state only. Forwarded headers are client-
     // controlled unless a separately configured trusted proxy validates them.
+    // OPNG_FORCE_HTTPS=1 marks the cookie Secure for TLS-terminating proxies
+    // that do not expose HTTPS to PHP; it does not redirect requests.
     $is_https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-        || ((string) ($_SERVER['SERVER_PORT'] ?? '') === '443');
+        || ((string) ($_SERVER['SERVER_PORT'] ?? '') === '443')
+        || getenv('OPNG_FORCE_HTTPS') === '1';
 
     session_set_cookie_params([
         'lifetime' => 0,

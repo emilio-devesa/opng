@@ -201,5 +201,22 @@
     "length_mb_remaining": "剩余 MB",
     "length_meter_label": "粘贴内容长度",
     "line_numbers_hidden": "超长粘贴内容会隐藏行号。",
-    "generic_error": "发生错误。"
+    "generic_error": "发生错误。",
+    "error_service_unavailable": "服务暂时不可用，请稍后重试。",
+    "error_global_storage_quota": "服务器全局粘贴存储配额已用尽，请稍后重试。",
+    "admin_storage_quota": "全局粘贴存储",
+    "admin_storage_quota_warning": "全局粘贴存储配额即将用尽。达到配额后，新粘贴将被拒绝。",
+    "admin_audit_log": "审计日志",
+    "admin_audit_unavailable": "数据库升级前审计日志不可用。",
+    "admin_audit_empty": "尚未记录任何管理操作。",
+    "admin_audit_actor": "管理员",
+    "admin_audit_action": "操作",
+    "admin_audit_target": "目标",
+    "admin_audit_date": "日期",
+    "admin_audit_ip": "IP 哈希",
+    "audit_entry_delete": "已删除条目",
+    "audit_database_empty": "已清空数据库",
+    "audit_user_role": "已更改用户角色",
+    "audit_user_delete": "已删除用户",
+    "audit_backup_download": "已下载备份"
 }

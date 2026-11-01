@@ -7,6 +7,9 @@ require("../includes/http_input.php");
 
 require("../database.php");
 require("../includes/error_messages.php");
+require("../includes/assets.php");
+
+$asset_version = opng_asset_version();
 
 if (!in_array($_SERVER["REQUEST_METHOD"], ["GET", "POST"], true)) {
     http_response_code(405);
@@ -44,6 +47,10 @@ if ($_SESSION["login_attempts"] >= 5 && (time() - $_SESSION["last_attempt_time"]
     opng_error_redirect('error_login_rate_limit', '../error.php');
 }
 
+// Adaptive CAPTCHA: after three failed attempts in this session, require a
+// challenge before spending bcrypt work again.
+$captcha_required = $_SESSION["login_attempts"] >= 3;
+
 $csrf_token = csrf_token();
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
@@ -62,15 +69,57 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         opng_error_redirect('error_invalid_credentials', '../error.php');
     }
 
+    if ($captcha_required) {
+        $captcha_answer = http_string_parameter($_POST, 'captcha_answer', 5);
+        $captcha_code = $_SESSION['captcha'] ?? null;
+        if (
+            $captcha_answer === null
+            || !is_string($captcha_code)
+            || !hash_equals($captcha_code, strtoupper($captcha_answer))
+        ) {
+            unset($_SESSION['captcha']);
+            opng_error_redirect('captcha_incorrect', '../error.php');
+        }
+        unset($_SESSION['captcha']);
+    }
+
     // Conectar a la BD
     $db = database_connect();
     if (!$db) {
         opng_error_redirect('error_auth_unavailable', '../error.php');
     }
 
-    // (S5) Rate limit persistente por IP + cuenta. El contador de sesión de
-    // arriba se puede saltar borrando la cookie; este no.
-    if (!rate_limit_hit($db, 'login', client_ip() . '|' . strtolower($email), 5, 600)) {
+    // (S5/H2) Persistent limits: IP+account, IP-wide and account-wide. The
+    // session counter above can be bypassed by deleting the cookie; these
+    // rows cannot, so credential stuffing is bounded even across cookies.
+    $normalized_email = strtolower($email);
+
+    $limit_result = rate_limit_hit($db, 'login', client_ip() . '|' . $normalized_email, 5, 600);
+    if ($limit_result === RateLimitResult::Unavailable) {
+        $db->close();
+        opng_error_redirect('error_service_unavailable', '../error.php');
+    }
+    if ($limit_result === RateLimitResult::Limited) {
+        $db->close();
+        opng_error_redirect('error_login_rate_limit', '../error.php');
+    }
+
+    $limit_result = rate_limit_hit($db, 'login_ip', client_ip(), 30, 600);
+    if ($limit_result === RateLimitResult::Unavailable) {
+        $db->close();
+        opng_error_redirect('error_service_unavailable', '../error.php');
+    }
+    if ($limit_result === RateLimitResult::Limited) {
+        $db->close();
+        opng_error_redirect('error_login_rate_limit', '../error.php');
+    }
+
+    $limit_result = rate_limit_hit($db, 'login_account', $normalized_email, 10, 600);
+    if ($limit_result === RateLimitResult::Unavailable) {
+        $db->close();
+        opng_error_redirect('error_service_unavailable', '../error.php');
+    }
+    if ($limit_result === RateLimitResult::Limited) {
         $db->close();
         opng_error_redirect('error_login_rate_limit', '../error.php');
     }
@@ -110,6 +159,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if ($user !== null && $password_is_valid) {
         // Autenticación exitosa, restablecer intentos fallidos
         $_SESSION["login_attempts"] = 0;
+        unset($_SESSION['captcha']);
 
         // (S10) Regenerar el ID de sesión para evitar session fixation
         session_regenerate_id(true);
@@ -159,9 +209,20 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 <label for="password" data-i18n="password">Password:</label>
                 <input id="password" type="password" name="password" maxlength="72" autocomplete="current-password" required>
             </p>
+            <?php if ($captcha_required): ?>
+            <p>
+                <label for="captcha_answer" data-i18n="captcha_label">Please enter the captcha text:</label>
+                <input id="captcha_answer" type="text" name="captcha_answer" autocomplete="off" required>
+                <img src="captcha.php" alt="CAPTCHA" class="captcha-image" data-i18n-alt="captcha_alt">
+                <button type="button" class="refresh-captcha" data-i18n="refresh_captcha">🔄 Refresh</button>
+            </p>
+            <?php endif; ?>
             <button type="submit" data-i18n="login">Sign in</button>
         </form>
         <p><a href="request_reset.php" data-i18n="forgot_password">Forgot your password?</a></p>
         <p><a href="register.php" data-i18n="no_account">No account? Register here</a></p>
     </section>
+    <?php if ($captcha_required): ?>
+    <script src="../assets/js/refresh-captcha.js?v=<?php echo $asset_version; ?>"></script>
+    <?php endif; ?>
 <?php require(__DIR__ . '/../includes/layout_footer.php'); ?>

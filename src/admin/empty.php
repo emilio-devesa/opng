@@ -8,10 +8,12 @@ require_once('../includes/http_input.php');
 require_once('../includes/account_role.php');
 require_once("../includes/error_messages.php");
 require_once('../includes/admin_metrics.php');
+require_once('../includes/audit_log.php');
 
 // Verificar que el usuario esté autenticado y sea administrador
 // (fix S1/R1: require_once('login.php') no es un guarda de acceso válido)
-if (http_positive_integer($_SESSION['user_id'] ?? null) === null) {
+$session_user_id = http_positive_integer($_SESSION['user_id'] ?? null);
+if ($session_user_id === null) {
     opng_error_redirect('error_permission', '../error.php');
 }
 
@@ -79,6 +81,7 @@ try {
     if (!$db->query("DELETE FROM entries")) {
         throw new RuntimeException('Entries could not be removed.');
     }
+    audit_log_record($db, $session_user_id, 'database.empty', 'entries');
     if (!$db->commit()) {
         throw new RuntimeException('Empty-database transaction could not be committed.');
     }

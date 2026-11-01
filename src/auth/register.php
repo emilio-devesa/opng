@@ -49,56 +49,62 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $db = database_connect();
             if (!$db) {
                 $form_error_key = 'error_database_unavailable';
-            } elseif (!rate_limit_hit($db, 'register', client_ip(), 5, 3600)) {
-                $db->close();
-                $form_error_key = 'error_registration_rate_limit';
-            } elseif (
-                !isset($_SESSION['captcha'])
-                || !is_string($_SESSION['captcha'])
-                || $captcha_answer !== $_SESSION['captcha']
-            ) {
-                $db->close();
-                $form_error_key = 'captcha_incorrect';
             } else {
-                unset($_SESSION['captcha']); // Evita reutilización del CAPTCHA
+                $limit_result = rate_limit_hit($db, 'register', client_ip(), 5, 3600);
+                if ($limit_result === RateLimitResult::Unavailable) {
+                    $db->close();
+                    $form_error_key = 'error_service_unavailable';
+                } elseif ($limit_result === RateLimitResult::Limited) {
+                    $db->close();
+                    $form_error_key = 'error_registration_rate_limit';
+                } elseif (
+                    !isset($_SESSION['captcha'])
+                    || !is_string($_SESSION['captcha'])
+                    || $captcha_answer !== $_SESSION['captcha']
+                ) {
+                    $db->close();
+                    $form_error_key = 'captcha_incorrect';
+                } else {
+                    unset($_SESSION['captcha']); // Evita reutilización del CAPTCHA
 
-                $stmt = null;
-                try {
-                    $stmt = $db->prepare("SELECT id FROM users WHERE email = ?");
-                    $stmt->bind_param("s", $posted_email);
-                    $stmt->execute();
-                    $stmt->store_result();
-                    if ($stmt->num_rows > 0) {
-                        $stmt->close();
-                        $stmt = null;
-                        $db->close();
-                        $form_error_key = 'error_email_registered';
-                    } else {
-                        $stmt->close();
-                        $stmt = null;
-
-                        $passwordHash = password_hash($password, PASSWORD_BCRYPT);
-                        $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, 'user')");
-                        $stmt->bind_param("sss", $posted_username, $posted_email, $passwordHash);
-                        if (!$stmt->execute()) {
-                            error_log("OPNG register.php: " . $stmt->error);
+                    $stmt = null;
+                    try {
+                        $stmt = $db->prepare("SELECT id FROM users WHERE email = ?");
+                        $stmt->bind_param("s", $posted_email);
+                        $stmt->execute();
+                        $stmt->store_result();
+                        if ($stmt->num_rows > 0) {
                             $stmt->close();
+                            $stmt = null;
                             $db->close();
-                            $form_error_key = 'error_registration';
+                            $form_error_key = 'error_email_registered';
                         } else {
                             $stmt->close();
-                            $db->close();
-                            header("Location: login.php?msg=" . urlencode("Registration successful. Please sign in."));
-                            exit;
+                            $stmt = null;
+
+                            $passwordHash = password_hash($password, PASSWORD_BCRYPT);
+                            $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, 'user')");
+                            $stmt->bind_param("sss", $posted_username, $posted_email, $passwordHash);
+                            if (!$stmt->execute()) {
+                                error_log("OPNG register.php: " . $stmt->error);
+                                $stmt->close();
+                                $db->close();
+                                $form_error_key = 'error_registration';
+                            } else {
+                                $stmt->close();
+                                $db->close();
+                                header("Location: login.php?msg=" . urlencode("Registration successful. Please sign in."));
+                                exit;
+                            }
                         }
+                    } catch (mysqli_sql_exception $exception) {
+                        error_log("OPNG register.php: " . $exception->getMessage());
+                        if ($stmt instanceof mysqli_stmt) {
+                            $stmt->close();
+                        }
+                        $db->close();
+                        $form_error_key = 'error_auth_unavailable';
                     }
-                } catch (mysqli_sql_exception $exception) {
-                    error_log("OPNG register.php: " . $exception->getMessage());
-                    if ($stmt instanceof mysqli_stmt) {
-                        $stmt->close();
-                    }
-                    $db->close();
-                    $form_error_key = 'error_auth_unavailable';
                 }
             }
         }

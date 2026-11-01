@@ -10,6 +10,7 @@ require("../includes/error_messages.php");
 require("../includes/topic_search.php");
 require("../includes/pagination_cursor.php");
 require("../includes/admin_metrics.php");
+require("../includes/user_quota.php");
 require("../includes/assets.php");
 
 $asset_version = opng_asset_version();
@@ -315,6 +316,35 @@ try {
     $metrics_paste_bytes = 0;
     $metrics_languages = [];
     $metrics_active_users = [];
+}
+
+$global_quota_bytes = global_storage_quota_bytes();
+$global_quota_percent = $global_quota_bytes > 0
+    ? min(100.0, ($metrics_paste_bytes / $global_quota_bytes) * 100)
+    : 0.0;
+$global_quota_near = $global_quota_percent >= 90;
+
+$audit_entries = [];
+$audit_error = false;
+try {
+    $audit_result = $db->query(
+        "SELECT audit_log.id, audit_log.actor_id, audit_log.action, audit_log.target,
+                audit_log.ip_hash, audit_log.created_at, users.username
+         FROM audit_log
+         LEFT JOIN users ON users.id = audit_log.actor_id
+         ORDER BY audit_log.id DESC
+         LIMIT 20"
+    );
+    if (!$audit_result) {
+        throw new RuntimeException('Audit log query failed.');
+    }
+    while ($audit_row = $audit_result->fetch_assoc()) {
+        $audit_entries[] = $audit_row;
+    }
+    $audit_result->free();
+} catch (mysqli_sql_exception | RuntimeException $exception) {
+    error_log('OPNG admin.php: audit log query failed: ' . $exception->getMessage());
+    $audit_error = true;
 }
 
 $db->close();
@@ -656,12 +686,21 @@ require(__DIR__ . "/../includes/layout_header.php");
 
     <fieldset>
         <legend data-i18n="admin_db_actions">Database Actions</legend>
+        <p class="form-help admin-storage-quota<?php echo $global_quota_near ? ' admin-storage-quota-warning' : ''; ?>"<?php echo $global_quota_near ? ' role="alert"' : ''; ?>>
+            <span data-i18n="admin_storage_quota">Global paste storage</span>:
+            <?php echo number_format($metrics_paste_bytes); ?> / <?php echo number_format($global_quota_bytes); ?> bytes
+            (<?php echo number_format($global_quota_percent, 1); ?>%)
+        </p>
+        <?php if ($global_quota_near): ?>
+            <p class="admin-search-error" role="alert" data-i18n="admin_storage_quota_warning">The global paste storage quota is almost full. New pastes will be rejected when it is reached.</p>
+        <?php endif; ?>
         <p class="form-help admin-backup-warning" data-i18n="admin_backup_warning">The backup contains password hashes and password-reset tokens. Store it securely. Importing it replaces tables in the selected database.</p>
         <div class="admin-db-controls">
         <form action="seed_instructions.php" method="get">
             <button type="submit" data-i18n="admin_seed_button">Load sample data</button>
         </form>
-        <form action="backup.php" method="get">
+        <form action="backup.php" method="post">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
             <button type="submit" data-i18n="admin_download_backup">Download backup</button>
         </form>
         <form action="empty.php" method="get">
@@ -671,6 +710,63 @@ require(__DIR__ . "/../includes/layout_header.php");
             <button type="submit" class="danger" data-i18n="admin_delete_database">Delete database completely</button>
         </form>
         </div>
+    </fieldset>
+
+    <fieldset>
+        <legend data-i18n="admin_audit_log">Audit log</legend>
+        <?php if ($audit_error): ?>
+            <p class="admin-search-error" role="alert" data-i18n="admin_audit_unavailable">The audit log is unavailable until the database is upgraded.</p>
+        <?php elseif ($audit_entries === []): ?>
+            <p data-i18n="admin_audit_empty">No administrative actions have been recorded yet.</p>
+        <?php else: ?>
+            <div class="table-scroll">
+                <table>
+                    <thead><tr>
+                        <th scope="col" data-i18n="admin_audit_date">Date</th>
+                        <th scope="col" data-i18n="admin_audit_actor">Administrator</th>
+                        <th scope="col" data-i18n="admin_audit_action">Action</th>
+                        <th scope="col" data-i18n="admin_audit_target">Target</th>
+                        <th scope="col" data-i18n="admin_audit_ip">IP hash</th>
+                    </tr></thead>
+                    <tbody>
+                    <?php foreach ($audit_entries as $audit_entry): ?>
+                        <?php
+                        $audit_action = (string) ($audit_entry['action'] ?? '');
+                        $audit_action_key = match ($audit_action) {
+                            'entry.delete' => 'audit_entry_delete',
+                            'database.empty' => 'audit_database_empty',
+                            'user.role' => 'audit_user_role',
+                            'user.delete' => 'audit_user_delete',
+                            'backup.download' => 'audit_backup_download',
+                            default => '',
+                        };
+                        $audit_action_text = match ($audit_action_key) {
+                            'audit_entry_delete' => 'Entry deleted',
+                            'audit_database_empty' => 'Database emptied',
+                            'audit_user_role' => 'User role changed',
+                            'audit_user_delete' => 'User deleted',
+                            'audit_backup_download' => 'Backup downloaded',
+                            default => $audit_action,
+                        };
+                        $audit_actor = (string) ($audit_entry['username'] ?? '');
+                        if ($audit_actor === '') {
+                            $audit_actor = $audit_entry['actor_id'] !== null
+                                ? '#' . (int) $audit_entry['actor_id']
+                                : 'system';
+                        }
+                        ?>
+                        <tr>
+                            <td><?php echo htmlspecialchars((string) ($audit_entry['created_at'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></td>
+                            <td><?php echo htmlspecialchars($audit_actor, ENT_QUOTES, 'UTF-8'); ?></td>
+                            <td<?php echo $audit_action_key !== '' ? ' data-i18n="' . htmlspecialchars($audit_action_key, ENT_QUOTES, 'UTF-8') . '"' : ''; ?>><?php echo htmlspecialchars($audit_action_text, ENT_QUOTES, 'UTF-8'); ?></td>
+                            <td><?php echo htmlspecialchars((string) ($audit_entry['target'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></td>
+                            <td><code><?php echo htmlspecialchars(substr((string) ($audit_entry['ip_hash'] ?? ''), 0, 12), ENT_QUOTES, 'UTF-8'); ?></code></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php endif; ?>
     </fieldset>
 
     <script src="../assets/js/admin-tools.js?v=<?php echo $asset_version; ?>" defer></script>

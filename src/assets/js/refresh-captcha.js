@@ -4,7 +4,11 @@ document.addEventListener("DOMContentLoaded", function () {
 
     if (refreshButton && captchaImage) {
         refreshButton.addEventListener("click", function () {
-            captchaImage.src = 'captcha.php?' + Date.now();
+            // Derive the endpoint from the rendered image so the same script
+            // works from auth/ (captcha.php) and from the root editor
+            // (auth/captcha.php).
+            const base = captchaImage.getAttribute("src").split("?")[0];
+            captchaImage.src = base + "?" + Date.now();
         });
     }
 });

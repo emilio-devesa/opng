@@ -274,6 +274,21 @@ try {
     ");
     echo "OK: table admin_metrics_cache\n";
 
+    $conn->query("
+        CREATE TABLE IF NOT EXISTS audit_log (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            actor_id INT NULL,
+            action VARCHAR(32) NOT NULL,
+            target VARCHAR(255) NOT NULL DEFAULT '',
+            ip_hash CHAR(64) NOT NULL DEFAULT '',
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY idx_audit_created (created_at, id),
+            KEY idx_audit_actor (actor_id)
+        ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+    ");
+    echo "OK: table audit_log\n";
+
     $index = $conn->query(
         "SELECT INDEX_NAME
          FROM information_schema.STATISTICS

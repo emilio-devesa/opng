@@ -201,5 +201,22 @@
     "length_mb_remaining": "MB verbleibend",
     "length_meter_label": "Paste-Länge",
     "line_numbers_hidden": "Zeilennummern werden bei sehr langen Pastes ausgeblendet.",
-    "generic_error": "Ein Fehler ist aufgetreten."
+    "generic_error": "Ein Fehler ist aufgetreten.",
+    "error_service_unavailable": "Der Dienst ist vorübergehend nicht verfügbar. Bitte versuche es später erneut.",
+    "error_global_storage_quota": "Das globale Speicherkontingent für Pastes ist erreicht. Bitte versuche es später erneut.",
+    "admin_storage_quota": "Globaler Paste-Speicher",
+    "admin_storage_quota_warning": "Das globale Speicherkontingent ist fast voll. Neue Pastes werden abgelehnt, sobald es erreicht ist.",
+    "admin_audit_log": "Audit-Protokoll",
+    "admin_audit_unavailable": "Das Audit-Protokoll ist erst nach einer Datenbankaktualisierung verfügbar.",
+    "admin_audit_empty": "Es wurden noch keine administrativen Aktionen protokolliert.",
+    "admin_audit_actor": "Administrator",
+    "admin_audit_action": "Aktion",
+    "admin_audit_target": "Ziel",
+    "admin_audit_date": "Datum",
+    "admin_audit_ip": "IP-Hash",
+    "audit_entry_delete": "Eintrag gelöscht",
+    "audit_database_empty": "Datenbank geleert",
+    "audit_user_role": "Benutzerrolle geändert",
+    "audit_user_delete": "Benutzer gelöscht",
+    "audit_backup_download": "Backup heruntergeladen"
 }

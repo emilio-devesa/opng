@@ -90,6 +90,14 @@ $required_keys = [
     'admin_seed_cli_only',
     'admin_seed_cleanup_warning',
     'admin_seed_password_warning',
+    'error_service_unavailable',
+    'error_global_storage_quota',
+    'admin_storage_quota',
+    'admin_storage_quota_warning',
+    'admin_audit_log',
+    'admin_audit_empty',
+    'audit_entry_delete',
+    'audit_backup_download',
 ];
 foreach ($required_keys as $key) {
     if (!array_key_exists($key, $catalogs['en'] ?? [])) {
@@ -126,11 +134,24 @@ foreach ([$root . '/src/.htaccess', $root . '/deploy/nginx.example.conf'] as $po
     if (preg_match("/Content-Security-Policy[^\\r\\n]*style-src 'self'; script-src 'self'/", $policy) !== 1) {
         $failures[] = "CSP is missing same-origin style/script restrictions: {$policy_file}";
     }
+    if (
+        !str_contains($policy, "frame-ancestors 'none'")
+        || !str_contains($policy, 'X-Frame-Options "DENY"')
+    ) {
+        $failures[] = "Frame embedding is not fully denied: {$policy_file}";
+    }
 }
 
 $layout = file_get_contents($root . '/src/includes/layout_header.php');
 if (!is_string($layout) || preg_match('/Content-Security-Policy:[^"]*style-src \'self\'; script-src \'self\'/', $layout) !== 1) {
     $failures[] = 'Shared application layout is missing the strict same-origin CSP';
+}
+if (
+    !is_string($layout)
+    || !str_contains($layout, "frame-ancestors 'none'")
+    || !str_contains($layout, 'X-Frame-Options: DENY')
+) {
+    $failures[] = 'Shared application layout does not deny frame embedding';
 }
 if (!is_string($layout) || !str_contains($layout, 'data-language-version=')) {
     $failures[] = 'Language catalogs are missing versioned browser-cache URLs';
@@ -181,8 +202,11 @@ if (
     || !str_contains($backup_script, 'Content-Disposition: attachment')
     || !str_contains($backup_script, 'no-store')
     || !str_contains($backup_script, 'MYSQLI_TRANS_START_READ_ONLY')
+    || !str_contains($backup_script, "REQUEST_METHOD'] !== 'POST'")
+    || !str_contains($backup_script, 'csrf_valid')
+    || !str_contains($backup_script, 'audit_log_record')
 ) {
-    $failures[] = 'Database backup is missing download headers, cache protection, or a read-only snapshot';
+    $failures[] = 'Database backup is missing download headers, cache protection, a read-only snapshot, POST/CSRF, or audit logging';
 }
 
 $admin_page = file_get_contents($root . '/src/admin/admin.php');
@@ -219,6 +243,9 @@ if (!is_string($admin_page)) {
         || $seed_button_position > $delete_database_button_position
     ) {
         $failures[] = 'Sample-data instructions are not the first database action';
+    }
+    if (preg_match('/<form action="backup\.php" method="post">/', $admin_page) !== 1) {
+        $failures[] = 'The backup form must use POST';
     }
     if (str_contains($admin_page, 'data-i18n="return"')) {
         $failures[] = 'Administration page still contains a redundant return-home link';
@@ -437,8 +464,10 @@ if (
     || !str_contains($rate_limit_source, 'ON DUPLICATE KEY UPDATE')
     || !str_contains($rate_limit_source, 'LAST_INSERT_ID(')
     || str_contains($rate_limit_source, 'INSERT IGNORE INTO rate_limits')
+    || !str_contains($rate_limit_source, 'enum RateLimitResult')
+    || !str_contains($rate_limit_source, 'RateLimitResult::Unavailable')
 ) {
-    $failures[] = 'Rate limiting must record a hit with a single upsert statement';
+    $failures[] = 'Rate limiting must record a hit with a single upsert and distinguish DB failures from limits';
 }
 
 foreach ($failures as $failure) {

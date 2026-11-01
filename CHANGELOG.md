@@ -36,6 +36,27 @@
 ### 🔐 Rate limiting
 - Rate-limit hits are recorded with a single `INSERT ... ON DUPLICATE KEY UPDATE` statement using `LAST_INSERT_ID(expr)`, reducing four queries to one (plus an opportunistic cleanup), with a read fallback for drivers that do not expose the expression value.
 
+## Unreleased (audit v0.9 — Phase 3: abuse resistance and operations)
+### 🔐 Authentication and abuse limits
+- **Login now uses three persistent limits** in addition to the session counter: IP+account (5/10 min), IP-wide (30/10 min) and account-wide (10/10 min). After three failed attempts in the same session, an adaptive CAPTCHA is required before another password check, reusing the local GD CAPTCHA.
+- **Guest paste creation requires the local CAPTCHA.** Authenticated accounts keep a 20/min budget while guests are limited to 5/min. Both remain keyed by the hashed client IP.
+- Added a configurable **global paste-text quota** (default 10 GiB) via `OPNG_STORAGE_QUOTA_BYTES`; the admin panel shows current usage and warns from 90%. The existing per-account 100 MiB quota is unchanged.
+- Rate-limit outcomes now distinguish **`Allowed`, `Limited` and `Unavailable`**. A database/table failure during login, registration, reset or paste creation returns HTTP 503 with the new `error_service_unavailable` key instead of claiming that the user made too many attempts.
+
+### 🧾 Audit and administrative operations
+- Added the `audit_log` table (`actor_id`, `action`, `target`, `ip_hash`, `created_at`) and `audit_log_record()`. Entry deletion, database emptying, role changes, account deletion and backup downloads are recorded with a SHA-256 IP hash.
+- The admin panel renders the **latest 20 audit entries** and falls back gracefully when the table has not been migrated yet.
+- **Backup downloads now use a CSRF-protected POST** instead of GET, and the download itself is audited.
+- The CLI installer creates `audit_log` alongside the existing tables; `tests/database_install_test.php` checks its columns.
+
+### 🛡️ Deployment hardening
+- The shared layout, Apache `.htaccess` and Nginx example now send `frame-ancestors 'none'` and `X-Frame-Options: DENY`.
+- Added `OPNG_FORCE_HTTPS=1`, which marks the session cookie `Secure` for TLS-terminating proxies without adding redirects.
+- Documented the Nginx `rules.xml` denial, the `src/` document-root requirement, and the new environment variables.
+
+### 🧪 Tests
+- Added `tests/rate_limit_result_test.php`, `tests/global_quota_test.php` and `tests/audit_log_test.php`; extended session, frontend-contract and database-install coverage for forced HTTPS, frame headers, backup POST/CSRF, the audit log and the new rate-limit outcomes.
+
 ## Version 0.8 (2026)
 ### 🛠️ Administration and database recovery
 - Reorganized the admin panel around entry management, user management and database actions; added parameterized search with ID selection, role updates, and guarded account deletion with a choice to anonymize or delete associated pastes.

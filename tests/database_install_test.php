@@ -28,10 +28,27 @@ while ($row = $result->fetch_assoc()) {
 }
 $result->free();
 sort($table_names);
-if ($table_names !== ['admin_metrics_cache', 'entries', 'rate_limits', 'users']) {
+if ($table_names !== ['admin_metrics_cache', 'audit_log', 'entries', 'rate_limits', 'users']) {
     throw new RuntimeException('The installer did not leave exactly the lowercase application tables.');
 }
 echo "PASS: application tables use lowercase names on a case-sensitive server\n";
+
+$audit_columns = [];
+$audit_result = $db->query(
+    "SELECT COLUMN_NAME
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'audit_log'"
+);
+while ($audit_row = $audit_result->fetch_assoc()) {
+    $audit_columns[] = $audit_row['COLUMN_NAME'];
+}
+$audit_result->free();
+sort($audit_columns);
+if ($audit_columns !== ['action', 'actor_id', 'created_at', 'id', 'ip_hash', 'target']) {
+    throw new RuntimeException('The audit_log table does not expose the expected columns.');
+}
+echo "PASS: audit_log table has the expected columns\n";
 
 $entry = $db->query("SELECT id, text FROM entries WHERE id = 'legacy'")->fetch_assoc();
 if ($entry === null || $entry['text'] !== 'legacy text') {
