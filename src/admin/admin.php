@@ -5,8 +5,7 @@ session_start_secured();
 require("../includes/csrf.php");
 require("../database.php");
 require("../includes/http_input.php");
-require("../includes/account_role.php");
-require("../includes/error_messages.php");
+require("../includes/admin_guard.php");
 require("../includes/topic_search.php");
 require("../includes/pagination_cursor.php");
 require("../includes/admin_metrics.php");
@@ -15,27 +14,12 @@ require("../includes/assets.php");
 
 $asset_version = opng_asset_version();
 
-$session_user_id = http_positive_integer($_SESSION['user_id'] ?? null);
-if ($session_user_id === null) {
-    opng_error_redirect('error_permission', '../error.php');
-}
-
 $db = database_connect();
 if (!$db) {
     opng_error_redirect('error_database_unavailable', '../error.php');
 }
 
-try {
-    $current_role = refresh_account_role($db);
-} catch (mysqli_sql_exception | RuntimeException $exception) {
-    error_log("OPNG admin.php: " . $exception->getMessage());
-    $db->close();
-    opng_error_redirect('error_database_operation', '../error.php');
-}
-if ($current_role !== 'admin') {
-    $db->close();
-    opng_error_redirect('error_permission', '../error.php');
-}
+$session_user_id = require_admin($db, 'admin.php');
 
 $csrf_token = csrf_token();
 $entry_results = [];

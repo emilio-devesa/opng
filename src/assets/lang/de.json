@@ -204,6 +204,7 @@
     "generic_error": "Ein Fehler ist aufgetreten.",
     "error_service_unavailable": "Der Dienst ist vorübergehend nicht verfügbar. Bitte versuche es später erneut.",
     "error_global_storage_quota": "Das globale Speicherkontingent für Pastes ist erreicht. Bitte versuche es später erneut.",
+    "error_backup_limit": "Die Sicherung hat das konfigurierte Zeit- oder Größenlimit überschritten. Erhöhe OPNG_BACKUP_MAX_SECONDS oder OPNG_BACKUP_MAX_BYTES.",
     "admin_storage_quota": "Globaler Paste-Speicher",
     "admin_storage_quota_warning": "Das globale Speicherkontingent ist fast voll. Neue Pastes werden abgelehnt, sobald es erreicht ist.",
     "admin_audit_log": "Audit-Protokoll",

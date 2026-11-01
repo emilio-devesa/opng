@@ -50,6 +50,71 @@ if ($audit_columns !== ['action', 'actor_id', 'created_at', 'id', 'ip_hash', 'ta
 }
 echo "PASS: audit_log table has the expected columns\n";
 
+$user_columns = [];
+$user_result = $db->query(
+    "SELECT COLUMN_NAME
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'users'"
+);
+while ($user_row = $user_result->fetch_assoc()) {
+    $user_columns[] = strtolower($user_row['COLUMN_NAME']);
+}
+$user_result->free();
+sort($user_columns);
+$expected_user_columns = [
+    'created_at',
+    'email',
+    'id',
+    'password_hash',
+    'reset_token',
+    'reset_token_expires',
+    'role',
+    'username',
+];
+if ($user_columns !== $expected_user_columns) {
+    throw new RuntimeException('The installer did not add the legacy users role/reset columns.');
+}
+echo "PASS: legacy users columns were added idempotently\n";
+
+$unique_columns = [];
+$index_result = $db->query(
+    "SELECT INDEX_NAME, COLUMN_NAME
+     FROM information_schema.STATISTICS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'users'
+       AND NON_UNIQUE = 0
+     ORDER BY INDEX_NAME, SEQ_IN_INDEX"
+);
+$index_columns = [];
+while ($index_row = $index_result->fetch_assoc()) {
+    $index_columns[$index_row['INDEX_NAME']][] = strtolower($index_row['COLUMN_NAME']);
+}
+$index_result->free();
+foreach ($index_columns as $columns) {
+    if (count($columns) === 1) {
+        $unique_columns[] = $columns[0];
+    }
+}
+if (!in_array('username', $unique_columns, true) || !in_array('email', $unique_columns, true)) {
+    throw new RuntimeException('The users unique username/email indexes are missing.');
+}
+echo "PASS: users unique username/email indexes are present\n";
+
+$entries_meta = $db->query(
+    "SELECT ENGINE, TABLE_COLLATION
+     FROM information_schema.TABLES
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'entries'"
+)->fetch_assoc();
+if (
+    $entries_meta === null
+    || $entries_meta['ENGINE'] !== 'InnoDB'
+    || $entries_meta['TABLE_COLLATION'] !== 'utf8mb4_unicode_ci'
+) {
+    throw new RuntimeException('The installer did not convert entries to InnoDB/utf8mb4_unicode_ci.');
+}
+echo "PASS: entries uses InnoDB and utf8mb4_unicode_ci\n";
+
 $entry = $db->query("SELECT id, text FROM entries WHERE id = 'legacy'")->fetch_assoc();
 if ($entry === null || $entry['text'] !== 'legacy text') {
     throw new RuntimeException('Legacy entry data was not preserved during table migration.');

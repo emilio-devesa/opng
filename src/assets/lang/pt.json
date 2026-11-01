@@ -204,6 +204,7 @@
     "generic_error": "Ocorreu um erro.",
     "error_service_unavailable": "O serviço está temporariamente indisponível. Tente novamente mais tarde.",
     "error_global_storage_quota": "A cota global de armazenamento de pastes foi atingida. Tente novamente mais tarde.",
+    "error_backup_limit": "O backup excedeu o limite de tempo ou tamanho configurado. Aumente OPNG_BACKUP_MAX_SECONDS ou OPNG_BACKUP_MAX_BYTES.",
     "admin_storage_quota": "Armazenamento global de pastes",
     "admin_storage_quota_warning": "A cota global de armazenamento está quase cheia. Novos pastes serão rejeitados quando for atingida.",
     "admin_audit_log": "Registo de auditoria",

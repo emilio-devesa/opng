@@ -5,15 +5,10 @@ session_start_secured();
 require_once('../includes/csrf.php');
 require_once('../database.php');
 require_once('../includes/http_input.php');
-require_once('../includes/account_role.php');
+require_once('../includes/admin_guard.php');
 require_once("../includes/error_messages.php");
 require_once('../includes/admin_metrics.php');
 require_once('../includes/audit_log.php');
-
-// Verificar si el usuario está autenticado
-if (!isset($_SESSION['user_id'])) {
-    opng_error_redirect('error_permission', '../error.php');
-}
 
 // Verificar que la solicitud es POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -33,10 +28,7 @@ if ($input_ID === null || !http_valid_entry_id($input_ID)) {
     opng_error_redirect('error_invalid_id', '../error.php');
 }
 
-$user_id = http_positive_integer($_SESSION['user_id'] ?? null);
-if ($user_id === null) {
-    opng_error_redirect('error_permission', '../error.php');
-}
+$user_id = require_authenticated_user();
 // Conectar a la base de datos
 $db = database_connect();
 if (!$db) {

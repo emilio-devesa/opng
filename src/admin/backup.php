@@ -3,7 +3,7 @@ require_once('../includes/session.php');
 session_start_secured();
 require_once('../includes/csrf.php');
 require_once('../includes/http_input.php');
-require_once('../includes/account_role.php');
+require_once('../includes/admin_guard.php');
 require_once('../includes/sql_backup.php');
 require_once('../includes/audit_log.php');
 require_once('../database.php');
@@ -19,14 +19,27 @@ if (!csrf_valid($_POST['csrf_token'] ?? null)) {
     opng_error_redirect('error_csrf', '../error.php');
 }
 
-$session_user_id = http_positive_integer($_SESSION['user_id'] ?? null);
-if ($session_user_id === null) {
-    opng_error_redirect('error_permission', '../error.php');
-}
-
 $db = database_connect();
 if (!$db) {
     opng_error_redirect('error_database_unavailable', '../error.php');
+}
+
+$session_user_id = require_admin($db, 'backup.php');
+
+// Bound the dump so a large database cannot exhaust the request time or the
+// temporary stream. Operators can raise both limits for scheduled backups.
+$backup_max_seconds = filter_var(getenv('OPNG_BACKUP_MAX_SECONDS'), FILTER_VALIDATE_INT);
+if ($backup_max_seconds === false || $backup_max_seconds < 1) {
+    $backup_max_seconds = 300;
+}
+$backup_max_bytes = filter_var(getenv('OPNG_BACKUP_MAX_BYTES'), FILTER_VALIDATE_INT);
+if ($backup_max_bytes === false || $backup_max_bytes < 1) {
+    $backup_max_bytes = 536870912;
+}
+$backup_started_at = time();
+$backup_limit_exceeded = false;
+if (function_exists('set_time_limit')) {
+    @set_time_limit($backup_max_seconds + 30);
 }
 
 $temporary_stream = fopen('php://temp/maxmemory:2097152', 'w+b');
@@ -36,12 +49,6 @@ if ($temporary_stream === false) {
 }
 
 try {
-    if (refresh_account_role($db) !== 'admin') {
-        $db->close();
-        fclose($temporary_stream);
-        opng_error_redirect('error_permission', '../error.php');
-    }
-
     $db->begin_transaction(MYSQLI_TRANS_START_READ_ONLY | MYSQLI_TRANS_START_WITH_CONSISTENT_SNAPSHOT);
 
     $database_result = $db->query('SELECT DATABASE() AS database_name');
@@ -72,7 +79,17 @@ try {
         throw new RuntimeException('No database tables are available for backup.');
     }
 
-    $write = static function ($stream, string $contents): void {
+    $write = static function ($stream, string $contents) use (
+        $backup_max_seconds,
+        $backup_max_bytes,
+        $backup_started_at,
+        &$backup_limit_exceeded
+    ): void {
+        if (time() - $backup_started_at > $backup_max_seconds) {
+            $backup_limit_exceeded = true;
+            throw new RuntimeException('Backup exceeded OPNG_BACKUP_MAX_SECONDS.');
+        }
+
         $offset = 0;
         $length = strlen($contents);
         while ($offset < $length) {
@@ -81,6 +98,12 @@ try {
                 throw new RuntimeException('Backup could not be written to its temporary stream.');
             }
             $offset += $written;
+        }
+
+        $size = ftell($stream);
+        if ($size === false || $size > $backup_max_bytes) {
+            $backup_limit_exceeded = true;
+            throw new RuntimeException('Backup exceeded OPNG_BACKUP_MAX_BYTES.');
         }
     };
     $quoted_database = '`' . str_replace('`', '``', $database_name) . '`';
@@ -145,7 +168,10 @@ try {
     }
     $db->close();
     fclose($temporary_stream);
-    opng_error_redirect('error_database_operation', '../error.php');
+    opng_error_redirect(
+        $backup_limit_exceeded ? 'error_backup_limit' : 'error_database_operation',
+        '../error.php'
+    );
 }
 
 if (fseek($temporary_stream, 0) !== 0) {

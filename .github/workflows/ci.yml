@@ -144,10 +144,7 @@ jobs:
               Username VARCHAR(50) UNIQUE NOT NULL,
               Email VARCHAR(100) UNIQUE NOT NULL,
               Password_hash VARCHAR(255) NOT NULL,
-              Created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-              role ENUM('admin', 'user') NOT NULL DEFAULT 'user',
-              reset_token VARCHAR(255) NULL,
-              reset_token_expires DATETIME NULL
+              Created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
           ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
           CREATE TABLE Entries (
               ID VARCHAR(255) PRIMARY KEY,
@@ -156,7 +153,7 @@ jobs:
               Language VARCHAR(20),
               Text TEXT,
               Topic TEXT
-          ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+          ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
           CREATE TABLE rate_limits (
               action VARCHAR(32) NOT NULL,
               key_hash CHAR(64) NOT NULL,

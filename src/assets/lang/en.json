@@ -204,6 +204,7 @@
     "generic_error": "An error occurred.",
     "error_service_unavailable": "The service is temporarily unavailable. Please try again later.",
     "error_global_storage_quota": "The server's global paste storage quota has been reached. Try again later.",
+    "error_backup_limit": "The backup exceeded the configured time or size limit. Raise OPNG_BACKUP_MAX_SECONDS or OPNG_BACKUP_MAX_BYTES.",
     "admin_storage_quota": "Global paste storage",
     "admin_storage_quota_warning": "The global paste storage quota is almost full. New pastes will be rejected when it is reached.",
     "admin_audit_log": "Audit log",

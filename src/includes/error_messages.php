@@ -7,6 +7,7 @@
 const OPNG_ERROR_KEYS = [
     'captcha_incorrect',
     'error_auth_unavailable',
+    'error_backup_limit',
     'error_csrf',
     'error_database_operation',
     'error_database_unavailable',
@@ -66,7 +67,7 @@ function opng_error_status(string $key): int
         'error_service_unavailable' => 503,
         'error_database_operation', 'error_save_paste', 'error_update_paste',
         'error_registration' => 500,
-        'error_global_storage_quota' => 507,
+        'error_global_storage_quota', 'error_backup_limit' => 507,
         'error_login_rate_limit', 'error_registration_rate_limit',
         'error_paste_rate_limit' => 429,
         default => 400,

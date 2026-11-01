@@ -205,8 +205,57 @@ if (
     || !str_contains($backup_script, "REQUEST_METHOD'] !== 'POST'")
     || !str_contains($backup_script, 'csrf_valid')
     || !str_contains($backup_script, 'audit_log_record')
+    || !str_contains($backup_script, 'OPNG_BACKUP_MAX_SECONDS')
+    || !str_contains($backup_script, 'OPNG_BACKUP_MAX_BYTES')
+    || !str_contains($backup_script, 'set_time_limit')
+    || !str_contains($backup_script, 'error_backup_limit')
 ) {
-    $failures[] = 'Database backup is missing download headers, cache protection, a read-only snapshot, POST/CSRF, or audit logging';
+    $failures[] = 'Database backup is missing download headers, cache protection, a read-only snapshot, POST/CSRF, audit logging, or time/size limits';
+}
+
+$composer = json_decode((string) file_get_contents($root . '/composer.json'), true);
+if (
+    !is_array($composer)
+    || !isset($composer['require']['ext-ctype'], $composer['require']['ext-dom'])
+) {
+    $failures[] = 'composer.json does not declare the ctype and DOM extensions';
+}
+
+$admin_guard = file_get_contents($root . '/src/includes/admin_guard.php');
+if (
+    !is_string($admin_guard)
+    || !str_contains($admin_guard, 'function require_admin')
+    || !str_contains($admin_guard, 'function require_authenticated_user')
+) {
+    $failures[] = 'The shared administrator guard is missing';
+}
+
+foreach ([
+    '/src/admin/admin.php',
+    '/src/admin/backup.php',
+    '/src/admin/delete_database.php',
+    '/src/admin/empty.php',
+    '/src/admin/seed_instructions.php',
+    '/src/admin/user_action.php',
+] as $admin_path) {
+    $admin_source = file_get_contents($root . $admin_path);
+    if (
+        !is_string($admin_source)
+        || !str_contains($admin_source, 'admin_guard.php')
+        || !str_contains($admin_source, 'require_admin(')
+        || str_contains($admin_source, 'refresh_account_role')
+    ) {
+        $failures[] = "Administrator script does not use the shared guard: {$admin_path}";
+    }
+}
+
+$owner_delete = file_get_contents($root . '/src/admin/drop_id.php');
+if (
+    !is_string($owner_delete)
+    || !str_contains($owner_delete, 'admin_guard.php')
+    || !str_contains($owner_delete, 'require_authenticated_user(')
+) {
+    $failures[] = 'Owner entry deletion does not use the shared authentication guard';
 }
 
 $admin_page = file_get_contents($root . '/src/admin/admin.php');

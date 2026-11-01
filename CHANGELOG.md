@@ -57,6 +57,24 @@
 ### 🧪 Tests
 - Added `tests/rate_limit_result_test.php`, `tests/global_quota_test.php` and `tests/audit_log_test.php`; extended session, frontend-contract and database-install coverage for forced HTTPS, frame headers, backup POST/CSRF, the audit log and the new rate-limit outcomes.
 
+## Unreleased (audit v0.9 — Phase 4: deployment robustness)
+### 🧱 Installer and schema migration
+- **Legacy `users` tables are migrated idempotently.** The CLI installer now adds missing `role`, `reset_token`, `reset_token_expires` and `created_at` columns, validates `password_hash`, the primary key and the unique `username`/`email` indexes, and stops with an actionable message when a core column cannot be migrated safely.
+- **`entries` is validated and normalized.** The installer converts the table to InnoDB and `utf8mb4_unicode_ci` when needed, adds a missing `user_id`, checks `id`, the primary key and the required columns, and prints a migration report listing every change.
+- The CI legacy fixture now omits the user role/reset columns and uses a MyISAM/latin1 `Entries` table, so the migration path is exercised end to end.
+
+### 🛡️ Shared guards and backup limits
+- Added `src/includes/admin_guard.php` with `require_authenticated_user()` and `require_admin()`; the admin scripts now share one authorization path instead of repeating session/role checks. Owner entry deletion uses the authenticated guard.
+- Admin backups are bounded by `OPNG_BACKUP_MAX_SECONDS` (default 300) and `OPNG_BACKUP_MAX_BYTES` (default 512 MiB). The new `error_backup_limit` key explains how to raise the limits.
+
+### 📦 Dependencies and credentials
+- `composer.json` now declares `ext-dom` and `ext-ctype`, matching the runtime requirements already documented in the README.
+- Documented that deployed installations must use a unique, non-empty runtime password, must not reuse the development example credentials, and should rotate any credential that was committed or shared.
+
+### 🧪 Tests and docs
+- Extended `tests/database_install_test.php` and `tests/frontend_contract_test.php` for the user/entries migration, shared guards, backup limits and Composer extensions; added `error_backup_limit` to all six catalogs.
+- Updated `README.md`, `CONTRIBUTING.md` and `src/config.example.php` with the migration behavior, extension requirements, backup limits and credential guidance.
+
 ## Version 0.8 (2026)
 ### 🛠️ Administration and database recovery
 - Reorganized the admin panel around entry management, user management and database actions; added parameterized search with ID selection, role updates, and guarded account deletion with a choice to anonymize or delete associated pastes.

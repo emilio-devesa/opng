@@ -3,7 +3,7 @@ require_once('../includes/session.php');
 session_start_secured();
 require_once('../includes/csrf.php');
 require_once('../includes/http_input.php');
-require_once('../includes/account_role.php');
+require_once('../includes/admin_guard.php');
 require_once('../database.php');
 require_once("../includes/error_messages.php");
 require_once('../includes/admin_metrics.php');
@@ -15,10 +15,7 @@ function redirect_admin(string $message): never
     exit;
 }
 
-$current_user_id = http_positive_integer($_SESSION['user_id'] ?? null);
-if ($current_user_id === null) {
-    opng_error_redirect('error_permission', '../error.php');
-}
+$current_user_id = require_authenticated_user();
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     header('Allow: POST');
@@ -48,17 +45,12 @@ $db = database_connect();
 if (!$db) {
     redirect_admin('user_operation_failed');
 }
+$current_user_id = require_admin($db, 'user_action.php');
 
 $transaction_started = false;
 try {
     $db->begin_transaction();
     $transaction_started = true;
-    if (refresh_account_role($db) !== 'admin') {
-        $db->rollback();
-        $transaction_started = false;
-        $db->close();
-        opng_error_redirect('error_permission', '../error.php');
-    }
 
     $stmt = $db->prepare('SELECT role FROM users WHERE id = ? FOR UPDATE');
     $stmt->bind_param('i', $target_user_id);

@@ -2,30 +2,15 @@
 require_once('../includes/session.php');
 session_start_secured();
 require_once('../includes/http_input.php');
-require_once('../includes/account_role.php');
+require_once('../includes/admin_guard.php');
 require_once('../database.php');
 require_once("../includes/error_messages.php");
-
-$session_user_id = http_positive_integer($_SESSION['user_id'] ?? null);
-if ($session_user_id === null) {
-    opng_error_redirect('error_permission', '../error.php');
-}
 
 $db = database_connect();
 if (!$db) {
     opng_error_redirect('error_database_unavailable', '../error.php');
 }
-try {
-    $current_role = refresh_account_role($db);
-} catch (mysqli_sql_exception | RuntimeException $exception) {
-    error_log('OPNG delete_database.php: ' . $exception->getMessage());
-    $db->close();
-    opng_error_redirect('error_database_operation', '../error.php');
-}
-if ($current_role !== 'admin') {
-    $db->close();
-    opng_error_redirect('error_permission', '../error.php');
-}
+require_admin($db, 'delete_database.php');
 
 try {
     $database_result = $db->query('SELECT DATABASE() AS database_name');

@@ -23,6 +23,14 @@
  *                                 terminates at a proxy that PHP cannot see.
  *     OPNG_STORAGE_QUOTA_BYTES    Global paste-text quota in bytes
  *                                 (default: 10 GiB).
+ *     OPNG_BACKUP_MAX_SECONDS     Maximum duration of an admin backup
+ *                                 (default: 300 seconds).
+ *     OPNG_BACKUP_MAX_BYTES       Maximum size of an admin backup
+ *                                 (default: 512 MiB).
+ *
+ * Production credentials must be unique: set a non-empty OPNG_DB_PASS (or
+ * $mysql_password) and never reuse the local MAMP/development example values.
+ * Rotate the runtime password if it was ever committed or shared.
  *
  * The CLI installer uses a separate, temporary migration account:
  *

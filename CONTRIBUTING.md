@@ -50,7 +50,7 @@ Requirements are PHP on a supported patch level, Composer, MySQL or MariaDB, and
    composer install
    ```
 
-2. Create a local database and configure a dedicated runtime account. Copy `src/config.example.php` to `src/config.php` and enter local credentials, or set the documented `OPNG_DB_*` environment variables. Do not use production credentials or data.
+2. Create a local database and configure a dedicated runtime account. Copy `src/config.example.php` to `src/config.php` and enter local credentials, or set the documented `OPNG_DB_*` environment variables. Do not use production credentials or data, and do not reuse the example development credentials in a deployed environment. Use a unique, non-empty runtime password and rotate it if it was ever committed or shared.
 
 3. Create the schema using the separate migration account and CLI installer, as described in the [installation guide](README.md#-installation). Point the web server document root at `src/`, not the repository root.
 

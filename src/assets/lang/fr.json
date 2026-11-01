@@ -204,6 +204,7 @@
     "generic_error": "Une erreur s'est produite.",
     "error_service_unavailable": "Le service est temporairement indisponible. Veuillez réessayer plus tard.",
     "error_global_storage_quota": "Le quota global de stockage des pastes est atteint. Veuillez réessayer plus tard.",
+    "error_backup_limit": "La sauvegarde a dépassé la limite de temps ou de taille configurée. Augmentez OPNG_BACKUP_MAX_SECONDS ou OPNG_BACKUP_MAX_BYTES.",
     "admin_storage_quota": "Stockage global des pastes",
     "admin_storage_quota_warning": "Le quota global de stockage est presque plein. Les nouveaux pastes seront refusés lorsqu'il sera atteint.",
     "admin_audit_log": "Journal d'audit",

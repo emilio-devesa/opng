@@ -204,6 +204,7 @@
     "generic_error": "发生错误。",
     "error_service_unavailable": "服务暂时不可用，请稍后重试。",
     "error_global_storage_quota": "服务器全局粘贴存储配额已用尽，请稍后重试。",
+    "error_backup_limit": "备份超过了配置的时间或大小限制。请提高 OPNG_BACKUP_MAX_SECONDS 或 OPNG_BACKUP_MAX_BYTES。",
     "admin_storage_quota": "全局粘贴存储",
     "admin_storage_quota_warning": "全局粘贴存储配额即将用尽。达到配额后，新粘贴将被拒绝。",
     "admin_audit_log": "审计日志",

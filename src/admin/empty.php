@@ -5,33 +5,16 @@ session_start_secured();
 require_once('../includes/csrf.php');
 require_once('../database.php');
 require_once('../includes/http_input.php');
-require_once('../includes/account_role.php');
+require_once('../includes/admin_guard.php');
 require_once("../includes/error_messages.php");
 require_once('../includes/admin_metrics.php');
 require_once('../includes/audit_log.php');
-
-// Verificar que el usuario esté autenticado y sea administrador
-// (fix S1/R1: require_once('login.php') no es un guarda de acceso válido)
-$session_user_id = http_positive_integer($_SESSION['user_id'] ?? null);
-if ($session_user_id === null) {
-    opng_error_redirect('error_permission', '../error.php');
-}
 
 $db = database_connect();
 if (!$db) {
     opng_error_redirect('error_database_unavailable', '../error.php');
 }
-try {
-    $current_role = refresh_account_role($db);
-} catch (mysqli_sql_exception | RuntimeException $exception) {
-    error_log('OPNG empty.php: ' . $exception->getMessage());
-    $db->close();
-    opng_error_redirect('error_database_operation', '../error.php');
-}
-if ($current_role !== 'admin') {
-    $db->close();
-    opng_error_redirect('error_permission', '../error.php');
-}
+$session_user_id = require_admin($db, 'empty.php');
 
 // Verificar que la solicitud es POST
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
@@ -72,12 +55,6 @@ $transaction_started = false;
 try {
     $db->begin_transaction();
     $transaction_started = true;
-    if (refresh_account_role($db) !== 'admin') {
-        $db->rollback();
-        $transaction_started = false;
-        $db->close();
-        opng_error_redirect('error_permission', '../error.php');
-    }
     if (!$db->query("DELETE FROM entries")) {
         throw new RuntimeException('Entries could not be removed.');
     }
