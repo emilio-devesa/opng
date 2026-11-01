@@ -22,7 +22,7 @@ $base = '';
 require(__DIR__ . '/includes/layout_header.php');
 ?>
     <section class="error-page">
-        <h2 data-i18n="error_title">Error</h2>
+        <h1 data-i18n="error_title">Error</h1>
         <p role="alert" data-i18n="<?php echo htmlspecialchars($message_key, ENT_QUOTES, 'UTF-8'); ?>">
             <?php echo htmlspecialchars($message, ENT_QUOTES, 'UTF-8'); ?>
         </p>

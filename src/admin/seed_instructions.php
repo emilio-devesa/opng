@@ -25,9 +25,9 @@ $page_title_i18n = 'admin_seed_title';
 $base = '../';
 require(__DIR__ . '/../includes/layout_header.php');
 ?>
-    <h2 data-i18n="admin_seed_title">Load sample data</h2>
+    <h1 data-i18n="admin_seed_title">Load sample data</h1>
     <section class="box admin-database-warning" aria-labelledby="sample-data-warning">
-        <h3 id="sample-data-warning" data-i18n="admin_seed_warning">Sample data is loaded manually from the command line.</h3>
+        <h2 id="sample-data-warning" data-i18n="admin_seed_warning">Sample data is loaded manually from the command line.</h2>
         <p data-i18n="admin_seed_cli_only">For security, the website does not execute the seeder. Run the command below from the repository root in a terminal.</p>
         <pre><code>php tools/seed.php</code></pre>
         <p data-i18n="admin_seed_cleanup_warning">The script first removes its previous fixtures: entries whose IDs start with seed and accounts using the @example.test email domain. Review those records before running it.</p>

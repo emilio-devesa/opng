@@ -120,7 +120,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     require(__DIR__ . '/../includes/layout_header.php');
 ?>
     <section class="auth-page">
-        <h2 data-i18n="register_title">Sign up</h2>
+        <h1 data-i18n="register_title">Sign up</h1>
         <?php if ($form_error_key !== ''): ?>
             <p class="form-error" role="alert" data-i18n="<?php echo htmlspecialchars($form_error_key, ENT_QUOTES, 'UTF-8'); ?>">
                 <?php echo htmlspecialchars(opng_error_text($form_error_key), ENT_QUOTES, 'UTF-8'); ?>

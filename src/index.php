@@ -164,6 +164,8 @@ $show_search = true;
         <p class="flash-message" role="status"<?php echo $flash_key !== '' ? ' data-i18n="' . htmlspecialchars($flash_key, ENT_QUOTES, 'UTF-8') . '"' : ''; ?>><?php echo $flash; ?></p>
     <?php endif; ?>
 
+    <h1 data-i18n="latest_entries">Latest entries</h1>
+
     <div class="list-toolbar">
         <a href="pastebin.php" class="create-link" aria-label="Create new entry" title="Create new entry" data-i18n-aria-label="create_new" data-i18n-title="create_new">➕</a>
 

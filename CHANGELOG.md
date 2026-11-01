@@ -75,6 +75,21 @@
 - Extended `tests/database_install_test.php` and `tests/frontend_contract_test.php` for the user/entries migration, shared guards, backup limits and Composer extensions; added `error_backup_limit` to all six catalogs.
 - Updated `README.md`, `CONTRIBUTING.md` and `src/config.example.php` with the migration behavior, extension requirements, backup limits and credential guidance.
 
+## Unreleased (audit v0.9 — Phase 5: UX and accessibility)
+### 🔑 Account security
+- **Added `src/auth/change_password.php`.** Signed-in accounts can rotate their password with the current password, the new password and a confirmation. The page uses CSRF validation, a persistent 5/10-minute rate limit, the shared 12–72 byte password policy, `session_regenerate_id(true)` after success and invalidates any pending reset token.
+- The account navigation now links to the change-password page for both regular users and administrators.
+
+### ♿ Accessibility and headings
+- Added a **skip-to-content link** as the first body element and exposed `#Content` as a focusable `<main>` landmark.
+- The header now renders the site name (`title_index`) instead of duplicating the page title; each page has a single content `h1` (index, create, view topic, auth, error and admin pages) and section headings were demoted accordingly.
+- The language selector no longer overrides its translated label with a fixed `aria-label`; each option now exposes a flag plus the native language name (for example `🇬🇧 English`) and its `lang` attribute.
+- Search help is an accessible disclosure: `aria-expanded`/`aria-controls` with a click/touch toggle, outside-click dismissal and Escape support, in addition to hover/focus.
+
+### 🧪 Tests and docs
+- Added `tests/change_password_test.php`; extended `tests/frontend_contract_test.php` (skip link, headings, language selector, search-help disclosure, change-password contracts) and `tests/input_validation_test.php` (11-byte rejection).
+- Added nine keys to all six catalogs (230 keys each) and documented the new password flow and accessibility behavior in `README.md`.
+
 ## Version 0.8 (2026)
 ### 🛠️ Administration and database recovery
 - Reorganized the admin panel around entry management, user management and database actions; added parameterized search with ID selection, role updates, and guarded account deletion with a choice to anonymize or delete associated pastes.

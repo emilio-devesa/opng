@@ -41,6 +41,15 @@ $required_keys = [
     'delete_confirm',
     'language_selector_label',
     'password_policy',
+    'change_password_title',
+    'current_password',
+    'confirm_password',
+    'password_changed',
+    'password_incorrect',
+    'password_mismatch',
+    'password_unchanged',
+    'skip_to_content',
+    'error_password_rate_limit',
     'pagination',
     'reset_unavailable',
     'latest_entries',
@@ -162,6 +171,80 @@ if (!is_string($layout) || !str_contains($layout, 'data-i18n-aria-label="home"')
 if (!is_string($layout) || !str_contains($layout, 'data-i18n-aria-label="search_clear"')) {
     $failures[] = 'The search clear control is missing its translated accessible label';
 }
+if (
+    !is_string($layout)
+    || !str_contains($layout, 'class="skip-link" href="#Content"')
+    || !str_contains($layout, 'data-i18n="skip_to_content"')
+    || !str_contains($layout, '<main id="Content" tabindex="-1">')
+) {
+    $failures[] = 'The shared layout is missing the focusable skip link or main landmark';
+}
+if (
+    !is_string($layout)
+    || !str_contains($layout, '<h1 data-i18n="title_index">')
+    || !str_contains($layout, 'data-i18n="title_index"')
+) {
+    $failures[] = 'The header heading must render the site name instead of duplicating the page title';
+}
+if (
+    !is_string($layout)
+    || str_contains($layout, '<select id="language-selector" aria-label=')
+    || !str_contains($layout, '<option value="en" lang="en">🇬🇧 English</option>')
+) {
+    $failures[] = 'The language selector still overrides its translated label or hides option names';
+}
+if (
+    !is_string($layout)
+    || !str_contains($layout, 'aria-expanded="false"')
+    || !str_contains($layout, 'aria-controls="header-search-help"')
+    || !str_contains($layout, 'assets/js/search-help.js')
+) {
+    $failures[] = 'Search help is not an accessible disclosure with a click/touch toggle';
+}
+$search_help_script = file_get_contents($root . '/src/assets/js/search-help.js');
+if (
+    !is_string($search_help_script)
+    || !str_contains($search_help_script, 'aria-expanded')
+    || !str_contains($search_help_script, 'is-open')
+    || !str_contains($search_help_script, 'Escape')
+) {
+    $failures[] = 'Search help script does not toggle aria-expanded or close on Escape';
+}
+foreach ([
+    '/src/index.php' => 'data-i18n="latest_entries"',
+    '/src/pastebin.php' => '<h1 data-i18n="create_new">',
+    '/src/auth/login.php' => '<h1 data-i18n="login_title">',
+    '/src/auth/register.php' => '<h1 data-i18n="register_title">',
+    '/src/auth/request_reset.php' => '<h1 data-i18n="request_reset_title">',
+    '/src/auth/reset_password.php' => '<h1 data-i18n="reset_title">',
+    '/src/error.php' => '<h1 data-i18n="error_title">',
+    '/src/admin/admin.php' => '<h1 data-i18n="admin_title">',
+] as $heading_path => $heading_marker) {
+    $heading_source = file_get_contents($root . $heading_path);
+    if (!is_string($heading_source) || !str_contains($heading_source, $heading_marker)) {
+        $failures[] = "Page content is missing its unique h1 heading: {$heading_path}";
+    }
+}
+if (!is_string($view_page = file_get_contents($root . '/src/view.php')) || !str_contains($view_page, 'class="paste-title"')) {
+    $failures[] = 'Paste view is missing its topic h1 heading';
+}
+$change_password_page = file_get_contents($root . '/src/auth/change_password.php');
+if (
+    !is_string($change_password_page)
+    || !str_contains($change_password_page, 'csrf_valid')
+    || !str_contains($change_password_page, 'rate_limit_hit')
+    || !str_contains($change_password_page, 'password_validation_error')
+    || !str_contains($change_password_page, 'session_regenerate_id(true)')
+    || !str_contains($change_password_page, 'reset_token = NULL')
+    || !str_contains($change_password_page, 'name="current_password"')
+    || !str_contains($change_password_page, 'name="new_password"')
+    || !str_contains($change_password_page, 'name="confirm_password"')
+) {
+    $failures[] = 'Change-password page is missing CSRF, rate limiting, policy, session regeneration, token invalidation, or the three password fields';
+}
+if (!is_string($layout) || !str_contains($layout, 'auth/change_password.php')) {
+    $failures[] = 'The account navigation does not link to the change-password page';
+}
 
 $language_script = file_get_contents($root . '/src/assets/js/language.js');
 if (
@@ -188,6 +271,7 @@ foreach ([
     '/src/assets/js/confirm.js',
     '/src/assets/js/copy.js',
     '/src/assets/js/search-clear.js',
+    '/src/assets/js/search-help.js',
     '/src/assets/js/admin-tools.js',
     '/src/assets/js/length-meter.js',
 ] as $script_path) {

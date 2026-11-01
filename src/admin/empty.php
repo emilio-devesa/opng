@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $base = '../';
     require(__DIR__ . "/../includes/layout_header.php");
     ?>
-            <h2 data-i18n="empty_title">⚠️ Empty database</h2>
+            <h1 data-i18n="empty_title">⚠️ Empty database</h1>
             <p><strong data-i18n="empty_warning">This action will permanently delete all stored pastes.</strong></p>
             <p data-i18n="empty_confirm">Are you sure you want to continue?</p>
             <form method="post">

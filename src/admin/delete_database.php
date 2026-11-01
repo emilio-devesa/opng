@@ -35,9 +35,9 @@ $page_title_i18n = 'admin_delete_database';
 $base = '../';
 require(__DIR__ . '/../includes/layout_header.php');
 ?>
-    <h2 data-i18n="admin_delete_database">Delete database completely</h2>
+    <h1 data-i18n="admin_delete_database">Delete database completely</h1>
     <section class="box admin-database-warning" aria-labelledby="database-delete-warning">
-        <h3 id="database-delete-warning" data-i18n="admin_delete_database_warning">This operation is manual and irreversible.</h3>
+        <h2 id="database-delete-warning" data-i18n="admin_delete_database_warning">This operation is manual and irreversible.</h2>
         <p data-i18n="admin_delete_database_reason">The web application deliberately has no permission to drop its database. Use MAMP's database administration tool instead; do not grant DROP privileges to the runtime account.</p>
         <ol>
             <li data-i18n="admin_delete_database_step_backup">Back up the database before deleting it.</li>

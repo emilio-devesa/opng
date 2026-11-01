@@ -7,7 +7,7 @@
 if (!isset($base)) { $base = ''; }
 $logged_in = isset($_SESSION['user_id']);
 ?>
-        </div>
+    </main>
     <footer>
         <a class="back-to-top" href="#SiteHeader" data-i18n="back_to_top">Back to top</a>
         <p class="footer-text">

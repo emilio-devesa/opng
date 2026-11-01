@@ -148,7 +148,7 @@ $no_referrer = true;
 require(__DIR__ . '/../includes/layout_header.php');
 ?>
     <section class="auth-page">
-    <h2 data-i18n="reset_title">Reset Password</h2>
+    <h1 data-i18n="reset_title">Reset Password</h1>
 
     <?php if ($simulation_enabled): ?>
         <p data-i18n="development_reset_notice">Development-only reset. This route works only on localhost while OPNG_DEV_RESET=1.</p>

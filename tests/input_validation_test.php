@@ -41,6 +41,11 @@ assert_same_value(
     'whitespace-only paste content is rejected'
 );
 assert_same_value(
+    'Choose a password between 12 and 72 bytes long.',
+    password_validation_error(str_repeat('a', 11)),
+    'an 11-byte password is rejected'
+);
+assert_same_value(
     null,
     password_validation_error(str_repeat('a', 12)),
     'a 12-byte password is accepted'

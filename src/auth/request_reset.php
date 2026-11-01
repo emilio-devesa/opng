@@ -178,7 +178,7 @@ $base = '../';
 require(__DIR__ . '/../includes/layout_header.php');
 ?>
     <section class="auth-page">
-    <h2 data-i18n="request_reset_title">Request Password Reset</h2>
+    <h1 data-i18n="request_reset_title">Request Password Reset</h1>
 
     <?php if ($simulation_enabled): ?>
         <p data-i18n="development_reset_notice">Development-only email simulation. The reset link is shown only on localhost and only while OPNG_DEV_RESET=1.</p>
@@ -192,7 +192,7 @@ require(__DIR__ . '/../includes/layout_header.php');
 
     <?php if ($reset_link !== null): ?>
         <section aria-labelledby="simulated-email-title">
-            <h3 id="simulated-email-title" data-i18n="simulated_email">Simulated email</h3>
+            <h2 id="simulated-email-title" data-i18n="simulated_email">Simulated email</h2>
             <p data-i18n="reset_link_details">A password reset was requested for this account. The link expires in 10 minutes and can be used once.</p>
             <p><a href="<?php echo htmlspecialchars($reset_link, ENT_QUOTES, 'UTF-8'); ?>" data-i18n="open_reset_link">Open local reset link</a></p>
         </section>

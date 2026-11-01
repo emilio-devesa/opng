@@ -144,6 +144,7 @@ require(__DIR__ . "/includes/layout_header.php");
     <?php if ($flash !== ""): ?>
         <p class="flash-message" role="status"<?php echo $flash_key !== '' ? ' data-i18n="' . htmlspecialchars($flash_key, ENT_QUOTES, 'UTF-8') . '"' : ''; ?>><?php echo $flash; ?></p>
     <?php endif; ?>
+    <h1 class="paste-title"><?php echo htmlspecialchars($array['topic'], ENT_QUOTES, 'UTF-8'); ?></h1>
     <nav class="tabs" aria-label="Paste actions" data-i18n-aria-label="paste_navigation">
         <a href="view.php?id=<?php echo urlencode($id); ?>&tab=view" class="tab tab-view <?php echo $tab === 'view' ? 'active' : ''; ?>" data-i18n="tab_view"<?php echo $tab === 'view' ? ' aria-current="page"' : ''; ?>>View</a>
         <?php if ($can_edit): ?>

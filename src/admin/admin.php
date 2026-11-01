@@ -425,7 +425,7 @@ $page_title_i18n = 'admin_title';
 $base = '../';
 require(__DIR__ . "/../includes/layout_header.php");
 ?>
-    <h2 data-i18n="admin_title">Admin Panel</h2>
+    <h1 data-i18n="admin_title">Admin Panel</h1>
     <?php if ($message_key !== ''): ?>
         <p class="flash-message" role="status" data-i18n="<?php echo htmlspecialchars($message_key, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($message_text, ENT_QUOTES, 'UTF-8'); ?></p>
     <?php endif; ?>
@@ -437,15 +437,15 @@ require(__DIR__ . "/../includes/layout_header.php");
         <?php else: ?>
             <div class="admin-metrics-summary">
                 <article class="admin-metric-card">
-                    <h3 data-i18n="admin_metrics_total_pastes">Total pastes</h3>
+                    <h2 data-i18n="admin_metrics_total_pastes">Total pastes</h2>
                     <p><?php echo number_format($metrics_total_entries); ?></p>
                 </article>
                 <article class="admin-metric-card">
-                    <h3 data-i18n="admin_metrics_total_users">Total users</h3>
+                    <h2 data-i18n="admin_metrics_total_users">Total users</h2>
                     <p><?php echo number_format($metrics_total_users); ?></p>
                 </article>
                 <article class="admin-metric-card">
-                    <h3 data-i18n="admin_metrics_paste_size">Paste text storage</h3>
+                    <h2 data-i18n="admin_metrics_paste_size">Paste text storage</h2>
                     <p><?php echo number_format($metrics_paste_bytes); ?> <span data-i18n="admin_metrics_bytes">bytes</span></p>
                 </article>
             </div>

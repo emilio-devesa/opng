@@ -41,7 +41,7 @@ $page_title_i18n = 'title_pastebin';
 $base = '';
 require(__DIR__ . "/includes/layout_header.php");
 ?>
-    <h2 data-i18n="create_new">Create New Entry</h2>
+    <h1 data-i18n="create_new">Create New Entry</h1>
     <form method="post" action="submit.php" class="editor-form">
         <!-- Protección CSRF -->
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">

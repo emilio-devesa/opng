@@ -358,7 +358,8 @@ form.search-form button {
 }
 
 .search-help-trigger:hover ~ .search-help-tooltip,
-.search-help-trigger:focus-visible ~ .search-help-tooltip {
+.search-help-trigger:focus-visible ~ .search-help-tooltip,
+.search-help-tooltip.is-open {
     visibility: visible;
     opacity: 1;
 }
@@ -880,6 +881,26 @@ textarea[name="input_text"] {
     border: 0;
 }
 
+.skip-link {
+    position: fixed;
+    top: 0;
+    left: 1rem;
+    z-index: 1000;
+    padding: 0.75rem 1rem;
+    border-radius: 0 0 10px 10px;
+    background: var(--accent);
+    color: #ffffff;
+    font-weight: 700;
+    text-decoration: none;
+    transform: translateY(-120%);
+    transition: transform 0.15s ease;
+}
+
+.skip-link:focus,
+.skip-link:focus-visible {
+    transform: translateY(0);
+}
+
 /* ========================= */
 /* FORMULARIOS — RESTO (dentro de #Content) */
 /* ========================= */
@@ -1184,7 +1205,7 @@ legend {
     background: var(--surface-2);
 }
 
-.admin-metric-card h3 {
+.admin-metric-card h2 {
     margin: 0 0 0.35rem;
     color: var(--muted);
     font-size: 0.9rem;
@@ -1344,6 +1365,7 @@ legend {
 #language-selector {
     width: auto;
     min-width: 3.25rem;
+    max-width: 9rem;
     min-height: 2.75rem;
     padding: 0.35rem 0.55rem;
     border-radius: 999px;

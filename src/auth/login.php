@@ -193,7 +193,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     require(__DIR__ . '/../includes/layout_header.php');
 ?>
     <section class="auth-page">
-        <h2 data-i18n="login_title">Sign in</h2>
+        <h1 data-i18n="login_title">Sign in</h1>
         <?php if ($notice !== ''): ?>
             <p class="flash-message" role="status"<?php echo $notice_key !== '' ? ' data-i18n="' . htmlspecialchars($notice_key, ENT_QUOTES, 'UTF-8') . '"' : ''; ?>>
                 <?php echo htmlspecialchars($notice, ENT_QUOTES, 'UTF-8'); ?>

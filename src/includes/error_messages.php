@@ -30,6 +30,7 @@ const OPNG_ERROR_KEYS = [
     'error_login_rate_limit',
     'error_method_not_allowed',
     'error_paste_rate_limit',
+    'error_password_rate_limit',
     'error_permission',
     'error_registration',
     'error_registration_rate_limit',
@@ -42,7 +43,10 @@ const OPNG_ERROR_KEYS = [
     'error_topic_too_large',
     'error_update_paste',
     'generic_error',
+    'password_incorrect',
+    'password_mismatch',
     'password_policy',
+    'password_unchanged',
 ];
 
 /**
@@ -69,7 +73,7 @@ function opng_error_status(string $key): int
         'error_registration' => 500,
         'error_global_storage_quota', 'error_backup_limit' => 507,
         'error_login_rate_limit', 'error_registration_rate_limit',
-        'error_paste_rate_limit' => 429,
+        'error_paste_rate_limit', 'error_password_rate_limit' => 429,
         default => 400,
     };
 }
