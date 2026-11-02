@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, master, v0.8-development, v0.9-development]
+    branches: [main, master, v0.8-development, v0.9-development, v1.0-development]
   pull_request:
 
 permissions:
@@ -53,6 +53,18 @@ jobs:
       - name: Paste permission regression test
         run: php tests/permissions_test.php
 
+      - name: Audit log regression test
+        run: php tests/audit_log_test.php
+
+      - name: Change-password contract regression test
+        run: php tests/change_password_test.php
+
+      - name: Global storage quota regression test
+        run: php tests/global_quota_test.php
+
+      - name: Rate-limit outcome regression test
+        run: php tests/rate_limit_result_test.php
+
       - name: SQL backup serialization regression test
         run: php tests/sql_backup_test.php
 
@@ -69,13 +81,10 @@ jobs:
 
       - name: JavaScript syntax check
         run: |
-          node --check src/assets/js/dark-mode.js
-          node --check src/assets/js/language.js
-          node --check src/assets/js/confirm.js
-          node --check src/assets/js/copy.js
-          node --check src/assets/js/search-clear.js
-          node --check src/assets/js/admin-tools.js
-          node --check src/assets/js/length-meter.js
+          set -e
+          for script in src/assets/js/*.js; do
+            node --check "$script"
+          done
 
       - name: Frontend contract and translation regression test
         run: php tests/frontend_contract_test.php
