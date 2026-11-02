@@ -5,6 +5,7 @@ if (getenv('OPNG_TEST_ALLOW_PERFORMANCE_FIXTURES') !== '1') {
 }
 
 require __DIR__ . '/../src/config.php';
+require __DIR__ . '/../src/includes/pagination_cursor.php';
 
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 $db = new mysqli($mysql_server, $mysql_username, $mysql_password, $mysql_dbname);
@@ -39,6 +40,10 @@ try {
     }
     $transaction_started = false;
 
+    // Refresh index statistics after the bulk load; otherwise the optimizer
+    // can keep a stale "tiny table" plan and pick a filesort.
+    $db->query('ANALYZE TABLE entries');
+
     $search_plan = $db->query(
         "EXPLAIN SELECT id FROM entries
          WHERE MATCH(topic) AGAINST ('+needle*' IN BOOLEAN MODE)"
@@ -47,18 +52,31 @@ try {
         throw new RuntimeException('Topic search did not use the FULLTEXT index.');
     }
 
-    $listing_plan = $db->query(
-        'EXPLAIN SELECT entries.id, entries.user_id, users.username, entries.topic, entries.language, entries.date
-         FROM entries
-         LEFT JOIN users ON entries.user_id = users.id
-         ORDER BY entries.date DESC, entries.id DESC
-         LIMIT 21'
-    )->fetch_assoc();
+    $listing_plans = [];
+    foreach ([['date', 'desc'], ['topic', 'asc'], ['language', 'asc']] as [$sort, $order]) {
+        $listing = build_listing_query(null, null, null, $sort, $order);
+        $listing_plan = $db->query('EXPLAIN ' . $listing['sql'])->fetch_assoc();
+        $listing_plans[$sort] = $listing_plan;
+    }
+
+    $date_plan = $listing_plans['date'];
     if (
-        !in_array($listing_plan['key'] ?? null, ['idx_entries_cursor', 'idx_entries_date'], true)
-        || str_contains(strtolower((string) ($listing_plan['Extra'] ?? '')), 'filesort')
+        !in_array($date_plan['key'] ?? null, ['idx_entries_cursor', 'idx_entries_date'], true)
+        || str_contains(strtolower((string) ($date_plan['Extra'] ?? '')), 'filesort')
     ) {
         throw new RuntimeException('Cursor listing did not use a date index without filesort.');
+    }
+    if (
+        ($listing_plans['topic']['key'] ?? null) !== 'idx_entries_topic'
+        || str_contains(strtolower((string) ($listing_plans['topic']['Extra'] ?? '')), 'filesort')
+    ) {
+        throw new RuntimeException('Topic listing did not use idx_entries_topic without filesort.');
+    }
+    if (
+        ($listing_plans['language']['key'] ?? null) !== 'idx_entries_language'
+        || str_contains(strtolower((string) ($listing_plans['language']['Extra'] ?? '')), 'filesort')
+    ) {
+        throw new RuntimeException('Language listing did not use idx_entries_language without filesort.');
     }
 
     $quota_plan = $db->query(

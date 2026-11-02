@@ -11,14 +11,14 @@ require("includes/paste_permissions.php");
 require("includes/user_quota.php");
 require("includes/http_input.php");
 require("includes/account_role.php");
+require("includes/error_messages.php");
 
 // ------------------ Validaciones de seguridad ------------------
 if (
     !isset($_SESSION['user_id'])
     || http_positive_integer($_SESSION['user_id']) === null
 ) {
-    header("Location: error.php?msg=" . urlencode("You must be signed in to edit a paste."));
-    exit;
+    opng_error_redirect('error_sign_in_to_edit');
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -28,50 +28,44 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 if (!csrf_valid($_POST['csrf_token'] ?? null)) {
-    header("Location: error.php?msg=" . urlencode("Error: invalid CSRF token."));
-    exit;
+    opng_error_redirect('error_csrf');
 }
 
 // El ID debe ser alfanumérico (mismo formato que genera submit.php)
 $id = http_string_parameter($_POST, 'input_ID', 255, false);
 if ($id === null || !http_valid_entry_id($id)) {
-    header("Location: error.php?msg=" . urlencode("Invalid ID"));
-    exit;
+    opng_error_redirect('error_invalid_id');
 }
 
 // Validación de campos
-$text = http_string_parameter($_POST, 'input_text', OPNG_MAX_PASTE_BYTES + 1);
+// Preserve the exact text, including leading indentation and trailing newlines.
+$text = http_string_parameter($_POST, 'input_text', OPNG_MAX_PASTE_BYTES + 1, false);
 $topic = http_string_parameter($_POST, 'input_topic', OPNG_MAX_TOPIC_BYTES + 1);
 $language = http_string_parameter($_POST, 'input_language', 255);
 if ($text === null || $topic === null || $language === null) {
-    header("Location: error.php?msg=" . urlencode("Invalid paste data."));
-    exit;
+    opng_error_redirect('error_invalid_paste');
 }
 
 // Valores
 $validation_error = paste_validation_error($text, $topic);
 if ($validation_error !== null) {
-    header("Location: error.php?msg=" . urlencode($validation_error));
-    exit;
+    opng_error_redirect($validation_error);
 }
 
 // Lenguaje: allowlist (igual que en submit.php)
 try {
     $rules = load_rules();
 } catch (RuntimeException $exception) {
-    header("Location: error.php?msg=" . urlencode("Language configuration is unavailable."));
-    exit;
+    opng_error_redirect('error_language_config');
 }
 if (!isset($rules[$language])) {
-    header("Location: error.php?msg=" . urlencode("Invalid language."));
-    exit;
+    opng_error_redirect('error_invalid_language');
 }
 
 // Conectar a la base de datos
 $db = db_connect();
 if (!$db) {
-    header("Location: error.php?msg=" . urlencode("Database connection error."));
-    exit;
+    opng_error_redirect('error_database_unavailable');
 }
 
 $transaction_started = false;
@@ -94,8 +88,7 @@ try {
         $db->rollback();
         $transaction_started = false;
         $db->close();
-        header("Location: error.php?msg=" . urlencode("Entry not found"));
-        exit;
+        opng_error_redirect('error_entry_not_found');
     }
 
     // Comprobar permisos: admin o propietario del paste
@@ -108,16 +101,14 @@ try {
         $db->rollback();
         $transaction_started = false;
         $db->close();
-        header("Location: error.php?msg=" . urlencode("You must be signed in to edit a paste."));
-        exit;
+        opng_error_redirect('error_sign_in_to_edit');
     }
     $entry_owner_id = $owner_id !== null ? (int) $owner_id : null;
     if (!paste_owner_can_manage($current_user_id, (string) $user_role, $entry_owner_id)) {
         $db->rollback();
         $transaction_started = false;
         $db->close();
-        header("Location: error.php?msg=" . urlencode("You don't have permission to edit this paste."));
-        exit;
+        opng_error_redirect('error_permission');
     }
 
     if ($owner_id !== null) {
@@ -127,15 +118,13 @@ try {
             $db->rollback();
             $transaction_started = false;
             $db->close();
-            header("Location: error.php?msg=" . urlencode("Database operation failed."));
-            exit;
+            opng_error_redirect('error_database_operation');
         }
         if (!user_quota_allows($usage, (int) ($entry['text_bytes'] ?? 0), strlen($text))) {
             $db->rollback();
             $transaction_started = false;
             $db->close();
-            header("Location: error.php?msg=" . urlencode("Your account storage limit of 100 MiB has been reached."));
-            exit;
+            opng_error_redirect('error_storage_quota');
         }
     }
 
@@ -148,16 +137,14 @@ try {
         $db->rollback();
         $transaction_started = false;
         $db->close();
-        header("Location: error.php?msg=" . urlencode("Error updating the paste."));
-        exit;
+        opng_error_redirect('error_update_paste');
     }
     if (!$db->commit()) {
         error_log("OPNG update.php: failed to commit the paste transaction");
         $db->rollback();
         $transaction_started = false;
         $db->close();
-        header("Location: error.php?msg=" . urlencode("Error updating the paste."));
-        exit;
+        opng_error_redirect('error_update_paste');
     }
     $transaction_started = false;
 } catch (mysqli_sql_exception | RuntimeException $exception) {
@@ -169,8 +156,7 @@ try {
         $db->rollback();
     }
     $db->close();
-    header("Location: error.php?msg=" . urlencode("Database operation failed."));
-    exit;
+    opng_error_redirect('error_database_operation');
 }
 $db->close();
 

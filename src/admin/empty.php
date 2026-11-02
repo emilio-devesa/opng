@@ -5,33 +5,16 @@ session_start_secured();
 require_once('../includes/csrf.php');
 require_once('../database.php');
 require_once('../includes/http_input.php');
-require_once('../includes/account_role.php');
-
-// Verificar que el usuario esté autenticado y sea administrador
-// (fix S1/R1: require_once('login.php') no es un guarda de acceso válido)
-if (http_positive_integer($_SESSION['user_id'] ?? null) === null) {
-    header("Location: ../error.php?msg=" . urlencode("Access denied. You don't have permission to view this page."));
-    exit;
-}
+require_once('../includes/admin_guard.php');
+require_once("../includes/error_messages.php");
+require_once('../includes/admin_metrics.php');
+require_once('../includes/audit_log.php');
 
 $db = database_connect();
 if (!$db) {
-    header("Location: ../error.php?msg=" . urlencode("Database connection error."));
-    exit;
+    opng_error_redirect('error_database_unavailable', '../error.php');
 }
-try {
-    $current_role = refresh_account_role($db);
-} catch (mysqli_sql_exception | RuntimeException $exception) {
-    error_log('OPNG empty.php: ' . $exception->getMessage());
-    $db->close();
-    header("Location: ../error.php?msg=" . urlencode("Database operation failed."));
-    exit;
-}
-if ($current_role !== 'admin') {
-    $db->close();
-    header("Location: ../error.php?msg=" . urlencode("Access denied. You don't have permission to view this page."));
-    exit;
-}
+$session_user_id = require_admin($db, 'empty.php');
 
 // Verificar que la solicitud es POST
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
@@ -44,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $base = '../';
     require(__DIR__ . "/../includes/layout_header.php");
     ?>
-            <h2 data-i18n="empty_title">⚠️ Empty database</h2>
+            <h1 data-i18n="empty_title">⚠️ Empty database</h1>
             <p><strong data-i18n="empty_warning">This action will permanently delete all stored pastes.</strong></p>
             <p data-i18n="empty_confirm">Are you sure you want to continue?</p>
             <form method="post">
@@ -64,8 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 // Verificar token CSRF
 if (!csrf_valid($_POST['csrf_token'] ?? null)) {
-    header("Location: ../error.php?msg=" . urlencode("Error: invalid CSRF token."));
-    exit;
+    opng_error_redirect('error_csrf', '../error.php');
 }
 
 // DELETE works with the runtime DML account; TRUNCATE would require DROP privileges.
@@ -73,27 +55,22 @@ $transaction_started = false;
 try {
     $db->begin_transaction();
     $transaction_started = true;
-    if (refresh_account_role($db) !== 'admin') {
-        $db->rollback();
-        $transaction_started = false;
-        $db->close();
-        header("Location: ../error.php?msg=" . urlencode("Access denied. You don't have permission to perform this action."));
-        exit;
-    }
     if (!$db->query("DELETE FROM entries")) {
         throw new RuntimeException('Entries could not be removed.');
     }
+    audit_log_record($db, $session_user_id, 'database.empty', 'entries');
     if (!$db->commit()) {
         throw new RuntimeException('Empty-database transaction could not be committed.');
     }
     $transaction_started = false;
+    admin_metrics_invalidate($db);
     header("Location: ../index.php?msg=" . urlencode("All pastes have been deleted"));
 } catch (mysqli_sql_exception | RuntimeException $exception) {
     error_log("OPNG empty.php: failed to delete entries: " . $exception->getMessage());
     if ($transaction_started) {
         $db->rollback();
     }
-    header("Location: ../error.php?msg=" . urlencode("Error while emptying the database"));
+    opng_error_redirect('error_empty_pastes', '../error.php');
 }
 
 $db->close();

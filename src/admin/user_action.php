@@ -3,8 +3,11 @@ require_once('../includes/session.php');
 session_start_secured();
 require_once('../includes/csrf.php');
 require_once('../includes/http_input.php');
-require_once('../includes/account_role.php');
+require_once('../includes/admin_guard.php');
 require_once('../database.php');
+require_once("../includes/error_messages.php");
+require_once('../includes/admin_metrics.php');
+require_once('../includes/audit_log.php');
 
 function redirect_admin(string $message): never
 {
@@ -12,19 +15,14 @@ function redirect_admin(string $message): never
     exit;
 }
 
-$current_user_id = http_positive_integer($_SESSION['user_id'] ?? null);
-if ($current_user_id === null) {
-    header("Location: ../error.php?msg=" . urlencode("Access denied. You don't have permission to perform this action."));
-    exit;
-}
+$current_user_id = require_authenticated_user();
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     header('Allow: POST');
     exit;
 }
 if (!csrf_valid($_POST['csrf_token'] ?? null)) {
-    header("Location: ../error.php?msg=" . urlencode("Error: invalid CSRF token."));
-    exit;
+    opng_error_redirect('error_csrf', '../error.php');
 }
 
 $target_user_id = http_positive_integer($_POST['admin_record_number'] ?? null);
@@ -47,18 +45,12 @@ $db = database_connect();
 if (!$db) {
     redirect_admin('user_operation_failed');
 }
+$current_user_id = require_admin($db, 'user_action.php');
 
 $transaction_started = false;
 try {
     $db->begin_transaction();
     $transaction_started = true;
-    if (refresh_account_role($db) !== 'admin') {
-        $db->rollback();
-        $transaction_started = false;
-        $db->close();
-        header("Location: ../error.php?msg=" . urlencode("Access denied. You don't have permission to perform this action."));
-        exit;
-    }
 
     $stmt = $db->prepare('SELECT role FROM users WHERE id = ? FOR UPDATE');
     $stmt->bind_param('i', $target_user_id);
@@ -137,8 +129,18 @@ try {
             : 'user_deleted_entries';
     }
 
+    audit_log_record(
+        $db,
+        $current_user_id,
+        $action === 'role' ? 'user.role' : 'user.delete',
+        $action === 'role'
+            ? 'user:' . $target_user_id . ' role:' . $new_role
+            : 'user:' . $target_user_id . ' pastes:' . $delete_mode
+    );
+
     $db->commit();
     $transaction_started = false;
+    admin_metrics_invalidate($db);
     $db->close();
 } catch (mysqli_sql_exception | RuntimeException $exception) {
     error_log('OPNG user_action.php: ' . $exception->getMessage());

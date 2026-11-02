@@ -2,6 +2,7 @@
 require("../includes/session.php");
 session_start_secured();
 require("../includes/csrf.php");
+require("../includes/error_messages.php");
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header("Location: ../index.php", true, 303);
@@ -9,8 +10,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 if (!csrf_valid($_POST['csrf_token'] ?? null)) {
-    header("Location: ../error.php?msg=" . urlencode("Error: invalid CSRF token."));
-    exit;
+    opng_error_redirect('error_csrf', '../error.php');
 }
 
 $_SESSION = [];

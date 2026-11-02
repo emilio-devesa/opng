@@ -6,6 +6,7 @@ require("includes/db.php");
 require("includes/topic_search.php");
 require("includes/pagination_cursor.php");
 require("includes/http_input.php");
+require("includes/error_messages.php");
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     http_response_code(405);
@@ -15,20 +16,17 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 
 // ------------------ Búsqueda ------------------
 if (array_key_exists('q', $_GET) && http_string_parameter($_GET, 'q', OPNG_MAX_SEARCH_QUERY_BYTES) === null) {
-    header("Location: error.php?msg=" . urlencode("Invalid search query."));
-    exit;
+    opng_error_redirect('error_invalid_search');
 }
 $q = http_string_parameter($_GET, 'q', OPNG_MAX_SEARCH_QUERY_BYTES) ?? "";
 $search_expression = $q === '' ? null : topic_search_expression($q);
 if ($q !== '' && $search_expression === null) {
-    header("Location: error.php?msg=" . urlencode("Invalid search query."));
-    exit;
+    opng_error_redirect('error_invalid_search');
 }
 
 $sort_value = http_string_parameter($_GET, 'sort', 16, false);
 if (array_key_exists('sort', $_GET) && ($sort_value === null || entry_sort_expression($sort_value) === null)) {
-    header("Location: error.php?msg=" . urlencode("Invalid sort order."));
-    exit;
+    opng_error_redirect('error_invalid_sort');
 }
 $sort = $sort_value ?? 'date';
 $default_sort = !array_key_exists('sort', $_GET);
@@ -37,8 +35,7 @@ if (
     (array_key_exists('order', $_GET) && $order_value === null)
     || ($order_value !== null && !in_array($order_value, ['asc', 'desc'], true))
 ) {
-    header("Location: error.php?msg=" . urlencode("Invalid sort order."));
-    exit;
+    opng_error_redirect('error_invalid_sort');
 }
 $sort_order = $order_value ?? ($default_sort ? 'desc' : 'asc');
 
@@ -56,8 +53,7 @@ if (array_key_exists('cursor', $_GET) || array_key_exists('direction', $_GET)) {
         || !is_string($direction_value)
         || !in_array($direction_value, ['older', 'newer'], true)
     ) {
-        header("Location: error.php?msg=" . urlencode("Invalid pagination cursor."));
-        exit;
+        opng_error_redirect('error_invalid_cursor');
     }
     $direction = $direction_value;
     $cursor_token = encode_listing_cursor($cursor);
@@ -65,36 +61,12 @@ if (array_key_exists('cursor', $_GET) || array_key_exists('direction', $_GET)) {
 
 $db = db_connect();
 if (!$db) {
-    header("Location: error.php?msg=" . urlencode("Database connection error."));
-    exit;
+    opng_error_redirect('error_database_unavailable');
 }
 
-$conditions = [];
-$params = [];
-if ($search_expression !== null) {
-    $conditions[] = 'MATCH(entries.topic) AGAINST (? IN BOOLEAN MODE)';
-    $params[] = $search_expression;
-}
-if ($cursor !== null) {
-    $cursor_condition = listing_cursor_condition($cursor, $direction);
-    $conditions[] = $cursor_condition['sql'];
-    array_push($params, ...$cursor_condition['params']);
-}
-
-$where_sql = $conditions === [] ? '' : ' WHERE ' . implode(' AND ', $conditions);
-$sort_expression = entry_sort_expression($sort);
-if ($sort_expression === null) {
-    throw new LogicException('Validated listing sort has no SQL expression.');
-}
-$query_order = $sort_order;
-if ($direction === 'newer') {
-    $query_order = $query_order === 'asc' ? 'desc' : 'asc';
-}
-$list_sql = "SELECT entries.id, entries.user_id, users.username, entries.topic, entries.language, entries.date
-             FROM entries
-             LEFT JOIN users ON entries.user_id = users.id"
-             . $where_sql .
-             " ORDER BY {$sort_expression} {$query_order}, entries.id {$query_order} LIMIT 21";
+$listing = build_listing_query($search_expression, $cursor, $direction, $sort, $sort_order);
+$list_sql = $listing['sql'];
+$params = $listing['params'];
 $entries = [];
 try {
     $stmt = $db->prepare($list_sql);
@@ -117,8 +89,7 @@ try {
         $stmt->close();
     }
     $db->close();
-    header("Location: error.php?msg=" . urlencode("Database operation failed."));
-    exit;
+    opng_error_redirect('error_database_operation');
 }
 
 $has_more = count($entries) > 20;
@@ -192,6 +163,8 @@ $show_search = true;
     <?php if ($flash !== ""): ?>
         <p class="flash-message" role="status"<?php echo $flash_key !== '' ? ' data-i18n="' . htmlspecialchars($flash_key, ENT_QUOTES, 'UTF-8') . '"' : ''; ?>><?php echo $flash; ?></p>
     <?php endif; ?>
+
+    <h1 data-i18n="latest_entries">Latest entries</h1>
 
     <div class="list-toolbar">
         <a href="pastebin.php" class="create-link" aria-label="Create new entry" title="Create new entry" data-i18n-aria-label="create_new" data-i18n-title="create_new">➕</a>

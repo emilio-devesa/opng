@@ -10,6 +10,10 @@ require("includes/rules.php");
 require("includes/paste_permissions.php");
 require("includes/http_input.php");
 require("includes/account_role.php");
+require("includes/error_messages.php");
+require("includes/assets.php");
+
+$asset_version = opng_asset_version();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     http_response_code(405);
@@ -26,15 +30,13 @@ $user_id = http_positive_integer($user_id);
 // Verificar y obtener el ID
 $id = http_string_parameter($_GET, 'id', 255, false);
 if ($id === null || !http_valid_entry_id($id)) {
-    header("Location: error.php?msg=" . urlencode("Invalid ID"));
-    exit;
+    opng_error_redirect('error_invalid_id');
 }
 
 // Conectar a la base de datos
 $db = db_connect();
 if (!$db) {
-    header("Location: error.php?msg=" . urlencode("Database connection error."));
-    exit;
+    opng_error_redirect('error_database_unavailable');
 }
 
 // Obtener la entrada desde la base de datos
@@ -60,13 +62,11 @@ try {
         $stmt->close();
     }
     $db->close();
-    header("Location: error.php?msg=" . urlencode("Database operation failed."));
-    exit;
+    opng_error_redirect('error_database_operation');
 }
 
 if (!$array) {
-    header("Location: error.php?msg=" . urlencode("Entry not found"));
-    exit;
+    opng_error_redirect('error_entry_not_found');
 }
 
 // Obtener y normalizar el lenguaje
@@ -75,6 +75,13 @@ $language = trim($array['language']);
 // Keep line counting constant-memory for large, newline-heavy pastes.
 $line_count = substr_count($array['text'], "\n") + 1;
 $textarea_rows = min(max($line_count, 10), 50);
+// Rendering one number per line produces ~8 MB of HTML for a newline-heavy
+// 1 MiB paste. Cap the gutter; the code itself is always shown in full.
+const OPNG_MAX_RENDERED_LINE_NUMBERS = 5000;
+$show_line_numbers = $line_count <= OPNG_MAX_RENDERED_LINE_NUMBERS;
+// Preselect the closest current language when editing a paste saved with the
+// legacy combined "Java/C/C++" value.
+$selected_language = $language === 'Java/C/C++' ? 'C++' : $language;
 
 // Permisos, separando edición (autor/admin) de borrado (admin o autor)
 $current_user_id = $user_id;
@@ -92,14 +99,12 @@ $flash_message = http_string_parameter($_GET, 'msg', 128) ?? '';
 // Pestañas de la vista: Ver / Editar / Responder
 $tab = http_string_parameter($_GET, 'tab', 5, false);
 if (array_key_exists('tab', $_GET) && $tab === null) {
-    header("Location: error.php?msg=" . urlencode("Invalid paste view."));
-    exit;
+    opng_error_redirect('error_invalid_paste');
 }
 $tab ??= 'view';
 $valid_tabs = ['view', 'edit', 'reply'];
 if (!in_array($tab, $valid_tabs, true)) {
-    header("Location: error.php?msg=" . urlencode("Invalid paste view."));
-    exit;
+    opng_error_redirect('error_invalid_paste');
 }
 if ($tab === 'edit' && !$can_edit) { $tab = 'view'; }
 
@@ -108,17 +113,22 @@ if ($tab === 'edit' || $tab === 'reply') {
     try {
         $rules = load_rules();
     } catch (RuntimeException $exception) {
-        header("Location: error.php?msg=" . urlencode("Language configuration is unavailable."));
-        exit;
+        opng_error_redirect('error_language_config');
     }
 }
 
 $highlight_language_class = match (strtolower($language)) {
     'plaintext' => 'language-plaintext',
     'bash' => 'language-bash',
+    'c' => 'language-c',
+    'c++' => 'language-cpp',
+    'java' => 'language-java',
     'pascal' => 'language-pascal',
-    'python' => 'language-python',
     'php' => 'language-php',
+    'python' => 'language-python',
+    'ruby' => 'language-ruby',
+    // Legacy value used before the combined rule was split.
+    'java/c/c++' => 'language-cpp',
     default => '',
 };
 $flash_key = match ($flash_message) {
@@ -134,6 +144,7 @@ require(__DIR__ . "/includes/layout_header.php");
     <?php if ($flash !== ""): ?>
         <p class="flash-message" role="status"<?php echo $flash_key !== '' ? ' data-i18n="' . htmlspecialchars($flash_key, ENT_QUOTES, 'UTF-8') . '"' : ''; ?>><?php echo $flash; ?></p>
     <?php endif; ?>
+    <h1 class="paste-title"><?php echo htmlspecialchars($array['topic'], ENT_QUOTES, 'UTF-8'); ?></h1>
     <nav class="tabs" aria-label="Paste actions" data-i18n-aria-label="paste_navigation">
         <a href="view.php?id=<?php echo urlencode($id); ?>&tab=view" class="tab tab-view <?php echo $tab === 'view' ? 'active' : ''; ?>" data-i18n="tab_view"<?php echo $tab === 'view' ? ' aria-current="page"' : ''; ?>>View</a>
         <?php if ($can_edit): ?>
@@ -150,10 +161,15 @@ require(__DIR__ . "/includes/layout_header.php");
                 <div><dt data-i18n="date">Date:</dt><dd><?php echo htmlspecialchars($array['date'], ENT_QUOTES, 'UTF-8'); ?></dd></div>
                 <div><dt data-i18n="id">ID:</dt><dd><?php echo htmlspecialchars($array['id'], ENT_QUOTES, 'UTF-8'); ?></dd></div>
             </dl>
-            <div class="code-view">
+            <div class="code-view<?php echo $show_line_numbers ? '' : ' no-line-numbers'; ?>">
+                <?php if ($show_line_numbers): ?>
                 <pre class="line-numbers" aria-hidden="true"><?php for ($line = 1; $line <= $line_count; $line++) { echo $line . ($line < $line_count ? "\n" : ""); } ?></pre>
+                <?php endif; ?>
                 <pre class="code-content"><code id="code-block"<?php echo $highlight_language_class !== '' ? ' class="' . htmlspecialchars($highlight_language_class, ENT_QUOTES, 'UTF-8') . '"' : ''; ?>><?php echo htmlspecialchars($array['text'], ENT_QUOTES, 'UTF-8'); ?></code></pre>
             </div>
+            <?php if (!$show_line_numbers): ?>
+            <p class="line-numbers-notice" data-i18n="line_numbers_hidden">Line numbers are hidden for very long pastes.</p>
+            <?php endif; ?>
             <div class="paste-actions">
                 <div class="copy-controls">
                     <button id="copy-button" type="button" data-i18n="copy" class="copy-button">Copy</button>
@@ -186,13 +202,17 @@ require(__DIR__ . "/includes/layout_header.php");
                 <label data-i18n="select_language:" for="edit_language">Select language:</label>
                 <select id="edit_language" name="input_language" required>
                     <?php foreach ($rules as $rule_name => $rule): ?>
-                        <option value="<?php echo htmlspecialchars($rule_name, ENT_QUOTES, 'UTF-8'); ?>" <?php echo ($rule_name === $language) ? "selected" : ""; ?>>
+                        <option value="<?php echo htmlspecialchars($rule_name, ENT_QUOTES, 'UTF-8'); ?>" <?php echo ($rule_name === $selected_language) ? "selected" : ""; ?>>
                             <?php echo htmlspecialchars($rule_name, ENT_QUOTES, 'UTF-8'); ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
                 <label for="edit_text" data-i18n="text">Enter your text here</label>
                 <textarea id="edit_text" name="input_text" maxlength="1048576" rows="<?php echo $textarea_rows; ?>" cols="80" required><?php echo htmlspecialchars($array['text'], ENT_QUOTES, 'UTF-8'); ?></textarea>
+                <div class="length-meter" data-length-meter-for="edit_text" data-max-bytes="1048576">
+                    <progress class="length-meter-bar" max="1048576" value="0" aria-label="Paste length" data-i18n-aria-label="length_meter_label"></progress>
+                    <span class="length-meter-text"><span class="length-meter-value">1.00</span> <span data-i18n="length_mb_remaining">MB remaining</span></span>
+                </div>
                 <button data-i18n="save" id="edit-save" type="submit">Save changes</button>
             </form>
         </section>
@@ -207,21 +227,28 @@ require(__DIR__ . "/includes/layout_header.php");
                 <label data-i18n="select_language:" for="input_language">Select language:</label>
                 <select id="input_language" name="input_language" required>
                     <?php foreach ($rules as $rule_name => $rule): ?>
-                        <option value="<?php echo htmlspecialchars($rule_name, ENT_QUOTES, 'UTF-8'); ?>" <?php echo ($rule_name === $language) ? "selected" : ""; ?>>
+                        <option value="<?php echo htmlspecialchars($rule_name, ENT_QUOTES, 'UTF-8'); ?>" <?php echo ($rule_name === $selected_language) ? "selected" : ""; ?>>
                             <?php echo htmlspecialchars($rule_name, ENT_QUOTES, 'UTF-8'); ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
                 <label for="reply_text" data-i18n="text">Enter your text here</label>
                 <textarea id="reply_text" name="input_text" maxlength="1048576" rows="<?php echo $textarea_rows; ?>" cols="80" required><?php echo htmlspecialchars($array['text'], ENT_QUOTES, 'UTF-8'); ?></textarea>
+                <div class="length-meter" data-length-meter-for="reply_text" data-max-bytes="1048576">
+                    <progress class="length-meter-bar" max="1048576" value="0" aria-label="Paste length" data-i18n-aria-label="length_meter_label"></progress>
+                    <span class="length-meter-text"><span class="length-meter-value">1.00</span> <span data-i18n="length_mb_remaining">MB remaining</span></span>
+                </div>
                 <button data-i18n="submit" id="submit" type="submit">Submit</button>
             </form>
         </section>
         <?php endif; ?>
     </div>
     <?php if ($tab === 'view'): ?>
-    <script src="assets/vendor/highlight.min.js?v=<?php echo filemtime(__DIR__ . '/assets/vendor/highlight.min.js'); ?>" defer></script>
-    <script src="assets/js/copy.js?v=<?php echo filemtime(__DIR__ . '/assets/js/copy.js'); ?>" defer></script>
+    <?php if ($highlight_language_class !== 'language-plaintext'): ?>
+    <script src="assets/vendor/highlight.min.js?v=<?php echo $asset_version; ?>" defer></script>
     <?php endif; ?>
+    <script src="assets/js/copy.js?v=<?php echo $asset_version; ?>" defer></script>
+    <?php endif; ?>
+    <script src="assets/js/length-meter.js?v=<?php echo $asset_version; ?>" defer></script>
 
 <?php require(__DIR__ . "/includes/layout_footer.php"); ?>

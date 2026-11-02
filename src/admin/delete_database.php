@@ -2,33 +2,15 @@
 require_once('../includes/session.php');
 session_start_secured();
 require_once('../includes/http_input.php');
-require_once('../includes/account_role.php');
+require_once('../includes/admin_guard.php');
 require_once('../database.php');
-
-$session_user_id = http_positive_integer($_SESSION['user_id'] ?? null);
-if ($session_user_id === null) {
-    header("Location: ../error.php?msg=" . urlencode("Access denied. You don't have permission to view this page."));
-    exit;
-}
+require_once("../includes/error_messages.php");
 
 $db = database_connect();
 if (!$db) {
-    header("Location: ../error.php?msg=" . urlencode("Database connection error."));
-    exit;
+    opng_error_redirect('error_database_unavailable', '../error.php');
 }
-try {
-    $current_role = refresh_account_role($db);
-} catch (mysqli_sql_exception | RuntimeException $exception) {
-    error_log('OPNG delete_database.php: ' . $exception->getMessage());
-    $db->close();
-    header("Location: ../error.php?msg=" . urlencode("Database operation failed."));
-    exit;
-}
-if ($current_role !== 'admin') {
-    $db->close();
-    header("Location: ../error.php?msg=" . urlencode("Access denied. You don't have permission to view this page."));
-    exit;
-}
+require_admin($db, 'delete_database.php');
 
 try {
     $database_result = $db->query('SELECT DATABASE() AS database_name');
@@ -43,8 +25,7 @@ try {
 } catch (mysqli_sql_exception | RuntimeException $exception) {
     error_log('OPNG delete_database.php: ' . $exception->getMessage());
     $db->close();
-    header("Location: ../error.php?msg=" . urlencode("Database operation failed."));
-    exit;
+    opng_error_redirect('error_database_operation', '../error.php');
 }
 $db->close();
 
@@ -54,9 +35,9 @@ $page_title_i18n = 'admin_delete_database';
 $base = '../';
 require(__DIR__ . '/../includes/layout_header.php');
 ?>
-    <h2 data-i18n="admin_delete_database">Delete database completely</h2>
+    <h1 data-i18n="admin_delete_database">Delete database completely</h1>
     <section class="box admin-database-warning" aria-labelledby="database-delete-warning">
-        <h3 id="database-delete-warning" data-i18n="admin_delete_database_warning">This operation is manual and irreversible.</h3>
+        <h2 id="database-delete-warning" data-i18n="admin_delete_database_warning">This operation is manual and irreversible.</h2>
         <p data-i18n="admin_delete_database_reason">The web application deliberately has no permission to drop its database. Use MAMP's database administration tool instead; do not grant DROP privileges to the runtime account.</p>
         <ol>
             <li data-i18n="admin_delete_database_step_backup">Back up the database before deleting it.</li>

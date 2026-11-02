@@ -1,6 +1,110 @@
 # Open Pastebin NG - Changelog
 ============================
 
+## Version 0.9.0 (2026)
+
+### Phase 1 — Integrity and error reporting
+#### 🧱 Data integrity
+- **Paste text is no longer trimmed on save.** `submit.php` and `update.php` now read `input_text` with `trim: false`, preserving leading indentation and trailing newlines (relevant for Python, YAML, Makefiles and copy/paste fidelity). Whitespace-only pastes are still rejected by `paste_validation_error()`.
+- Added `tests/paste_text_preservation_test.php`, which covers the `http_string_parameter()` trimming contract and asserts that both save paths opt out of trimming.
+
+#### 🧭 Error handling
+- **Error redirects now use canonical i18n keys instead of free-text messages.** Added `src/includes/error_messages.php` with the `OPNG_ERROR_KEYS` allowlist plus `opng_error_key()`, `opng_error_status()`, `opng_error_text()` and `opng_error_redirect()` helpers; replaced ~95 text-based redirects across `src/` (auth, admin, index, view, submit, update, pastebin).
+- `error.php` validates the incoming key against the allowlist, always renders a server-side English fallback from `assets/lang/en.json` (so the page still explains the problem without JavaScript) and returns the HTTP status associated with the key.
+- `paste_validation_error()` now returns canonical keys (`error_empty_text`, `error_text_too_large`, `error_topic_required`, `error_topic_too_large`); the new keys and `error_invalid_sort` were added to all six catalogs.
+- Added `tests/error_messages_test.php` to verify catalog coverage for every key, the server-side fallback, and that no legacy text-based redirect remains in `src/`.
+
+#### 🧾 Forms and UX
+- **Registration errors are shown inline** in `src/auth/register.php` instead of redirecting to `error.php`, and the form repopulates `username` and `email` (never the password) after a failed attempt.
+- **Live remaining-length meter** for create/edit/reply textareas: `src/assets/js/length-meter.js` counts UTF-8 bytes, updates a small right-aligned progress bar and switches to the danger color past the 1 MiB limit. Translations added as `length_mb_remaining` / `length_meter_label` in all six catalogs.
+
+#### 🌐 Languages
+- Split the legacy `Java/C/C++` rule into **C**, **C++** and **Java**, and added **Ruby** to `src/rules.xml`, matching the README and the bundled Highlight.js build. `view.php` maps each rule to its `language-*` class and keeps a `java/c/c++` → `language-cpp` fallback for existing pastes; edit/reply selects preselect `C++` for legacy values.
+- Updated `tools/seed.php` language distribution and snippets for C, C++, Java and Ruby.
+
+### Phase 2 — Performance and scalability
+#### ⚡ Listing and schema
+- **Removed `COALESCE()` from listing sorts.** `entries.date` is now `DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP`, `entries.topic` is `VARCHAR(255) NOT NULL` and `entries.language` is `NOT NULL`; legacy `NULL` dates become `1970-01-01 00:00:00` during the idempotent installer migration. The public listing now uses bare `date`/`topic`/`language` columns so `idx_entries_cursor`, `idx_entries_topic` and `idx_entries_language` can serve `ORDER BY` without filesort. The migration account needs `UPDATE` for the one-time backfills.
+- Extracted `build_listing_query()` so the production `WHERE`/`ORDER BY` and the query-plan test share the same SQL (M9). The performance test now refreshes statistics with `ANALYZE TABLE` after its synthetic 5,000-row load.
+
+#### 🖥️ Admin panel
+- **Dashboard metrics are cached in MySQL** (`admin_metrics_cache`, 5-minute TTL) and invalidated by entry deletion, database emptying and user-management actions.
+- Entry and user result lists now use keyset cursors (`date,id` / `created_at,id`) instead of `OFFSET`; topic search uses `MATCH ... AGAINST`, while author/username/email keep substring `LIKE` matching.
+
+#### 🎨 Rendering and assets
+- **Line numbers are capped at 5,000**; longer pastes render the full code without a gutter and show a translated notice. Highlight.js is only loaded for non-Plaintext pastes.
+- A single memoized `opng_asset_version()` now supplies the cache-busting version for CSS, JavaScript, vendor bundles and language catalogs instead of repeated `filemtime()` calls per asset.
+
+#### 🔐 Rate limiting
+- Rate-limit hits are recorded with a single `INSERT ... ON DUPLICATE KEY UPDATE` statement using `LAST_INSERT_ID(expr)`, reducing four queries to one (plus an opportunistic cleanup), with a read fallback for drivers that do not expose the expression value.
+
+### Phase 3 — Abuse resistance and operations
+#### 🔐 Authentication and abuse limits
+- **Login now uses three persistent limits** in addition to the session counter: IP+account (5/10 min), IP-wide (30/10 min) and account-wide (10/10 min). After three failed attempts in the same session, an adaptive CAPTCHA is required before another password check, reusing the local GD CAPTCHA.
+- **Guest paste creation requires the local CAPTCHA.** Authenticated accounts keep a 20/min budget while guests are limited to 5/min. Both remain keyed by the hashed client IP.
+- Added a configurable **global paste-text quota** (default 10 GiB) via `OPNG_STORAGE_QUOTA_BYTES`; the admin panel shows current usage and warns from 90%. The existing per-account 100 MiB quota is unchanged.
+- Rate-limit outcomes now distinguish **`Allowed`, `Limited` and `Unavailable`**. A database/table failure during login, registration, reset or paste creation returns HTTP 503 with the new `error_service_unavailable` key instead of claiming that the user made too many attempts.
+
+#### 🧾 Audit and administrative operations
+- Added the `audit_log` table (`actor_id`, `action`, `target`, `ip_hash`, `created_at`) and `audit_log_record()`. Entry deletion, database emptying, role changes, account deletion and backup downloads are recorded with a SHA-256 IP hash.
+- The admin panel renders the **latest 20 audit entries** and falls back gracefully when the table has not been migrated yet.
+- **Backup downloads now use a CSRF-protected POST** instead of GET, and the download itself is audited.
+- The CLI installer creates `audit_log` alongside the existing tables; `tests/database_install_test.php` checks its columns.
+
+#### 🛡️ Deployment hardening
+- The shared layout, Apache `.htaccess` and Nginx example now send `frame-ancestors 'none'` and `X-Frame-Options: DENY`.
+- Added `OPNG_FORCE_HTTPS=1`, which marks the session cookie `Secure` for TLS-terminating proxies without adding redirects.
+- Documented the Nginx `rules.xml` denial, the `src/` document-root requirement, and the new environment variables.
+
+#### 🧪 Tests
+- Added `tests/rate_limit_result_test.php`, `tests/global_quota_test.php` and `tests/audit_log_test.php`; extended session, frontend-contract and database-install coverage for forced HTTPS, frame headers, backup POST/CSRF, the audit log and the new rate-limit outcomes.
+
+### Phase 4 — Deployment robustness
+#### 🧱 Installer and schema migration
+- **Legacy `users` tables are migrated idempotently.** The CLI installer now adds missing `role`, `reset_token`, `reset_token_expires` and `created_at` columns, validates `password_hash`, the primary key and the unique `username`/`email` indexes, and stops with an actionable message when a core column cannot be migrated safely.
+- **`entries` is validated and normalized.** The installer converts the table to InnoDB and `utf8mb4_unicode_ci` when needed, adds a missing `user_id`, checks `id`, the primary key and the required columns, and prints a migration report listing every change.
+- The CI legacy fixture now omits the user role/reset columns and uses a MyISAM/latin1 `Entries` table, so the migration path is exercised end to end.
+
+#### 🛡️ Shared guards and backup limits
+- Added `src/includes/admin_guard.php` with `require_authenticated_user()` and `require_admin()`; the admin scripts now share one authorization path instead of repeating session/role checks. Owner entry deletion uses the authenticated guard.
+- Admin backups are bounded by `OPNG_BACKUP_MAX_SECONDS` (default 300) and `OPNG_BACKUP_MAX_BYTES` (default 512 MiB). The new `error_backup_limit` key explains how to raise the limits.
+
+#### 📦 Dependencies and credentials
+- `composer.json` now declares `ext-dom` and `ext-ctype`, matching the runtime requirements already documented in the README.
+- Documented that deployed installations must use a unique, non-empty runtime password, must not reuse the development example credentials, and should rotate any credential that was committed or shared.
+
+#### 🧪 Tests and docs
+- Extended `tests/database_install_test.php` and `tests/frontend_contract_test.php` for the user/entries migration, shared guards, backup limits and Composer extensions; added `error_backup_limit` to all six catalogs.
+- Updated `README.md`, `CONTRIBUTING.md` and `src/config.example.php` with the migration behavior, extension requirements, backup limits and credential guidance.
+
+### Phase 5 — UX and accessibility
+#### 🔑 Account security
+- **Added `src/auth/change_password.php`.** Signed-in accounts can rotate their password with the current password, the new password and a confirmation. The page uses CSRF validation, a persistent 5/10-minute rate limit, the shared 12–72 byte password policy, `session_regenerate_id(true)` after success and invalidates any pending reset token.
+- The account navigation now links to the change-password page for both regular users and administrators.
+
+#### ♿ Accessibility and headings
+- Added a **skip-to-content link** as the first body element and exposed `#Content` as a focusable `<main>` landmark.
+- The header now renders the site name (`title_index`) instead of duplicating the page title; each page has a single content `h1` (index, create, view topic, auth, error and admin pages) and section headings were demoted accordingly.
+- The language selector no longer overrides its translated label with a fixed `aria-label`; each option now exposes a flag plus the native language name (for example `🇬🇧 English`) and its `lang` attribute.
+- Search help is an accessible disclosure: `aria-expanded`/`aria-controls` with a click/touch toggle, outside-click dismissal and Escape support, in addition to hover/focus.
+
+#### 🧪 Tests and docs
+- Added `tests/change_password_test.php`; extended `tests/frontend_contract_test.php` (skip link, headings, language selector, search-help disclosure, change-password contracts) and `tests/input_validation_test.php` (11-byte rejection).
+- Added nine keys to all six catalogs (230 keys each) and documented the new password flow and accessibility behavior in `README.md`.
+
+### Phase 6 — Version close-out
+#### 🏷️ Versioning
+- **Centralized the application version.** `src/includes/version.php` defines `OPNG_VERSION` (currently `0.9.0`); the shared footer renders it instead of a hard-coded `v0.8`, and `README.md` points to the same constant.
+- Consolidated the five audit phase entries under a single `## Version 0.9.0 (2026)` release heading.
+
+#### 🛡️ Deployment review
+- Rechecked `src/.htaccess` and `deploy/nginx.example.conf`: both keep `frame-ancestors 'none'`, `X-Frame-Options: DENY`, the `rules.xml`/`config*.php`/`database.php` denials and the `src/` document-root guidance, while the session cookie honours `OPNG_FORCE_HTTPS=1` without redirects.
+
+#### 🎨 Theme and header controls
+- Header chips (home, theme, language, account and logout) now use dedicated `--control-*` tokens: light mode gets a white surface, a stronger border and a subtle shadow instead of blending into the page, while dark mode keeps its existing surfaces.
+- Replaced the native language-select arrow with a centered custom triangle and removed the browser's default select chrome, so the flag and language name stay aligned.
+- Search and "create entry" actions now use `--action-*` tokens: a tonal light chip in light mode and the filled accent in dark mode, making the theme switch visibly change their appearance.
+
 ## Version 0.8 (2026)
 ### 🛠️ Administration and database recovery
 - Reorganized the admin panel around entry management, user management and database actions; added parameterized search with ID selection, role updates, and guarded account deletion with a choice to anonymize or delete associated pastes.

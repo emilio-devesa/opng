@@ -7,6 +7,8 @@ Open Pastebin NG is **free software** released under the **[GNU GPL license](LIC
 
 ⚠️ **This software is in BETA stage**, wich means it is still under development. Use it at your own risk.
 
+**Current version:** `0.9.0` (see [`src/includes/version.php`](src/includes/version.php) and [`CHANGELOG.md`](CHANGELOG.md)).
+
 ---
 
 ## ✨ Features
@@ -18,7 +20,10 @@ Open Pastebin NG is **free software** released under the **[GNU GPL license](LIC
 - 📱 Responsive layout (mobile-friendly tables, `prefers-reduced-motion` support)
 - 🔓 Secure authentication system for administrative actions and role-based access control
 - 👤 User management: **Admin**, **Registered User**, and **Guest**  
-- 🛡️ CSRF protection for sensitive actions
+- 🔑 Self-service password change for signed-in accounts (current + new password, CSRF and rate limiting)
+- ♿ Skip-to-content link, single page headings, flag + language-name options and a touch-accessible search-help disclosure
+- 🛡️ CSRF protection for sensitive actions, adaptive login CAPTCHA, guest CAPTCHA and persisted rate limits
+- 🧾 Administrative audit log for destructive actions and backup downloads
 - 📂 Entries are stored in a **MySQL database**
 
 ### Local syntax-highlighting asset
@@ -52,7 +57,7 @@ The shared interface uses a strict same-origin Content Security Policy. Keep scr
 To run Open Pastebin NG, you need:
 
 - **PHP 8.2.35**, **8.3.36**, **8.4.27** or **8.5.12** or later within that major/minor branch. These are the minimum patched versions currently enforced by `composer.json`; keep the runtime on the latest patch of a supported branch.
-- **PHP extensions:** `mysqli` (database) and `gd` (CAPTCHA image)
+- **PHP extensions:** `mysqli` (database), `gd` (CAPTCHA image), `dom` (`rules.xml` parsing) and `ctype` (input validation)
 - **MySQL 5.7** or MariaDB
 - A web server (**Apache, Nginx or similar**)
 
@@ -102,8 +107,10 @@ CREATE DATABASE opng CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER 'opng_runtime'@'localhost' IDENTIFIED BY 'REPLACE_WITH_RUNTIME_SECRET';
 GRANT SELECT, INSERT, UPDATE, DELETE ON opng.* TO 'opng_runtime'@'localhost';
 CREATE USER 'opng_migrator'@'localhost' IDENTIFIED BY 'REPLACE_WITH_MIGRATION_SECRET';
-GRANT SELECT, INSERT, CREATE, ALTER, INDEX, DROP ON opng.* TO 'opng_migrator'@'localhost';
+GRANT SELECT, INSERT, UPDATE, CREATE, ALTER, INDEX, DROP ON opng.* TO 'opng_migrator'@'localhost';
 ```
+
+The `UPDATE` privilege is needed only for one-time backfills of legacy `NULL` dates/topics during an upgrade.
 
 The **runtime** account is for normal web requests and has DML access only. The **migration** account is used only from the CLI to install/upgrade schema; revoke or drop it after use. The installer does not create or drop databases.
 
@@ -116,20 +123,20 @@ OPNG_INSTALL_DB_PASS='your-migration-secret' \
 php src/install.php
 ```
 
-The CLI installer creates lowercase `users`, `entries` and `rate_limits` tables and the listing, cursor, owner and FULLTEXT topic indexes. It safely renames the legacy `Users`/`Entries` names only when the lowercase destination does not exist; ambiguous case variants stop the migration without deleting data. Existing `entries.text` is widened to `MEDIUMTEXT` for 1 MiB pastes. Re-run it with the migration account after schema upgrades; index creation is idempotent. Back up the database before schema migrations. Remove `install.php` from a public document root after installation even though it refuses web execution.
+The CLI installer creates lowercase `users`, `entries`, `rate_limits`, `admin_metrics_cache` and `audit_log` tables and the listing, cursor, owner, topic and language indexes plus the FULLTEXT topic index. It safely renames the legacy `Users`/`Entries` names only when the lowercase destination does not exist; ambiguous case variants stop the migration without deleting data. Existing `entries.text` is widened to `MEDIUMTEXT` for 1 MiB pastes, legacy `NULL` dates become `1970-01-01 00:00:00` so `date` can be `NOT NULL`, and `topic`/`language` become `NOT NULL` (`topic` as `VARCHAR(255)`) so the date, topic and language sorts can use their indexes. Re-run it with the migration account after schema upgrades; index creation is idempotent. Back up the database before schema migrations. Remove `install.php` from a public document root after installation even though it refuses web execution.
 
 4️⃣ **Enforce input and request limits**
 
-Paste text is limited to **1 MiB (1,048,576 bytes)** and topics to **255 bytes**. The server validates both limits on create and edit; the Nginx example allows a 4 MiB request body to account for form encoding. Configure PHP `post_max_size` to at least `4M` (and any reverse proxy/body limit accordingly). Normal accounts have a **100 MiB cumulative text quota** across owned pastes and replies; admins and anonymous pastes are exempt. Existing content is never removed by the quota. Accounts already over the limit may edit only without increasing their stored bytes. New and reset passwords must be 12–72 bytes; existing passwords remain valid for login.
+Paste text is limited to **1 MiB (1,048,576 bytes)** and topics to **255 bytes**. The server validates both limits on create and edit; the editors display the remaining byte budget live (UTF-8 bytes, matching the server check). The Nginx example allows a 4 MiB request body to account for form encoding. Configure PHP `post_max_size` to at least `4M` (and any reverse proxy/body limit accordingly). Normal accounts have a **100 MiB cumulative text quota** across owned pastes and replies; admins and anonymous pastes are exempt. A separate **global paste-text quota** (default **10 GiB**) caps the whole instance; override it with `OPNG_STORAGE_QUOTA_BYTES`. Anonymous guests must solve the local CAPTCHA before creating a paste. Existing content is never removed by either quota. Accounts already over the limit may edit only without increasing their stored bytes. New and reset passwords must be 12–72 bytes; existing passwords remain valid for login.
 
 The topic search uses a MySQL/MariaDB FULLTEXT index and requires all entered words; word-prefix matches are supported. It does not perform arbitrary substring matching. The database's minimum token length and stopword settings apply, so short words or stopwords may not match. The listing uses stable keyset cursors rather than page numbers and avoids a total-row count on each request. Translation catalogs use versioned URLs and browser caching.
 
 > Since v0.8 there is no automatic migration on every request. A missing database now returns a connection error instead of being auto-created.
 
 5️⃣ **Run the application**
-- If using **Apache**, place the project in `htdocs` or configure a virtual host. The shipped `src/.htaccess` blocks direct access to `config.php`/`database.php`/`rules.xml` and the `includes/` directory, disables directory listings, adds security headers including a strict same-origin CSP, and disables `session.upload_progress`.
-- If using **Nginx**, start from [`deploy/nginx.example.conf`](deploy/nginx.example.conf). It redirects HTTP to HTTPS, blocks the installer and internal files, denies `includes/`, sets security headers including a strict same-origin CSP, and disables CAPTCHA caching. Configure valid certificates before enabling the TLS server block.
-- The example Nginx configuration terminates TLS directly and sets PHP's HTTPS state explicitly. If a trusted reverse proxy terminates TLS, configure the backend so that only the proxy can set the HTTPS state; do not trust arbitrary client-supplied `X-Forwarded-Proto`.
+- If using **Apache**, place the project in `htdocs` or configure a virtual host. The shipped `src/.htaccess` blocks direct access to `config.php`/`database.php`/`rules.xml` and the `includes/` directory, disables directory listings, adds security headers including a strict same-origin CSP with `frame-ancestors 'none'` and `X-Frame-Options: DENY`, and disables `session.upload_progress`.
+- If using **Nginx**, start from [`deploy/nginx.example.conf`](deploy/nginx.example.conf). It redirects HTTP to HTTPS, blocks the installer and internal files (including `rules.xml`), denies `includes/`, sets security headers including a strict same-origin CSP with `frame-ancestors 'none'` and `X-Frame-Options: DENY`, and disables CAPTCHA caching. Configure valid certificates before enabling the TLS server block.
+- The example Nginx configuration terminates TLS directly and sets PHP's HTTPS state explicitly. If a trusted reverse proxy terminates TLS, configure the backend so that only the proxy can set the HTTPS state; do not trust arbitrary client-supplied `X-Forwarded-Proto`. If the proxy does not expose HTTPS to PHP, set `OPNG_FORCE_HTTPS=1`; this marks the session cookie `Secure` without adding redirects.
 - Enable HSTS only after confirming HTTPS works across the entire hostname for the chosen max-age.
 - **Use `src/` as the document root**, not the repository root, so `tools/`, `README.md` and `.git/` are never reachable over HTTP.
 - Open `http://localhost/` for local development or `https://your-host/` in a TLS deployment.
@@ -137,10 +144,10 @@ The topic search uses a MySQL/MariaDB FULLTEXT index and requires all entered wo
 ### ✅ Production deployment checklist
 
 - [ ] Use a PHP patch level at or above the Composer requirement and check the version/extensions used by the actual HTTP SAPI (`php-fpm -v` or the server's PHP module), not only the CLI.
-- [ ] Install a valid TLS certificate, redirect HTTP to HTTPS, verify secure session cookies, and trust forwarded-protocol headers only from a controlled reverse proxy. Enable HSTS only after HTTPS is confirmed throughout the hostname.
+- [ ] Install a valid TLS certificate, redirect HTTP to HTTPS, verify secure session cookies, and trust forwarded-protocol headers only from a controlled reverse proxy. Enable HSTS only after HTTPS is confirmed throughout the hostname. If TLS terminates at a proxy that does not expose HTTPS to PHP, set `OPNG_FORCE_HTTPS=1` so the session cookie is marked `Secure`.
 - [ ] Set the document root to `src/`; keep the repository root and `tools/` outside HTTP reach. Because `src/config.php` is inside the document root, verify the web server denies direct access to it and other internal files, as well as `install.php`.
 - [ ] Use a dedicated runtime database account with only `SELECT`, `INSERT`, `UPDATE` and `DELETE`. Run schema upgrades from the CLI with the separate migration account, back up first, then revoke or remove migration credentials.
-- [ ] Keep `src/config.php` and database credentials out of version control and HTTP access. Set `post_max_size` and proxy request limits to at least `4M`.
+- [ ] Keep `src/config.php` and database credentials out of version control and HTTP access. Use a unique, non-empty runtime password and rotate it if it was ever committed or shared; do not reuse the example development credentials. Set `post_max_size` and proxy request limits to at least `4M`. Set `OPNG_STORAGE_QUOTA_BYTES` to a global paste-text limit that fits the database volume (default 10 GiB); the admin panel warns when it is nearly full.
 - [ ] Configure private server/application logs, confirm visitors receive generic errors, and ensure the log path is writable only by the service account and administrators.
 - [ ] After installation or upgrade, verify the expected schema/indexes, create and view a test paste, search and paginate, and confirm the HTTP error log has no database/configuration leaks.
 - [ ] Test a database backup restore before relying on the deployment; a backup that has never been restored is not a verified recovery plan.
@@ -150,10 +157,11 @@ The topic search uses a MySQL/MariaDB FULLTEXT index and requires all entered wo
 ## 📌 Usage
 From the homepage you can:
 
-- 📝 **Create a new paste**: Enter your text or code, select a language and submit.
-- 🔍 **View, edit and reply to a paste**: Click on the topic you want to view. The view page uses tabs — **View** (code), **Edit** (author or admin only) and **Reply** (creates a new paste). Includes syntax highlighting, line numbers and one-click copy.
-- 🛠️ **Manage the application (Admin panel)**: Log in to `admin/admin.php` to search entries and users, remove entries, change user roles, delete accounts, and review paste/user totals, language distribution, the five most active users, and stored paste-text bytes. When deleting an account, choose whether to preserve its pastes as anonymous or delete them too.
-- 💾 **Download a database backup**: Administrators can download a SQL backup from the database actions panel. It contains account password hashes and password-reset tokens, so store it securely. Importing the backup drops and recreates its listed tables; test restoration only against a disposable database.
+- 📝 **Create a new paste**: Enter your text or code, select a language and submit. The create, edit and reply editors show a small remaining-length meter (MB and progress bar) below the textarea.
+- 🔍 **View, edit and reply to a paste**: Click on the topic you want to view. The view page uses tabs — **View** (code), **Edit** (author or admin only) and **Reply** (creates a new paste). Includes syntax highlighting, line numbers (hidden with a notice above 5,000 lines so huge pastes stay light) and one-click copy.
+- 🔑 **Change your password**: Signed-in accounts can open the key icon in the header (`auth/change_password.php`), enter the current password plus the new one twice, and rotate it without an administrator. The action is CSRF-protected and rate-limited, applies the 12–72 byte policy, invalidates pending reset tokens and regenerates the session ID.
+- 🛠️ **Manage the application (Admin panel)**: Log in to `admin/admin.php` to search entries and users, remove entries, change user roles, delete accounts, and review paste/user totals, language distribution, the five most active users, stored paste-text bytes, and the global storage quota. Dashboard aggregates are cached in MySQL for five minutes and invalidated by destructive admin actions. Entry and user result lists page with keyset cursors; entry topic search uses the FULLTEXT index, while author/username/email search keeps substring matching. The panel also shows the latest 20 audit-log entries for entry deletion, database emptying, role changes, account deletion and backup downloads. When deleting an account, choose whether to preserve its pastes as anonymous or delete them too.
+- 💾 **Download a database backup**: Administrators can download a SQL backup from the database actions panel. The button submits a CSRF-protected POST and records the download in the audit log. The dump is bounded to **300 seconds** and **512 MiB** by default; raise `OPNG_BACKUP_MAX_SECONDS` or `OPNG_BACKUP_MAX_BYTES` for larger databases. The file contains account password hashes and password-reset tokens, so store it securely. Importing the backup drops and recreates its listed tables; test restoration only against a disposable database.
 - ⚠️ **Delete the database**: This remains a manual operation in MAMP's database administration tool. The web runtime account intentionally has no `DROP` permission, and the admin panel only provides the guarded instructions.
 
 For security reasons, access to **admin features** is restricted to administrators.
@@ -202,7 +210,7 @@ For security reasons, access to **admin features** is restricted to administrato
 
 - **MySQL integration tests** — the installation and query-plan tests write temporary rows (the plan test inserts 5,000 fixtures) and require a disposable database. CI creates an isolated schema and explicitly opts in; do not run these tests against the live MAMP database.
 
-- **Rate limiting** — persisted in the `rate_limits` table (created by `install.php`) and keyed by a SHA-256 hash of IP (and IP+account for login). Limits: login 5/10 min, paste creation 5/min, registration and password-reset requests 5/hour.
+- **Rate limiting** — persisted in the `rate_limits` table (created by `install.php`) and keyed by a SHA-256 hash of IP, account or both. Login uses three limits (IP+account 5/10 min, IP-wide 30/10 min, account-wide 10/10 min) and shows an adaptive CAPTCHA after three session failures. Paste creation allows 20/min for authenticated users and 5/min for guests, who must also solve the CAPTCHA. Registration and password-reset requests remain at 5/hour. A database failure while checking a limit returns HTTP 503 instead of pretending the limit was reached.
 
 - **Password reset** — real password-reset email delivery is not configured, so public reset requests are disabled by default. For local development only, set `OPNG_DEV_RESET=1` in the PHP process environment. The simulation also requires the request to come from `127.0.0.1` or `::1` with a `localhost`/loopback Host; it shows a one-time reset link as a simulated email, never a password. Do not set this flag in a shared or production environment. Reset tokens are stored as SHA-256 hashes, expire after 10 minutes, and are consumed once.
 

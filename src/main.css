@@ -27,6 +27,22 @@
     --muted: #5b6b85;
     --border: #e2e8f2;
 
+    /* Controles del header: en modo claro necesitan un borde y una
+       superficie propios para no fundirse con el fondo. */
+    --control-bg: #ffffff;
+    --control-bg-hover: #f1f5fc;
+    --control-border: #a9bad3;
+    --control-shadow: 0 1px 2px rgba(23, 40, 76, 0.1);
+
+    /* Acciones primarias (buscar, crear): chip tonal claro en modo claro
+       y relleno de acento en modo oscuro, para que el cambio de tema sea
+       visible y el contraste se mantenga. */
+    --action-bg: #e0e7ff;
+    --action-bg-hover: var(--accent);
+    --action-text: #3730a3;
+    --action-text-hover: #ffffff;
+    --action-border: #a5b4fc;
+
     --accent: #4f46e5;
     --accent-strong: #4338ca;
     --accent-soft: rgba(79, 70, 229, 0.08);
@@ -54,6 +70,17 @@ body.dark-mode {
     --text: #e8edf7;
     --muted: #99a7bf;
     --border: #24314a;
+
+    --control-bg: #182238;
+    --control-bg-hover: #1e2a44;
+    --control-border: #31415e;
+    --control-shadow: none;
+
+    --action-bg: var(--accent);
+    --action-bg-hover: var(--accent-strong);
+    --action-text: #ffffff;
+    --action-text-hover: #ffffff;
+    --action-border: transparent;
 
     --accent: #818cf8;
     --accent-strong: #6366f1;
@@ -358,7 +385,8 @@ form.search-form button {
 }
 
 .search-help-trigger:hover ~ .search-help-tooltip,
-.search-help-trigger:focus-visible ~ .search-help-tooltip {
+.search-help-trigger:focus-visible ~ .search-help-tooltip,
+.search-help-tooltip.is-open {
     visibility: visible;
     opacity: 1;
 }
@@ -452,6 +480,17 @@ form.search-form button {
     color: var(--code-muted);
     text-align: right;
     user-select: none;
+}
+
+.code-view.no-line-numbers {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.line-numbers-notice {
+    margin: 0.35rem 0 0;
+    color: var(--muted);
+    font-size: 0.8rem;
+    text-align: right;
 }
 
 /* ========================= */
@@ -795,6 +834,68 @@ textarea[name="input_text"] {
     font-size: 0.875rem;
 }
 
+.form-error {
+    margin: 0 0 1rem;
+    padding: 0.75rem 0.9rem;
+    border: 1px solid var(--danger);
+    border-radius: 10px;
+    background: var(--danger-soft);
+    color: var(--danger);
+    font-weight: 600;
+}
+
+/* Remaining paste length: small, right-aligned, below the textarea. */
+.length-meter {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.35rem;
+    color: var(--muted);
+    font-size: 0.78rem;
+    line-height: 1.2;
+}
+
+.length-meter-bar {
+    width: 120px;
+    height: 6px;
+    appearance: none;
+    -webkit-appearance: none;
+    border: 0;
+    border-radius: 999px;
+    background: var(--surface-2);
+    overflow: hidden;
+}
+
+.length-meter-bar::-webkit-progress-bar {
+    background: var(--surface-2);
+    border-radius: 999px;
+}
+
+.length-meter-bar::-webkit-progress-value {
+    background: var(--accent);
+    border-radius: 999px;
+    transition: width 0.15s ease;
+}
+
+.length-meter-bar::-moz-progress-bar {
+    background: var(--accent);
+    border-radius: 999px;
+}
+
+.length-meter.over-limit {
+    color: var(--danger);
+    font-weight: 600;
+}
+
+.length-meter.over-limit .length-meter-bar::-webkit-progress-value {
+    background: var(--danger);
+}
+
+.length-meter.over-limit .length-meter-bar::-moz-progress-bar {
+    background: var(--danger);
+}
+
 .visually-hidden {
     position: absolute;
     width: 1px;
@@ -805,6 +906,26 @@ textarea[name="input_text"] {
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
     border: 0;
+}
+
+.skip-link {
+    position: fixed;
+    top: 0;
+    left: 1rem;
+    z-index: 1000;
+    padding: 0.75rem 1rem;
+    border-radius: 0 0 10px 10px;
+    background: var(--accent);
+    color: #ffffff;
+    font-weight: 700;
+    text-decoration: none;
+    transform: translateY(-120%);
+    transition: transform 0.15s ease;
+}
+
+.skip-link:focus,
+.skip-link:focus-visible {
+    transform: translateY(0);
 }
 
 /* ========================= */
@@ -1111,7 +1232,7 @@ legend {
     background: var(--surface-2);
 }
 
-.admin-metric-card h3 {
+.admin-metric-card h2 {
     margin: 0 0 0.35rem;
     color: var(--muted);
     font-size: 0.9rem;
@@ -1266,20 +1387,64 @@ legend {
     min-height: 2.75rem;
     padding: 0.35rem;
     border-radius: 999px;
+    background: var(--control-bg);
+    color: var(--text);
+    border: 1px solid var(--control-border);
+    box-shadow: var(--control-shadow);
+}
+
+#theme-toggle:hover {
+    background: var(--control-bg-hover);
+    color: var(--accent);
+    border-color: var(--accent-ring);
+}
+
+.language-select-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+
+.language-select-wrap::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    right: 0.8rem;
+    width: 0;
+    height: 0;
+    border-left: 0.3rem solid transparent;
+    border-right: 0.3rem solid transparent;
+    border-top: 0.36rem solid var(--muted);
+    transform: translateY(-50%);
+    pointer-events: none;
 }
 
 #language-selector {
     width: auto;
     min-width: 3.25rem;
+    max-width: 9rem;
     min-height: 2.75rem;
-    padding: 0.35rem 0.55rem;
+    padding: 0.35rem 1.85rem 0.35rem 0.7rem;
     border-radius: 999px;
-    border: 1px solid var(--border);
-    background: var(--surface);
+    border: 1px solid var(--control-border);
+    background: var(--control-bg);
     color: var(--text);
+    box-shadow: var(--control-shadow);
     font: inherit;
     font-weight: 600;
     cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+#language-selector:hover {
+    background: var(--control-bg-hover);
+    border-color: var(--accent-ring);
+}
+
+#language-selector:focus-visible {
+    outline: 3px solid var(--accent-ring);
+    outline-offset: 2px;
 }
 
 /* ========================= */
@@ -1334,14 +1499,17 @@ legend {
     height: 2.75rem;
     padding: 0.35rem;
     border-radius: 999px;
-    background: var(--surface-2);
+    background: var(--control-bg);
     color: var(--text);
+    border: 1px solid var(--control-border);
+    box-shadow: var(--control-shadow);
     font-size: 1rem;
 }
 
 #SiteHeader .header-nav .logout-form button:hover {
-    background: var(--accent-soft);
+    background: var(--control-bg-hover);
     color: var(--accent);
+    border-color: var(--accent-ring);
 }
 
 #SiteHeader .header-nav a {
@@ -1352,16 +1520,19 @@ legend {
     height: 2.75rem;
     padding: 0.35rem;
     border-radius: 999px;
-    background: var(--surface-2);
+    background: var(--control-bg);
     color: var(--text);
+    border: 1px solid var(--control-border);
+    box-shadow: var(--control-shadow);
     font-weight: 600;
     font-size: 0.9rem;
     text-decoration: none;
 }
 
 #SiteHeader .header-nav a:hover {
-    background: var(--accent-soft);
+    background: var(--control-bg-hover);
     color: var(--accent);
+    border-color: var(--accent-ring);
     text-decoration: none;
 }
 
@@ -1373,15 +1544,18 @@ legend {
     height: 2.75rem;
     padding: 0.35rem;
     border-radius: 999px;
-    background: var(--surface-2);
+    background: var(--control-bg);
     color: var(--text);
+    border: 1px solid var(--control-border);
+    box-shadow: var(--control-shadow);
     font-size: 1rem;
     text-decoration: none;
 }
 
 #SiteHeader .header-home:hover {
-    background: var(--accent-soft);
+    background: var(--control-bg-hover);
     color: var(--accent);
+    border-color: var(--accent-ring);
     text-decoration: none;
 }
 
@@ -1395,10 +1569,32 @@ legend {
     max-width: 100%;
 }
 
+#SiteHeader .header-search .search-input-wrap input[type="text"] {
+    background: var(--control-bg);
+    border: 1px solid var(--control-border);
+    box-shadow: var(--control-shadow);
+}
+
+#SiteHeader .header-search .search-input-wrap input[type="text"]:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
 #SiteHeader .header-search button {
     min-width: 2.75rem;
     min-height: 2.75rem;
     padding: 0.35rem;
+}
+
+#SiteHeader .header-search button[type="submit"] {
+    background: var(--action-bg);
+    color: var(--action-text);
+    border: 1px solid var(--action-border);
+}
+
+#SiteHeader .header-search button[type="submit"]:hover {
+    background: var(--action-bg-hover);
+    color: var(--action-text-hover);
 }
 
 #SiteHeader .header-search .search-clear {
@@ -1418,8 +1614,9 @@ legend {
     flex: 0 0 auto;
     margin: 0;
     padding: 0.35rem;
-    background: var(--accent);
-    color: #ffffff;
+    background: var(--action-bg);
+    color: var(--action-text);
+    border: 1px solid var(--action-border);
     border-radius: 10px;
     font-weight: 600;
     font-size: 1.25rem;
@@ -1427,8 +1624,9 @@ legend {
 }
 
 .create-link:hover {
-    background: var(--accent-strong);
-    color: #ffffff;
+    background: var(--action-bg-hover);
+    color: var(--action-text-hover);
+    border-color: var(--action-border);
     text-decoration: none;
 }
 

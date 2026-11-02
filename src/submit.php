@@ -9,6 +9,7 @@ require("includes/ratelimit.php");
 require("includes/paste_validation.php");
 require("includes/user_quota.php");
 require("includes/http_input.php");
+require("includes/error_messages.php");
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -17,60 +18,89 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 if (!csrf_valid($_POST['csrf_token'] ?? null)) {
-    header("Location: error.php?msg=" . urlencode("Error: invalid CSRF token."));
-    exit;
+    opng_error_redirect('error_csrf');
 }
 
-$text = http_string_parameter($_POST, 'input_text', OPNG_MAX_PASTE_BYTES + 1);
+// Preserve leading/trailing whitespace exactly as pasted (indentation and the
+// final newline are meaningful in source code). Empty input is still rejected
+// by paste_validation_error(), which trims only for the emptiness check.
+$text = http_string_parameter($_POST, 'input_text', OPNG_MAX_PASTE_BYTES + 1, false);
 $topic = http_string_parameter($_POST, 'input_topic', OPNG_MAX_TOPIC_BYTES + 1);
 $language = http_string_parameter($_POST, 'input_language', 255);
 if ($text === null || $topic === null || $language === null) {
-    header("Location: error.php?msg=" . urlencode("Invalid paste data."));
-    exit;
+    opng_error_redirect('error_invalid_paste');
 }
 
 $validation_error = paste_validation_error($text, $topic);
 if ($validation_error !== null || $language === '') {
-    $message = $validation_error ?? "The language is required.";
-    header("Location: error.php?msg=" . urlencode($message));
-    exit;
+    opng_error_redirect($validation_error ?? 'error_language_required');
 }
 
 try {
     $rules = load_rules();
 } catch (RuntimeException $exception) {
-    header("Location: error.php?msg=" . urlencode("Language configuration is unavailable."));
-    exit;
+    opng_error_redirect('error_language_config');
 }
 if (!isset($rules[$language])) {
-    header("Location: error.php?msg=" . urlencode("Invalid language."));
-    exit;
+    opng_error_redirect('error_invalid_language');
+}
+
+$user_id = $_SESSION['user_id'] ?? null;
+if ($user_id !== null) {
+    $user_id = http_positive_integer($user_id);
+    if ($user_id === null) {
+        opng_error_redirect('error_auth_unavailable');
+    }
+}
+
+// Guests must solve the local CAPTCHA before creating an anonymous paste.
+if ($user_id === null) {
+    $captcha_answer = http_string_parameter($_POST, 'captcha_answer', 5);
+    $captcha_code = $_SESSION['captcha'] ?? null;
+    if (
+        $captcha_answer === null
+        || !is_string($captcha_code)
+        || !hash_equals($captcha_code, strtoupper($captcha_answer))
+    ) {
+        unset($_SESSION['captcha']);
+        opng_error_redirect('captcha_incorrect');
+    }
+    unset($_SESSION['captcha']);
 }
 
 // Conectar a la base de datos
 $db = db_connect();
 if (!$db) {
-    header("Location: error.php?msg=" . urlencode("Error: No se pudo conectar a la base de datos."));
-    exit;
+    opng_error_redirect('error_database_unavailable');
 }
 
 try {
-    if (!rate_limit_hit($db, 'submit', client_ip(), 5, 60)) {
+    // Authenticated accounts get a larger budget than anonymous guests.
+    $rate_limit_action = $user_id === null ? 'submit_guest' : 'submit_user';
+    $rate_limit_max = $user_id === null ? 5 : 20;
+    $limit_result = rate_limit_hit($db, $rate_limit_action, client_ip(), $rate_limit_max, 60);
+    if ($limit_result === RateLimitResult::Unavailable) {
         $db->close();
-        header("Location: error.php?msg=" . urlencode("Too many pastes created or the service is temporarily unavailable."));
-        exit;
+        opng_error_redirect('error_service_unavailable');
+    }
+    if ($limit_result === RateLimitResult::Limited) {
+        $db->close();
+        opng_error_redirect('error_paste_rate_limit');
+    }
+
+    // Global soft cap for all paste text, configurable with
+    // OPNG_STORAGE_QUOTA_BYTES (default 10 GiB).
+    $global_used = global_storage_usage($db);
+    if ($global_used === null) {
+        $db->close();
+        opng_error_redirect('error_database_operation');
+    }
+    if (!global_quota_allows($global_used, strlen($text))) {
+        $db->close();
+        opng_error_redirect('error_global_storage_quota');
     }
 
     $id = bin2hex(random_bytes(8));
-    $user_id = $_SESSION['user_id'] ?? null;
-    if ($user_id !== null) {
-        $user_id = http_positive_integer($user_id);
-        if ($user_id === null) {
-            $db->close();
-            header("Location: error.php?msg=" . urlencode("Authentication service is temporarily unavailable."));
-            exit;
-        }
-    }
     $transaction_started = false;
     if ($user_id !== null) {
         $db->begin_transaction();
@@ -80,14 +110,12 @@ try {
             error_log('OPNG submit.php: authenticated account was not found while checking storage quota');
             $db->rollback();
             $db->close();
-            header("Location: error.php?msg=" . urlencode("Database operation failed."));
-            exit;
+            opng_error_redirect('error_database_operation');
         }
         if (!user_quota_allows($usage, 0, strlen($text))) {
             $db->rollback();
             $db->close();
-            header("Location: error.php?msg=" . urlencode("Your account storage limit of 100 MiB has been reached."));
-            exit;
+            opng_error_redirect('error_storage_quota');
         }
     }
 
@@ -106,8 +134,7 @@ try {
             $db->rollback();
         }
         $db->close();
-        header("Location: error.php?msg=" . urlencode("Error saving the paste."));
-        exit;
+        opng_error_redirect('error_save_paste');
     }
     $stmt->close();
     $stmt = null;
@@ -115,8 +142,7 @@ try {
         error_log("OPNG submit.php: failed to commit the paste transaction");
         $db->rollback();
         $db->close();
-        header("Location: error.php?msg=" . urlencode("Error saving the paste."));
-        exit;
+        opng_error_redirect('error_save_paste');
     }
     $db->close();
 } catch (mysqli_sql_exception $exception) {
@@ -128,8 +154,7 @@ try {
         $db->rollback();
     }
     $db->close();
-    header("Location: error.php?msg=" . urlencode("Error saving the paste."));
-    exit;
+    opng_error_redirect('error_save_paste');
 }
 
 header("Location: index.php?msg=" . urlencode("Paste created successfully"));

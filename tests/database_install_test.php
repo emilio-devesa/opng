@@ -28,10 +28,92 @@ while ($row = $result->fetch_assoc()) {
 }
 $result->free();
 sort($table_names);
-if ($table_names !== ['entries', 'rate_limits', 'users']) {
+if ($table_names !== ['admin_metrics_cache', 'audit_log', 'entries', 'rate_limits', 'users']) {
     throw new RuntimeException('The installer did not leave exactly the lowercase application tables.');
 }
 echo "PASS: application tables use lowercase names on a case-sensitive server\n";
+
+$audit_columns = [];
+$audit_result = $db->query(
+    "SELECT COLUMN_NAME
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'audit_log'"
+);
+while ($audit_row = $audit_result->fetch_assoc()) {
+    $audit_columns[] = $audit_row['COLUMN_NAME'];
+}
+$audit_result->free();
+sort($audit_columns);
+if ($audit_columns !== ['action', 'actor_id', 'created_at', 'id', 'ip_hash', 'target']) {
+    throw new RuntimeException('The audit_log table does not expose the expected columns.');
+}
+echo "PASS: audit_log table has the expected columns\n";
+
+$user_columns = [];
+$user_result = $db->query(
+    "SELECT COLUMN_NAME
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'users'"
+);
+while ($user_row = $user_result->fetch_assoc()) {
+    $user_columns[] = strtolower($user_row['COLUMN_NAME']);
+}
+$user_result->free();
+sort($user_columns);
+$expected_user_columns = [
+    'created_at',
+    'email',
+    'id',
+    'password_hash',
+    'reset_token',
+    'reset_token_expires',
+    'role',
+    'username',
+];
+if ($user_columns !== $expected_user_columns) {
+    throw new RuntimeException('The installer did not add the legacy users role/reset columns.');
+}
+echo "PASS: legacy users columns were added idempotently\n";
+
+$unique_columns = [];
+$index_result = $db->query(
+    "SELECT INDEX_NAME, COLUMN_NAME
+     FROM information_schema.STATISTICS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'users'
+       AND NON_UNIQUE = 0
+     ORDER BY INDEX_NAME, SEQ_IN_INDEX"
+);
+$index_columns = [];
+while ($index_row = $index_result->fetch_assoc()) {
+    $index_columns[$index_row['INDEX_NAME']][] = strtolower($index_row['COLUMN_NAME']);
+}
+$index_result->free();
+foreach ($index_columns as $columns) {
+    if (count($columns) === 1) {
+        $unique_columns[] = $columns[0];
+    }
+}
+if (!in_array('username', $unique_columns, true) || !in_array('email', $unique_columns, true)) {
+    throw new RuntimeException('The users unique username/email indexes are missing.');
+}
+echo "PASS: users unique username/email indexes are present\n";
+
+$entries_meta = $db->query(
+    "SELECT ENGINE, TABLE_COLLATION
+     FROM information_schema.TABLES
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'entries'"
+)->fetch_assoc();
+if (
+    $entries_meta === null
+    || $entries_meta['ENGINE'] !== 'InnoDB'
+    || $entries_meta['TABLE_COLLATION'] !== 'utf8mb4_unicode_ci'
+) {
+    throw new RuntimeException('The installer did not convert entries to InnoDB/utf8mb4_unicode_ci.');
+}
+echo "PASS: entries uses InnoDB and utf8mb4_unicode_ci\n";
 
 $entry = $db->query("SELECT id, text FROM entries WHERE id = 'legacy'")->fetch_assoc();
 if ($entry === null || $entry['text'] !== 'legacy text') {
@@ -49,6 +131,52 @@ if ($column === null || $column['DATA_TYPE'] !== 'mediumtext') {
     throw new RuntimeException('The entries.text column was not widened to MEDIUMTEXT.');
 }
 
+$date_column = $db->query(
+    "SELECT DATA_TYPE, IS_NULLABLE
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'entries'
+       AND COLUMN_NAME = 'date'"
+)->fetch_assoc();
+if (
+    $date_column === null
+    || $date_column['DATA_TYPE'] !== 'datetime'
+    || $date_column['IS_NULLABLE'] !== 'NO'
+) {
+    throw new RuntimeException('entries.date was not migrated to NOT NULL DATETIME.');
+}
+
+$topic_column = $db->query(
+    "SELECT DATA_TYPE, IS_NULLABLE, CHARACTER_MAXIMUM_LENGTH
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'entries'
+       AND COLUMN_NAME = 'topic'"
+)->fetch_assoc();
+if (
+    $topic_column === null
+    || $topic_column['DATA_TYPE'] !== 'varchar'
+    || (int) $topic_column['CHARACTER_MAXIMUM_LENGTH'] !== 255
+    || $topic_column['IS_NULLABLE'] !== 'NO'
+) {
+    throw new RuntimeException('entries.topic was not migrated to VARCHAR(255) NOT NULL.');
+}
+
+$language_column = $db->query(
+    "SELECT DATA_TYPE, IS_NULLABLE
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'entries'
+       AND COLUMN_NAME = 'language'"
+)->fetch_assoc();
+if (
+    $language_column === null
+    || $language_column['DATA_TYPE'] !== 'varchar'
+    || $language_column['IS_NULLABLE'] !== 'NO'
+) {
+    throw new RuntimeException('entries.language was not migrated to NOT NULL.');
+}
+
 $index = $db->query(
     "SELECT INDEX_NAME FROM information_schema.STATISTICS
      WHERE TABLE_SCHEMA = DATABASE()
@@ -59,7 +187,7 @@ if ($index === null) {
     throw new RuntimeException('The entries date index is missing.');
 }
 
-foreach (['idx_entries_cursor', 'idx_entries_user', 'ft_entries_topic'] as $required_index) {
+foreach (['idx_entries_cursor', 'idx_entries_user', 'idx_entries_topic', 'idx_entries_language', 'ft_entries_topic'] as $required_index) {
     $stmt = $db->prepare(
         "SELECT INDEX_TYPE FROM information_schema.STATISTICS
          WHERE TABLE_SCHEMA = DATABASE()

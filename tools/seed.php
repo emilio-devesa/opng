@@ -33,6 +33,8 @@ $db->set_charset('utf8mb4');
 // ---------------------------------------------------------------------------
 $db->query("DELETE FROM entries WHERE id LIKE 'seed%'");
 $db->query("DELETE FROM users WHERE email LIKE '%@example.test'");
+// The dashboard aggregates are cached; a reseed changes every count.
+$db->query("DELETE FROM admin_metrics_cache");
 
 // ---------------------------------------------------------------------------
 // Usuarios
@@ -351,21 +353,7 @@ if (!isset($_SESSION['user_id'])) {
 EOT
 ,
     ],
-    'Java/C/C++' => [
-<<<'EOT'
-#include <iostream>
-#include <vector>
-#include <algorithm>
-
-int main() {
-    std::vector<int> v{5, 3, 9, 1, 7};
-    std::sort(v.begin(), v.end());
-    for (int n : v) std::cout << n << ' ';
-    std::cout << '\n';
-    return 0;
-}
-EOT
-,
+    'C' => [
 <<<'EOT'
 #include <stdio.h>
 #include <stdlib.h>
@@ -383,6 +371,35 @@ int main(void) {
 }
 EOT
 ,
+    ],
+    'C++' => [
+<<<'EOT'
+#include <iostream>
+#include <vector>
+#include <algorithm>
+
+int main() {
+    std::vector<int> v{5, 3, 9, 1, 7};
+    std::sort(v.begin(), v.end());
+    for (int n : v) std::cout << n << ' ';
+    std::cout << '\n';
+    return 0;
+}
+EOT
+,
+<<<'EOT'
+template <typename T>
+T maximo(const std::vector<T>& v) {
+    T m = v.front();
+    for (const auto& x : v) {
+        if (x > m) m = x;
+    }
+    return m;
+}
+EOT
+,
+    ],
+    'Java' => [
 <<<'EOT'
 import java.util.HashMap;
 import java.util.Map;
@@ -399,15 +416,18 @@ public class Contador {
 }
 EOT
 ,
+    ],
+    'Ruby' => [
 <<<'EOT'
-template <typename T>
-T maximo(const std::vector<T>& v) {
-    T m = v.front();
-    for (const auto& x : v) {
-        if (x > m) m = x;
-    }
-    return m;
-}
+require 'json'
+
+def word_frequency(path)
+  text = File.read(path)
+  words = text.downcase.scan(/[[:alpha:]]+/)
+  words.tally.sort_by { |word, count| [-count, word] }.first(10).to_h
+end
+
+puts JSON.pretty_generate(word_frequency('README.md'))
 EOT
 ,
     ],
@@ -480,7 +500,7 @@ $topics = [
     'Checklist de despliegue',
 ];
 
-$languages = ['Plaintext', 'Bash', 'Pascal', 'Python', 'PHP', 'Java/C/C++'];
+$languages = ['Plaintext', 'Bash', 'C', 'C++', 'Java', 'Pascal', 'PHP', 'Python', 'Ruby'];
 
 /**
  * Elige un lenguaje coherente con el tema del paste.
@@ -489,7 +509,10 @@ function pick_language(string $topic): string
 {
     $t = strtolower($topic);
     $rules = [
-        'Java/C/C++' => ['c++', 'java', 'memoria', 'vector', 'hashmap', 'plantillas', 'segmentation'],
+        'C++'        => ['c++', 'vector', 'plantillas', 'iostream', 'stl'],
+        'C'          => ['memoria', 'segmentation', 'malloc', 'punteros'],
+        'Java'       => ['java', 'hashmap', 'jvm'],
+        'Ruby'       => ['ruby', 'rails'],
         'Pascal'     => ['pascal'],
         'Python'     => ['python', 'regex', 'decoradores', 'dataclasses', 'palabras', 'frecuencia'],
         'Bash'       => ['bash', 'script', 'backup', 'puertos', 'access.log', 'logs', 'logrotate',

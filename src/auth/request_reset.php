@@ -5,7 +5,12 @@ require("../includes/csrf.php");
 require("../includes/ratelimit.php");
 require_once("../includes/password_reset.php");
 require("../includes/http_input.php");
+require("../includes/error_messages.php");
+require("../includes/assets.php");
 require("../database.php");
+
+$asset_version = opng_asset_version();
+$service_unavailable_message = opng_error_text('error_service_unavailable');
 
 if (!in_array($_SERVER["REQUEST_METHOD"], ["GET", "POST"], true)) {
     http_response_code(405);
@@ -15,6 +20,7 @@ if (!in_array($_SERVER["REQUEST_METHOD"], ["GET", "POST"], true)) {
 
 $message = "";
 $reset_link = null;
+$response_status = 200;
 $simulation_enabled = password_reset_simulation_enabled();
 
 if (!$simulation_enabled) {
@@ -48,8 +54,8 @@ if (!$simulation_enabled) {
                 $message = "The password reset service is temporarily unavailable.";
             } else {
                 $ip = client_ip();
-                $ip_allowed = rate_limit_hit($db, 'reset_ip', $ip, 5, 3600);
-                $account_allowed = rate_limit_hit(
+                $ip_result = rate_limit_hit($db, 'reset_ip', $ip, 5, 3600);
+                $account_result = rate_limit_hit(
                     $db,
                     'reset_account',
                     strtolower($email),
@@ -57,7 +63,16 @@ if (!$simulation_enabled) {
                     3600
                 );
 
-                if (!$ip_allowed || !$account_allowed) {
+                if (
+                    $ip_result === RateLimitResult::Unavailable
+                    || $account_result === RateLimitResult::Unavailable
+                ) {
+                    $message = $service_unavailable_message;
+                    $response_status = 503;
+                } elseif (
+                    $ip_result === RateLimitResult::Limited
+                    || $account_result === RateLimitResult::Limited
+                ) {
                     $message = "If an account exists for this address, a reset link has been generated.";
                 } else {
                     $stmt = null;
@@ -117,6 +132,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $_SESSION['reset_request_flash'] = [
         'message' => $message,
         'reset_link' => $reset_link,
+        'status' => $response_status,
     ];
     header("Location: request_reset.php", true, 303);
     exit;
@@ -132,7 +148,14 @@ if (isset($_SESSION['reset_request_flash'])) {
         if (isset($request_flash['reset_link']) && is_string($request_flash['reset_link'])) {
             $reset_link = $request_flash['reset_link'];
         }
+        if (isset($request_flash['status']) && is_int($request_flash['status'])) {
+            $response_status = $request_flash['status'];
+        }
     }
+}
+
+if ($response_status !== 200) {
+    http_response_code($response_status);
 }
 
 $message_key = match ($message) {
@@ -143,6 +166,7 @@ $message_key = match ($message) {
     "Incorrect CAPTCHA. Please try again." => 'captcha_incorrect',
     "If an account exists for this address, a reset link has been generated." => 'reset_requested',
     "The password reset service is temporarily unavailable." => 'reset_service_unavailable',
+    $service_unavailable_message => 'error_service_unavailable',
     default => '',
 };
 ?>
@@ -154,7 +178,7 @@ $base = '../';
 require(__DIR__ . '/../includes/layout_header.php');
 ?>
     <section class="auth-page">
-    <h2 data-i18n="request_reset_title">Request Password Reset</h2>
+    <h1 data-i18n="request_reset_title">Request Password Reset</h1>
 
     <?php if ($simulation_enabled): ?>
         <p data-i18n="development_reset_notice">Development-only email simulation. The reset link is shown only on localhost and only while OPNG_DEV_RESET=1.</p>
@@ -168,7 +192,7 @@ require(__DIR__ . '/../includes/layout_header.php');
 
     <?php if ($reset_link !== null): ?>
         <section aria-labelledby="simulated-email-title">
-            <h3 id="simulated-email-title" data-i18n="simulated_email">Simulated email</h3>
+            <h2 id="simulated-email-title" data-i18n="simulated_email">Simulated email</h2>
             <p data-i18n="reset_link_details">A password reset was requested for this account. The link expires in 10 minutes and can be used once.</p>
             <p><a href="<?php echo htmlspecialchars($reset_link, ENT_QUOTES, 'UTF-8'); ?>" data-i18n="open_reset_link">Open local reset link</a></p>
         </section>
@@ -189,7 +213,7 @@ require(__DIR__ . '/../includes/layout_header.php');
             </p>
             <button type="submit" data-i18n="send_reset_link">Send Reset Link</button>
         </form>
-        <script src="../assets/js/refresh-captcha.js?v=<?php echo filemtime(__DIR__ . '/../assets/js/refresh-captcha.js'); ?>"></script>
+        <script src="../assets/js/refresh-captcha.js?v=<?php echo $asset_version; ?>"></script>
     <?php endif; ?>
     <p><a href="login.php" data-i18n="return_to_sign_in">Return to sign in</a></p>
     </section>

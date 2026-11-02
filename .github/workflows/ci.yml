@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, master, v0.8-development]
+    branches: [main, master, v0.8-development, v0.9-development]
   pull_request:
 
 permissions:
@@ -34,6 +34,12 @@ jobs:
 
       - name: Input limits regression test
         run: php tests/input_validation_test.php
+
+      - name: Paste text preservation regression test
+        run: php tests/paste_text_preservation_test.php
+
+      - name: Error message catalog regression test
+        run: php tests/error_messages_test.php
 
       - name: HTTP parameter contract regression test
         run: php tests/http_input_test.php
@@ -69,6 +75,7 @@ jobs:
           node --check src/assets/js/copy.js
           node --check src/assets/js/search-clear.js
           node --check src/assets/js/admin-tools.js
+          node --check src/assets/js/length-meter.js
 
       - name: Frontend contract and translation regression test
         run: php tests/frontend_contract_test.php
@@ -129,7 +136,7 @@ jobs:
           CREATE USER 'opng_runtime'@'%' IDENTIFIED BY 'runtime-ci-password';
           GRANT SELECT, INSERT, UPDATE, DELETE ON opng_ci.* TO 'opng_runtime'@'%';
           CREATE USER 'opng_migrator'@'%' IDENTIFIED BY 'migrator-ci-password';
-          GRANT SELECT, INSERT, CREATE, ALTER, INDEX, DROP ON opng_ci.* TO 'opng_migrator'@'%';
+          GRANT SELECT, INSERT, UPDATE, CREATE, ALTER, INDEX, DROP ON opng_ci.* TO 'opng_migrator'@'%';
 
           USE opng_ci;
           CREATE TABLE Users (
@@ -137,10 +144,7 @@ jobs:
               Username VARCHAR(50) UNIQUE NOT NULL,
               Email VARCHAR(100) UNIQUE NOT NULL,
               Password_hash VARCHAR(255) NOT NULL,
-              Created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-              role ENUM('admin', 'user') NOT NULL DEFAULT 'user',
-              reset_token VARCHAR(255) NULL,
-              reset_token_expires DATETIME NULL
+              Created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
           ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
           CREATE TABLE Entries (
               ID VARCHAR(255) PRIMARY KEY,
@@ -149,7 +153,7 @@ jobs:
               Language VARCHAR(20),
               Text TEXT,
               Topic TEXT
-          ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+          ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
           CREATE TABLE rate_limits (
               action VARCHAR(32) NOT NULL,
               key_hash CHAR(64) NOT NULL,
@@ -206,7 +210,7 @@ jobs:
           mysql --protocol=TCP -h 127.0.0.1 -uroot -pci-root-password <<'SQL'
           CREATE DATABASE opng_ambiguous CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
           GRANT SELECT, INSERT, UPDATE, DELETE ON opng_ambiguous.* TO 'opng_runtime'@'%';
-          GRANT SELECT, INSERT, CREATE, ALTER, INDEX, DROP ON opng_ambiguous.* TO 'opng_migrator'@'%';
+          GRANT SELECT, INSERT, UPDATE, CREATE, ALTER, INDEX, DROP ON opng_ambiguous.* TO 'opng_migrator'@'%';
           USE opng_ambiguous;
           CREATE TABLE Entries (id INT PRIMARY KEY);
           CREATE TABLE entries (id INT PRIMARY KEY);
