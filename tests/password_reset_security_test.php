@@ -100,3 +100,19 @@ assert_public_route_disabled(
     str_repeat('b', 64),
     'public reset links cannot reveal a password form or reflect the supplied token'
 );
+
+// SEC-01: an anonymous request with a forged token must not reach bcrypt.
+$reset_source = file_get_contents(__DIR__ . '/../src/auth/reset_password.php');
+assert_same(true, is_string($reset_source), 'reset route source is readable');
+$token_lookup = strpos((string) $reset_source, 'reset_token = ?');
+$password_hash = strpos((string) $reset_source, 'password_hash($password');
+assert_same(
+    true,
+    $token_lookup !== false && $password_hash !== false && $token_lookup < $password_hash,
+    'the reset token is validated before password_hash()'
+);
+assert_same(
+    true,
+    str_contains((string) $reset_source, "rate_limit_hit(\$db, 'reset_password'"),
+    'the reset endpoint is rate limited before the token lookup'
+);

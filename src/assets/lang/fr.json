@@ -228,5 +228,6 @@
     "audit_database_empty": "Base de données vidée",
     "audit_user_role": "Rôle utilisateur modifié",
     "audit_user_delete": "Utilisateur supprimé",
-    "audit_backup_download": "Sauvegarde téléchargée"
+    "audit_backup_download": "Sauvegarde téléchargée",
+    "reset_rate_limit": "Trop de tentatives de réinitialisation. Veuillez réessayer plus tard."
 }

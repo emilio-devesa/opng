@@ -228,5 +228,6 @@
     "audit_database_empty": "Base de dados esvaziada",
     "audit_user_role": "Função de utilizador alterada",
     "audit_user_delete": "Utilizador eliminado",
-    "audit_backup_download": "Cópia de segurança descarregada"
+    "audit_backup_download": "Cópia de segurança descarregada",
+    "reset_rate_limit": "Demasiadas tentativas de reposição de palavra-passe. Tente novamente mais tarde."
 }

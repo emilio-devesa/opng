@@ -228,5 +228,6 @@
     "audit_database_empty": "Datenbank geleert",
     "audit_user_role": "Benutzerrolle geändert",
     "audit_user_delete": "Benutzer gelöscht",
-    "audit_backup_download": "Backup heruntergeladen"
+    "audit_backup_download": "Backup heruntergeladen",
+    "reset_rate_limit": "Zu viele Versuche zum Zurücksetzen des Passworts. Bitte später erneut versuchen."
 }

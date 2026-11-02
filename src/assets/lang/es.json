@@ -228,5 +228,6 @@
     "audit_database_empty": "Base de datos vaciada",
     "audit_user_role": "Rol de usuario cambiado",
     "audit_user_delete": "Usuario eliminado",
-    "audit_backup_download": "Copia de seguridad descargada"
+    "audit_backup_download": "Copia de seguridad descargada",
+    "reset_rate_limit": "Demasiados intentos de restablecimiento. Inténtalo de nuevo más tarde."
 }

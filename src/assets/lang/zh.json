@@ -228,5 +228,6 @@
     "audit_database_empty": "已清空数据库",
     "audit_user_role": "已更改用户角色",
     "audit_user_delete": "已删除用户",
-    "audit_backup_download": "已下载备份"
+    "audit_backup_download": "已下载备份",
+    "reset_rate_limit": "密码重置尝试次数过多，请稍后再试。"
 }

@@ -5,6 +5,7 @@ require("../includes/csrf.php");
 require("../includes/password_validation.php");
 require_once("../includes/password_reset.php");
 require("../includes/http_input.php");
+require("../includes/ratelimit.php");
 require("../database.php");
 
 if (!in_array($_SERVER["REQUEST_METHOD"], ["GET", "POST"], true)) {
@@ -95,22 +96,52 @@ if ($_SERVER["REQUEST_METHOD"] === "GET" && !empty($_SESSION['reset_password_suc
             } else {
                 $stmt = null;
                 try {
-                    $password_hash = password_hash($password, PASSWORD_DEFAULT);
-                    // The conditional update consumes the token exactly once, including concurrent submissions.
-                    $stmt = $db->prepare(
-                        "UPDATE users
-                         SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL
-                         WHERE reset_token = ? AND reset_token_expires > NOW()"
-                    );
-                    $stmt->bind_param("ss", $password_hash, $token_hash);
-                    $stmt->execute();
-                    if ($stmt->affected_rows === 1) {
-                        $reset_completed = true;
+                    // Bound the endpoint before any cryptographic work. The
+                    // session cookie can be dropped, so the persistent
+                    // per-IP counter is the effective limit.
+                    $limit_result = rate_limit_hit($db, 'reset_password', client_ip(), 5, 3600);
+                    if ($limit_result === RateLimitResult::Unavailable) {
+                        $error_message = "The password reset service is temporarily unavailable.";
+                    } elseif ($limit_result === RateLimitResult::Limited) {
+                        $error_message = "Too many password reset attempts. Please try again later.";
                     } else {
-                        $error_message = "Invalid or expired reset link.";
+                        // Validate the token before calling password_hash():
+                        // a forged token must never trigger an unauthenticated
+                        // bcrypt DoS (SEC-01).
+                        $stmt = $db->prepare(
+                            "SELECT id FROM users WHERE reset_token = ? AND reset_token_expires > NOW()"
+                        );
+                        $stmt->bind_param("s", $token_hash);
+                        $stmt->execute();
+                        $result = $stmt->get_result();
+                        $token_record = $result ? $result->fetch_assoc() : null;
+                        if ($result instanceof mysqli_result) {
+                            $result->free();
+                        }
+                        $stmt->close();
+                        $stmt = null;
+
+                        if ($token_record === null) {
+                            $error_message = "Invalid or expired reset link.";
+                        } else {
+                            $password_hash = password_hash($password, PASSWORD_DEFAULT);
+                            // The conditional update consumes the token exactly once, including concurrent submissions.
+                            $stmt = $db->prepare(
+                                "UPDATE users
+                                 SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL
+                                 WHERE reset_token = ? AND reset_token_expires > NOW()"
+                            );
+                            $stmt->bind_param("ss", $password_hash, $token_hash);
+                            $stmt->execute();
+                            if ($stmt->affected_rows === 1) {
+                                $reset_completed = true;
+                            } else {
+                                $error_message = "Invalid or expired reset link.";
+                            }
+                            $stmt->close();
+                            $stmt = null;
+                        }
                     }
-                    $stmt->close();
-                    $stmt = null;
                 } catch (mysqli_sql_exception $exception) {
                     error_log("OPNG reset_password.php: " . $exception->getMessage());
                     if ($stmt instanceof mysqli_stmt) {
@@ -133,6 +164,7 @@ $error_message_key = match ($error_message) {
     "Password resets are unavailable for this installation. Please contact the administrator." => 'reset_unavailable',
     "Invalid or expired reset link." => 'invalid_reset_link',
     "The password reset service is temporarily unavailable." => 'reset_service_unavailable',
+    "Too many password reset attempts. Please try again later." => 'reset_rate_limit',
     "The request could not be validated. Please reload the page and try again." => 'request_invalid',
     "Invalid reset request." => 'invalid_reset_request',
     "Choose a password between 12 and 72 bytes long." => 'password_policy',

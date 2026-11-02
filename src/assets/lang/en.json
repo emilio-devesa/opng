@@ -228,5 +228,6 @@
     "audit_database_empty": "Database emptied",
     "audit_user_role": "User role changed",
     "audit_user_delete": "User deleted",
-    "audit_backup_download": "Backup downloaded"
+    "audit_backup_download": "Backup downloaded",
+    "reset_rate_limit": "Too many password reset attempts. Please try again later."
 }
