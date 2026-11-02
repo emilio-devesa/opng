@@ -41,14 +41,16 @@ header('X-Frame-Options: DENY');
                 <div class="header-tools">
                     <button id="theme-toggle" type="button" data-i18n-aria-label="dark_mode" data-i18n-title="dark_mode" aria-label="Dark mode" title="Dark mode">🌙</button>
                     <label class="visually-hidden" for="language-selector" data-i18n="language_selector_label">Select language</label>
-                    <select id="language-selector">
-                        <option value="en" lang="en">🇬🇧 English</option>
-                        <option value="es" lang="es">🇪🇸 Español</option>
-                        <option value="de" lang="de">🇩🇪 Deutsch</option>
-                        <option value="fr" lang="fr">🇫🇷 Français</option>
-                        <option value="pt" lang="pt">🇵🇹 Português</option>
-                        <option value="zh" lang="zh">🇨🇳 中文</option>
-                    </select>
+                    <span class="language-select-wrap">
+                        <select id="language-selector">
+                            <option value="en" lang="en">🇬🇧 English</option>
+                            <option value="es" lang="es">🇪🇸 Español</option>
+                            <option value="de" lang="de">🇩🇪 Deutsch</option>
+                            <option value="fr" lang="fr">🇫🇷 Français</option>
+                            <option value="pt" lang="pt">🇵🇹 Português</option>
+                            <option value="zh" lang="zh">🇨🇳 中文</option>
+                        </select>
+                    </span>
                 </div>
                 <?php if ($logged_in && ($_SESSION['role'] ?? '') === 'admin'): ?>
                 <nav class="header-nav" aria-label="Account navigation" data-i18n-aria-label="account_navigation">

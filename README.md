@@ -7,6 +7,8 @@ Open Pastebin NG is **free software** released under the **[GNU GPL license](LIC
 
 ⚠️ **This software is in BETA stage**, wich means it is still under development. Use it at your own risk.
 
+**Current version:** `0.9.0` (see [`src/includes/version.php`](src/includes/version.php) and [`CHANGELOG.md`](CHANGELOG.md)).
+
 ---
 
 ## ✨ Features

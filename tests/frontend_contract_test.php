@@ -193,6 +193,17 @@ if (
 ) {
     $failures[] = 'The language selector still overrides its translated label or hides option names';
 }
+$theme_styles = file_get_contents($root . '/src/main.css');
+if (
+    !is_string($layout)
+    || !str_contains($layout, 'class="language-select-wrap"')
+    || !is_string($theme_styles)
+    || !str_contains($theme_styles, '--control-bg:')
+    || !str_contains($theme_styles, '--action-bg:')
+    || !str_contains($theme_styles, '.language-select-wrap::after')
+) {
+    $failures[] = 'Header controls must use theme-aware surfaces and a centered custom language arrow';
+}
 if (
     !is_string($layout)
     || !str_contains($layout, 'aria-expanded="false"')
@@ -601,6 +612,18 @@ if (
     || !str_contains($rate_limit_source, 'RateLimitResult::Unavailable')
 ) {
     $failures[] = 'Rate limiting must record a hit with a single upsert and distinguish DB failures from limits';
+}
+
+$version_source = file_get_contents($root . '/src/includes/version.php');
+$footer_layout = file_get_contents($root . '/src/includes/layout_footer.php');
+if (
+    !is_string($version_source)
+    || !str_contains($version_source, "define('OPNG_VERSION'")
+    || !is_string($footer_layout)
+    || !str_contains($footer_layout, 'OPNG_VERSION')
+    || str_contains($footer_layout, '>v0.8<')
+) {
+    $failures[] = 'The footer must render the centralized OPNG_VERSION constant';
 }
 
 foreach ($failures as $failure) {

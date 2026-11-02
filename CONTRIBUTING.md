@@ -94,4 +94,14 @@ Requirements are PHP on a supported patch level, Composer, MySQL or MariaDB, and
 | `.github/workflows/` | CI lint, static analysis, regression checks, and isolated database jobs. |
 | `screenshots/` | Project screenshots used by the README. |
 
+### Releasing a version
+
+The application version has a single source of truth: `OPNG_VERSION` in `src/includes/version.php`. When preparing a release:
+
+1. Bump `OPNG_VERSION` there.
+2. Update the current version in `README.md` and add the corresponding release section to `CHANGELOG.md`.
+3. Run `composer lint`, `composer phpstan` and the non-database tests listed above.
+
+The footer reads the constant at runtime, so no template needs to be edited.
+
 For application requirements, production deployment, and database privileges, see the [README](README.md).
