@@ -91,37 +91,25 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     // (S5/H2) Persistent limits: IP+account, IP-wide and account-wide. The
     // session counter above can be bypassed by deleting the cookie; these
-    // rows cannot, so credential stuffing is bounded even across cookies.
+    // rows cannot. They record FAILED attempts only: a successful login must
+    // not consume the legitimate user's budget (SEC-03).
     $normalized_email = strtolower($email);
+    $login_limits = [
+        ['login', client_ip() . '|' . $normalized_email, 5],
+        ['login_ip', client_ip(), 30],
+        ['login_account', $normalized_email, 10],
+    ];
 
-    $limit_result = rate_limit_hit($db, 'login', client_ip() . '|' . $normalized_email, 5, 600);
-    if ($limit_result === RateLimitResult::Unavailable) {
-        $db->close();
-        opng_error_redirect('error_service_unavailable', '../error.php');
-    }
-    if ($limit_result === RateLimitResult::Limited) {
-        $db->close();
-        opng_error_redirect('error_login_rate_limit', '../error.php');
-    }
-
-    $limit_result = rate_limit_hit($db, 'login_ip', client_ip(), 30, 600);
-    if ($limit_result === RateLimitResult::Unavailable) {
-        $db->close();
-        opng_error_redirect('error_service_unavailable', '../error.php');
-    }
-    if ($limit_result === RateLimitResult::Limited) {
-        $db->close();
-        opng_error_redirect('error_login_rate_limit', '../error.php');
-    }
-
-    $limit_result = rate_limit_hit($db, 'login_account', $normalized_email, 10, 600);
-    if ($limit_result === RateLimitResult::Unavailable) {
-        $db->close();
-        opng_error_redirect('error_service_unavailable', '../error.php');
-    }
-    if ($limit_result === RateLimitResult::Limited) {
-        $db->close();
-        opng_error_redirect('error_login_rate_limit', '../error.php');
+    foreach ($login_limits as [$limit_action, $limit_key, $limit_max]) {
+        $limit_result = rate_limit_status($db, $limit_action, $limit_key, $limit_max, 600);
+        if ($limit_result === RateLimitResult::Unavailable) {
+            $db->close();
+            opng_error_redirect('error_service_unavailable', '../error.php');
+        }
+        if ($limit_result === RateLimitResult::Limited) {
+            $db->close();
+            opng_error_redirect('error_login_rate_limit', '../error.php');
+        }
     }
 
     // Buscar el usuario
@@ -141,7 +129,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $result->free();
         $stmt->close();
         $stmt = null;
-        $db->close();
     } catch (mysqli_sql_exception $exception) {
         error_log("OPNG login.php: " . $exception->getMessage());
         if ($stmt instanceof mysqli_stmt) {
@@ -161,6 +148,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $_SESSION["login_attempts"] = 0;
         unset($_SESSION['captcha']);
 
+        // A successful login clears the account-scoped buckets; the IP-wide
+        // bucket keeps counting failures from other accounts on that address.
+        rate_limit_clear($db, 'login', client_ip() . '|' . $normalized_email);
+        rate_limit_clear($db, 'login_account', $normalized_email);
+        $db->close();
+
         // (S10) Regenerar el ID de sesión para evitar session fixation
         session_regenerate_id(true);
 
@@ -178,6 +171,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     // Cualquier camino que llegue aquí es un fallo de autenticación.
     $_SESSION["login_attempts"]++;
     $_SESSION["last_attempt_time"] = time();
+    foreach ($login_limits as [$limit_action, $limit_key, $limit_max]) {
+        rate_limit_hit($db, $limit_action, $limit_key, $limit_max, 600);
+    }
+    $db->close();
     // Redirigir ANTES de emitir cualquier salida
     // (fix H3/U5: anteriormente el header() se llamaba dentro del <body>,
     // lo que provocaba "headers already sent" y el error nunca se mostraba)

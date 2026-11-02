@@ -39,6 +39,82 @@ function client_ip(): string
 }
 
 /**
+ * Read the current counter without recording a new attempt. Used to reject a
+ * request before paying for bcrypt when the bucket is already exhausted.
+ */
+function rate_limit_status(mysqli $db, string $action, string $key, int $limit, int $window): RateLimitResult
+{
+    if ($limit < 1 || $window < 1 || $action === '' || strlen($action) > 32) {
+        error_log('OPNG ratelimit.php: invalid rate-limit configuration');
+        return RateLimitResult::Unavailable;
+    }
+
+    $window_start = intdiv(time(), $window) * $window;
+    $key_hash = hash('sha256', $key);
+    $stmt = null;
+
+    try {
+        $stmt = $db->prepare(
+            'SELECT hits FROM rate_limits WHERE action = ? AND key_hash = ? AND window_start = ?'
+        );
+        if (!$stmt) {
+            error_log('OPNG ratelimit.php: ' . $db->error);
+            return RateLimitResult::Unavailable;
+        }
+        $stmt->bind_param('ssi', $action, $key_hash, $window_start);
+        if (!$stmt->execute()) {
+            error_log('OPNG ratelimit.php: ' . $stmt->error);
+            return RateLimitResult::Unavailable;
+        }
+        $result = $stmt->get_result();
+        if (!$result) {
+            error_log('OPNG ratelimit.php: could not read the rate-limit counter');
+            return RateLimitResult::Unavailable;
+        }
+        $row = $result->fetch_assoc();
+        $result->free();
+
+        $hits = is_array($row) ? (int) ($row['hits'] ?? 0) : 0;
+
+        return $hits >= $limit ? RateLimitResult::Limited : RateLimitResult::Allowed;
+    } catch (mysqli_sql_exception $exception) {
+        error_log('OPNG ratelimit.php: ' . $exception->getMessage());
+        return RateLimitResult::Unavailable;
+    } finally {
+        if ($stmt instanceof mysqli_stmt) {
+            $stmt->close();
+        }
+    }
+}
+
+/**
+ * Remove the counter for (action, key). Called after a successful login so a
+ * legitimate user never accumulates failed-attempt budget.
+ */
+function rate_limit_clear(mysqli $db, string $action, string $key): bool
+{
+    if ($action === '' || strlen($action) > 32) {
+        return false;
+    }
+
+    try {
+        $key_hash = hash('sha256', $key);
+        $stmt = $db->prepare('DELETE FROM rate_limits WHERE action = ? AND key_hash = ?');
+        if (!$stmt) {
+            return false;
+        }
+        $stmt->bind_param('ss', $action, $key_hash);
+        $deleted = $stmt->execute();
+        $stmt->close();
+
+        return $deleted;
+    } catch (mysqli_sql_exception $exception) {
+        error_log('OPNG ratelimit.php: ' . $exception->getMessage());
+        return false;
+    }
+}
+
+/**
  * Registra un intento para (acción, clave) y devuelve si sigue dentro del
  * límite o si la comprobación no se pudo completar.
  */
