@@ -232,6 +232,7 @@ try {
             password_hash VARCHAR(255) NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             role ENUM('admin', 'user') NOT NULL DEFAULT 'user',
+            session_version INT UNSIGNED NOT NULL DEFAULT 0,
             reset_token VARCHAR(255) NULL,
             reset_token_expires DATETIME NULL
         ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
@@ -253,6 +254,7 @@ try {
     foreach ([
         'created_at' => 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
         'role' => "ENUM('admin', 'user') NOT NULL DEFAULT 'user'",
+        'session_version' => 'INT UNSIGNED NOT NULL DEFAULT 0',
         'reset_token' => 'VARCHAR(255) NULL',
         'reset_token_expires' => 'DATETIME NULL',
     ] as $column => $definition) {
@@ -280,6 +282,13 @@ try {
     }
     if (!in_array($users_column_info['reset_token_expires']['DATA_TYPE'], ['datetime', 'timestamp'], true)) {
         install_fail("Unsupported type for 'users.reset_token_expires'; schema migration stopped.");
+    }
+    if (!in_array(
+        $users_column_info['session_version']['DATA_TYPE'],
+        ['tinyint', 'smallint', 'mediumint', 'int', 'bigint'],
+        true
+    )) {
+        install_fail("Unsupported type for 'users.session_version'; schema migration stopped.");
     }
 
     $password_hash_column = install_column_info($conn, 'users', 'password_hash');

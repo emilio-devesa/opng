@@ -115,7 +115,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     // Buscar el usuario
     $stmt = null;
     try {
-        $stmt = $db->prepare("SELECT id, username, password_hash, role FROM users WHERE email = ?");
+        $stmt = $db->prepare("SELECT id, username, password_hash, role, session_version FROM users WHERE email = ?");
         $stmt->bind_param("s", $email);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -160,6 +160,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $_SESSION["user_id"] = $user['id'];
         $_SESSION["username"] = $user['username'];
         $_SESSION["role"] = $user['role'];
+        $_SESSION["session_version"] = (int) ($user['session_version'] ?? 0);
+        $_SESSION["opng_authenticated_at"] = time();
 
         // Redirigir al usuario a la página de origen después del login
         header("Location: " . $redirect_url);

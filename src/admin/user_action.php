@@ -90,7 +90,7 @@ try {
     }
 
     if ($action === 'role') {
-        $stmt = $db->prepare('UPDATE users SET role = ? WHERE id = ?');
+        $stmt = $db->prepare('UPDATE users SET role = ?, session_version = session_version + 1 WHERE id = ?');
         $stmt->bind_param('si', $new_role, $target_user_id);
         if (!$stmt->execute()) {
             throw new RuntimeException('User role update failed.');

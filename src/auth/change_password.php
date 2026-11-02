@@ -87,7 +87,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                             // reset token for the account.
                             $stmt = $db->prepare(
                                 "UPDATE users
-                                 SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL
+                                 SET password_hash = ?, session_version = session_version + 1,
+                                     reset_token = NULL, reset_token_expires = NULL
                                  WHERE id = ?"
                             );
                             $stmt->bind_param("si", $password_hash, $user_id);
@@ -99,6 +100,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                             if (!$updated) {
                                 $form_error_key = 'error_database_operation';
                             } else {
+                                // Keep this session valid while invalidating
+                                // every other session of the account.
+                                $_SESSION['session_version'] = (int) ($_SESSION['session_version'] ?? 0) + 1;
                                 session_regenerate_id(true);
                                 $_SESSION['change_password_success'] = true;
                                 $db->close();

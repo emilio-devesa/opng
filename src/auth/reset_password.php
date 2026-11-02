@@ -128,7 +128,8 @@ if ($_SERVER["REQUEST_METHOD"] === "GET" && !empty($_SESSION['reset_password_suc
                             // The conditional update consumes the token exactly once, including concurrent submissions.
                             $stmt = $db->prepare(
                                 "UPDATE users
-                                 SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL
+                                 SET password_hash = ?, session_version = session_version + 1,
+                                     reset_token = NULL, reset_token_expires = NULL
                                  WHERE reset_token = ? AND reset_token_expires > NOW()"
                             );
                             $stmt->bind_param("ss", $password_hash, $token_hash);
