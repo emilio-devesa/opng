@@ -71,6 +71,9 @@ jobs:
       - name: Deployment configuration regression test
         run: php tests/deployment_config_test.php
 
+      - name: Contrast regression test
+        run: php tests/contrast_test.php
+
       - name: SQL backup serialization regression test
         run: php tests/sql_backup_test.php
 

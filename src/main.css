@@ -31,7 +31,7 @@
        superficie propios para no fundirse con el fondo. */
     --control-bg: #ffffff;
     --control-bg-hover: #f1f5fc;
-    --control-border: #a9bad3;
+    --control-border: #7c8aa3;
     --control-shadow: 0 1px 2px rgba(23, 40, 76, 0.1);
 
     /* Acciones primarias (buscar, crear): chip tonal claro en modo claro
@@ -43,15 +43,25 @@
     --action-text-hover: #ffffff;
     --action-border: #a5b4fc;
 
+    /* Rellenos con texto blanco. Se separan de --accent, que en modo oscuro
+       es un color de texto claro y no alcanzaría 4,5:1 como fondo. */
+    --button-bg: #4f46e5;
+    --button-bg-hover: #3730a3;
+    --button-text: #ffffff;
+    --danger-fill: #b91c1c;
+    --danger-fill-hover: #991b1b;
+
     --accent: #4f46e5;
     --accent-strong: #4338ca;
     --accent-soft: rgba(79, 70, 229, 0.08);
     --accent-ring: rgba(79, 70, 229, 0.25);
+    /* Anillo de foco sólido: 6,25:1 sobre --bg y 6,7:1 sobre blanco. */
+    --focus-ring: #1d4ed8;
 
-    --danger: #dc2626;
-    --danger-soft: rgba(220, 38, 38, 0.08);
-    --success: #059669;
-    --success-soft: rgba(5, 150, 105, 0.08);
+    --danger: #b91c1c;
+    --danger-soft: rgba(185, 28, 28, 0.08);
+    --success: #047857;
+    --success-soft: rgba(4, 120, 87, 0.08);
 
     --code-bg: #0d1420;
     --code-text: #dbe4f0;
@@ -73,19 +83,27 @@ body.dark-mode {
 
     --control-bg: #182238;
     --control-bg-hover: #1e2a44;
-    --control-border: #31415e;
+    --control-border: #5b6f91;
     --control-shadow: none;
 
-    --action-bg: var(--accent);
-    --action-bg-hover: var(--accent-strong);
+    --action-bg: #4338ca;
+    --action-bg-hover: #3730a3;
     --action-text: #ffffff;
     --action-text-hover: #ffffff;
     --action-border: transparent;
+
+    --button-bg: #4338ca;
+    --button-bg-hover: #3730a3;
+    --button-text: #ffffff;
+    --danger-fill: #b91c1c;
+    --danger-fill-hover: #991b1b;
 
     --accent: #818cf8;
     --accent-strong: #6366f1;
     --accent-soft: rgba(129, 140, 248, 0.12);
     --accent-ring: rgba(129, 140, 248, 0.35);
+    /* Anillo de foco sólido: 11,64:1 sobre --surface y 12,62:1 sobre --bg. */
+    --focus-ring: #c7d2fe;
 
     --danger: #f87171;
     --danger-soft: rgba(248, 113, 113, 0.1);
@@ -608,8 +626,8 @@ button {
     font: inherit;
     font-size: 0.95rem;
     font-weight: 600;
-    color: #ffffff;
-    background: var(--accent);
+    color: var(--button-text);
+    background: var(--button-bg);
     border: none;
     border-radius: 10px;
     padding: 0.6rem 1.25rem;
@@ -618,7 +636,7 @@ button {
 }
 
 button:hover {
-    background: var(--accent-strong);
+    background: var(--button-bg-hover);
 }
 
 button:active {
@@ -628,7 +646,7 @@ button:active {
 button:focus-visible,
 a:focus-visible,
 select:focus-visible {
-    outline: 3px solid var(--accent-ring);
+    outline: 3px solid var(--focus-ring);
     outline-offset: 2px;
 }
 
@@ -637,7 +655,7 @@ button.refresh-captcha,
 button[type="button"]:not(.copy-button) {
     background: var(--surface);
     color: var(--text);
-    border: 1px solid var(--border);
+    border: 1px solid var(--control-border);
 }
 
 button.refresh-captcha:hover,
@@ -650,8 +668,8 @@ button[type="button"]:not(.copy-button):hover {
 .copy-button {
     height: 2.5rem;
     padding: 0.35rem 0.7rem;
-    background: var(--accent);
-    color: #ffffff;
+    background: var(--button-bg);
+    color: var(--button-text);
     border: none;
     border-radius: 8px;
     font-size: 0.8rem;
@@ -660,7 +678,7 @@ button[type="button"]:not(.copy-button):hover {
 }
 
 .copy-button:hover {
-    background: var(--accent-strong);
+    background: var(--button-bg-hover);
 }
 
 .copy-controls {
@@ -698,14 +716,14 @@ button.danger,
 form[action="admin/drop_id.php"] button,
 form[action="drop_id.php"] button,
 form.delete-paste-form button {
-    background: var(--danger);
+    background: var(--danger-fill);
 }
 
 button.danger:hover,
 form[action="admin/drop_id.php"] button:hover,
 form[action="drop_id.php"] button:hover,
 form.delete-paste-form button:hover {
-    filter: brightness(0.9);
+    background: var(--danger-fill-hover);
 }
 
 #Content .paste-actions form.delete-paste-form {
@@ -768,7 +786,7 @@ select:focus,
 textarea:focus {
     outline: none;
     border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-ring);
+    box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 textarea {
@@ -915,8 +933,8 @@ textarea[name="input_text"] {
     z-index: 1000;
     padding: 0.75rem 1rem;
     border-radius: 0 0 10px 10px;
-    background: var(--accent);
-    color: #ffffff;
+    background: var(--button-bg);
+    color: var(--button-text);
     font-weight: 700;
     text-decoration: none;
     transform: translateY(-120%);
@@ -1443,7 +1461,7 @@ legend {
 }
 
 #language-selector:focus-visible {
-    outline: 3px solid var(--accent-ring);
+    outline: 3px solid var(--focus-ring);
     outline-offset: 2px;
 }
 
@@ -1581,7 +1599,7 @@ legend {
 
 #SiteHeader .header-search .search-input-wrap input[type="text"]:focus {
     border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-ring);
+    box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 #SiteHeader .header-search button {
