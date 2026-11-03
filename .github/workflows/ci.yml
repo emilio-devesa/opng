@@ -32,6 +32,9 @@ jobs:
       - name: Password reset security regression test
         run: php tests/password_reset_security_test.php
 
+      - name: Password hashing regression test
+        run: php tests/password_rehash_test.php
+
       - name: Input limits regression test
         run: php tests/input_validation_test.php
 

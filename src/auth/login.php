@@ -142,6 +142,22 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $_SESSION["login_attempts"] = 0;
         captcha_clear();
 
+        // Upgrade legacy bcrypt hashes (different cost or algorithm) after a
+        // successful verification. A rehash failure must not block the login.
+        if (password_needs_rehash($user['password_hash'], PASSWORD_DEFAULT)) {
+            try {
+                $rehash = password_hash($password, PASSWORD_DEFAULT);
+                $rehash_stmt = $db->prepare('UPDATE users SET password_hash = ? WHERE id = ?');
+                $rehash_stmt->bind_param('si', $rehash, $user['id']);
+                if (!$rehash_stmt->execute()) {
+                    error_log('OPNG login.php: password rehash update failed');
+                }
+                $rehash_stmt->close();
+            } catch (mysqli_sql_exception $exception) {
+                error_log('OPNG login.php: password rehash failed: ' . $exception->getMessage());
+            }
+        }
+
         // A successful login clears the account-scoped buckets; the IP-wide
         // bucket keeps counting failures from other accounts on that address.
         rate_limit_clear($db, 'login', client_ip() . '|' . $normalized_email);

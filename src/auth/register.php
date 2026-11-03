@@ -76,7 +76,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                             $stmt->close();
                             $stmt = null;
 
-                            $passwordHash = password_hash($password, PASSWORD_BCRYPT);
+                            $passwordHash = password_hash($password, PASSWORD_DEFAULT);
                             $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, 'user')");
                             $stmt->bind_param("sss", $posted_username, $posted_email, $passwordHash);
                             if (!$stmt->execute()) {
