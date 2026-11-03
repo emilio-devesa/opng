@@ -317,6 +317,18 @@ try {
         $migration_report
     );
 
+    // Admin search and listing order by creation date; role filters are part of
+    // the dashboard feature set. Both indexes are created idempotently.
+    foreach ([
+        'idx_users_created' => 'CREATE INDEX `idx_users_created` ON users (`created_at`, `id`)',
+        'idx_users_role' => 'CREATE INDEX `idx_users_role` ON users (`role`, `created_at`)',
+    ] as $index_name => $create_sql) {
+        if (!install_index_exists($conn, 'users', $index_name)) {
+            $conn->query($create_sql);
+            echo "OK: index {$index_name}\n";
+        }
+    }
+
     $conn->query("
         CREATE TABLE IF NOT EXISTS entries (
             id VARCHAR(255) PRIMARY KEY,

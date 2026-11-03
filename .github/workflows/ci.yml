@@ -77,6 +77,9 @@ jobs:
       - name: CAPTCHA accessibility regression test
         run: php tests/captcha_accessibility_test.php
 
+      - name: Performance contract regression test
+        run: php tests/performance_contract_test.php
+
       - name: SQL backup serialization regression test
         run: php tests/sql_backup_test.php
 

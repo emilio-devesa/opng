@@ -8,6 +8,7 @@ require("includes/db.php");
 require("includes/ratelimit.php");
 require("includes/paste_validation.php");
 require("includes/user_quota.php");
+require("includes/admin_metrics.php");
 require("includes/http_input.php");
 require("includes/error_messages.php");
 require_once("includes/captcha.php");
@@ -160,6 +161,8 @@ try {
         opng_error_redirect('error_save_paste');
     }
     $transaction_started = false;
+    // The dashboard aggregates changed; do not wait for the five-minute TTL.
+    admin_metrics_invalidate($db);
     $db->close();
 } catch (mysqli_sql_exception $exception) {
     error_log("OPNG submit.php: " . $exception->getMessage());

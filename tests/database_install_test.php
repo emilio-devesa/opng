@@ -102,6 +102,24 @@ if (!in_array('username', $unique_columns, true) || !in_array('email', $unique_c
 }
 echo "PASS: users unique username/email indexes are present\n";
 
+$user_index_names = [];
+$user_index_result = $db->query(
+    "SELECT DISTINCT INDEX_NAME
+     FROM information_schema.STATISTICS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'users'"
+);
+while ($user_index_row = $user_index_result->fetch_assoc()) {
+    $user_index_names[] = $user_index_row['INDEX_NAME'];
+}
+$user_index_result->free();
+foreach (['idx_users_created', 'idx_users_role'] as $required_user_index) {
+    if (!in_array($required_user_index, $user_index_names, true)) {
+        throw new RuntimeException("The users index {$required_user_index} is missing.");
+    }
+}
+echo "PASS: users creation-date and role indexes are present\n";
+
 $entries_meta = $db->query(
     "SELECT ENGINE, TABLE_COLLATION
      FROM information_schema.TABLES

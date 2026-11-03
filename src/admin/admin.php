@@ -128,8 +128,12 @@ if ($entry_search_submitted && $entry_search_error === '') {
         }
     }
     if ($entry_author !== '') {
-        $filters[] = "COALESCE(users.username, 'Guest') LIKE ?";
-        $params[] = '%' . $entry_author . '%';
+        // Prefix matching lets MySQL use the users.username unique index;
+        // anonymous pastes are matched explicitly when the admin types
+        // "guest".
+        $filters[] = "(users.username LIKE ? OR (entries.user_id IS NULL AND ? = 'guest'))";
+        $params[] = $entry_author . '%';
+        $params[] = strtolower($entry_author);
     }
     if ($entry_date !== '') {
         $range = $date_range($entry_date);
@@ -205,8 +209,10 @@ if ($user_search_submitted && $user_search_error === '') {
     $filters = [];
     $params = [];
     if ($user_query !== '') {
+        // Prefix search uses the unique username/email indexes. Substring
+        // search (%term%) would force a full scan of every account.
         $filters[] = '(users.username LIKE ? OR users.email LIKE ?)';
-        $search_pattern = '%' . $user_query . '%';
+        $search_pattern = $user_query . '%';
         $params[] = $search_pattern;
         $params[] = $search_pattern;
     }

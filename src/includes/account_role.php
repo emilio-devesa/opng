@@ -3,11 +3,11 @@
 require_once(__DIR__ . '/session.php');
 
 /**
- * Refresh the authenticated account's role from the database.
+ * Return the authenticated account's role from the session.
  *
- * The lookup is read-only: authorization reads never need `FOR UPDATE`, and
- * the session version check in session_validate_account() invalidates the
- * identity when the role changes elsewhere.
+ * db_connect() has already validated the session against users.session_version,
+ * so no extra query (and no locking read) is needed here. Public pages that use
+ * this helper therefore do not hit `users` just to read the role.
  */
 function refresh_account_role(mysqli $db): ?string
 {
@@ -15,8 +15,6 @@ function refresh_account_role(mysqli $db): ?string
         unset($_SESSION['role']);
         return null;
     }
-
-    session_validate_account($db);
 
     $role = $_SESSION['role'] ?? null;
     if (!is_string($role) || ($role !== 'admin' && $role !== 'user')) {

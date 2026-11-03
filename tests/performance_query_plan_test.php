@@ -87,7 +87,23 @@ try {
         throw new RuntimeException('Account storage aggregation did not use the user index.');
     }
 
-    echo "PASS: FULLTEXT, cursor-listing, and quota query plans use their indexes on 5,000 synthetic rows\n";
+    // Admin user ordering and prefix searches must use the new users indexes.
+    $db->query('ANALYZE TABLE users');
+    $user_order_plan = $db->query(
+        'EXPLAIN SELECT id, username, created_at, role FROM users
+         ORDER BY created_at DESC, id DESC LIMIT 21'
+    )->fetch_assoc();
+    if (($user_order_plan['key'] ?? null) !== 'idx_users_created') {
+        throw new RuntimeException('Admin user ordering did not use idx_users_created.');
+    }
+    $user_prefix_plan = $db->query(
+        "EXPLAIN SELECT id FROM users WHERE username LIKE 'a%'"
+    )->fetch_assoc();
+    if (($user_prefix_plan['key'] ?? null) !== 'uniq_users_username') {
+        throw new RuntimeException('A username prefix search did not use the unique index.');
+    }
+
+    echo "PASS: FULLTEXT, cursor-listing, quota, and admin user query plans use their indexes on 5,000 synthetic rows\n";
 } finally {
     if ($transaction_started) {
         $db->rollback();

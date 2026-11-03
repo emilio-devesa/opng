@@ -9,6 +9,7 @@ require("includes/rules.php");
 require("includes/paste_validation.php");
 require("includes/paste_permissions.php");
 require("includes/user_quota.php");
+require("includes/admin_metrics.php");
 require("includes/http_input.php");
 require("includes/account_role.php");
 require("includes/error_messages.php");
@@ -176,6 +177,8 @@ try {
         opng_error_redirect('error_update_paste');
     }
     $transaction_started = false;
+    // Text bytes, language and topic may have changed.
+    admin_metrics_invalidate($db);
 } catch (mysqli_sql_exception | RuntimeException $exception) {
     error_log("OPNG update.php: " . $exception->getMessage());
     if (isset($stmt) && $stmt instanceof mysqli_stmt) {
