@@ -645,7 +645,8 @@ button:active {
 
 button:focus-visible,
 a:focus-visible,
-select:focus-visible {
+select:focus-visible,
+summary:focus-visible {
     outline: 3px solid var(--focus-ring);
     outline-offset: 2px;
 }
@@ -844,6 +845,51 @@ textarea[name="input_text"] {
 
 .auth-form p img.captcha-image {
     margin: 0.5rem auto;
+}
+
+/* CAPTCHA: image, refresh control and the accessible text/audio challenge. */
+.captcha-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+}
+
+.captcha-field .captcha-image {
+    align-self: center;
+    max-width: 100%;
+    height: auto;
+    margin: 0.25rem 0;
+}
+
+.captcha-field .refresh-captcha {
+    align-self: flex-start;
+}
+
+.captcha-text-alternative {
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--control-border);
+    border-radius: 10px;
+    background: var(--surface-2);
+}
+
+.captcha-text-alternative summary {
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.captcha-question {
+    margin: 0.6rem 0 0.25rem;
+    font-family: var(--font-mono);
+    font-size: 1.1rem;
+    letter-spacing: 0.08em;
+}
+
+.captcha-text-alternative .field-help {
+    margin: 0 0 0.5rem;
+}
+
+.captcha-listen {
+    margin-top: 0.25rem;
 }
 
 .field-help {

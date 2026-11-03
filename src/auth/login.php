@@ -4,6 +4,7 @@ session_start_secured();
 require("../includes/csrf.php");
 require("../includes/ratelimit.php");
 require("../includes/http_input.php");
+require_once("../includes/captcha.php");
 
 require("../database.php");
 require("../includes/error_messages.php");
@@ -71,16 +72,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     if ($captcha_required) {
         $captcha_answer = http_string_parameter($_POST, 'captcha_answer', 5);
-        $captcha_code = $_SESSION['captcha'] ?? null;
-        if (
-            $captcha_answer === null
-            || !is_string($captcha_code)
-            || !hash_equals($captcha_code, strtoupper($captcha_answer))
-        ) {
-            unset($_SESSION['captcha']);
+        if (!captcha_validate($captcha_answer)) {
             opng_error_redirect('captcha_incorrect', '../error.php');
         }
-        unset($_SESSION['captcha']);
     }
 
     // Conectar a la BD
@@ -146,7 +140,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if ($user !== null && $password_is_valid) {
         // Autenticación exitosa, restablecer intentos fallidos
         $_SESSION["login_attempts"] = 0;
-        unset($_SESSION['captcha']);
+        captcha_clear();
 
         // A successful login clears the account-scoped buckets; the IP-wide
         // bucket keeps counting failures from other accounts on that address.
@@ -209,12 +203,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 <input id="password" type="password" name="password" maxlength="72" autocomplete="current-password" required>
             </p>
             <?php if ($captcha_required): ?>
-            <p>
-                <label for="captcha_answer" data-i18n="captcha_label">Please enter the captcha text:</label>
-                <input id="captcha_answer" type="text" name="captcha_answer" autocomplete="off" required>
-                <img src="captcha.php" alt="CAPTCHA" class="captcha-image" data-i18n-alt="captcha_alt">
-                <button type="button" class="refresh-captcha" data-i18n="refresh_captcha">🔄 Refresh</button>
-            </p>
+            <?php captcha_render('captcha.php'); ?>
             <?php endif; ?>
             <button type="submit" data-i18n="login">Sign in</button>
         </form>

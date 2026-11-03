@@ -7,6 +7,7 @@ require_once("../includes/password_reset.php");
 require("../includes/http_input.php");
 require("../includes/error_messages.php");
 require("../includes/assets.php");
+require_once("../includes/captcha.php");
 require("../database.php");
 
 $asset_version = opng_asset_version();
@@ -34,19 +35,11 @@ if (!$simulation_enabled) {
     ) {
         $message = "Please enter a valid email address and CAPTCHA.";
     } else {
-        $captcha_answer = strtoupper($captcha_answer);
-
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $message = "Please enter a valid email address.";
-        } elseif (
-            !isset($_SESSION['captcha'])
-            || !is_string($_SESSION['captcha'])
-            || !hash_equals($_SESSION['captcha'], $captcha_answer)
-        ) {
+        } elseif (!captcha_validate($captcha_answer)) {
             $message = "Incorrect CAPTCHA. Please try again.";
-            unset($_SESSION['captcha']);
         } else {
-            unset($_SESSION['captcha']);
             $message = "If an account exists for this address, a reset link has been generated.";
             $db = database_connect();
 
@@ -205,12 +198,7 @@ require(__DIR__ . '/../includes/layout_header.php');
                 <label for="email" data-i18n="email">Email:</label>
                 <input id="email" type="email" name="email" maxlength="100" required>
             </p>
-            <p>
-                <label for="captcha_answer" data-i18n="captcha_label">Please enter the captcha text:</label>
-                <input id="captcha_answer" type="text" name="captcha_answer" maxlength="5" required>
-                <img src="captcha.php" alt="CAPTCHA" class="captcha-image" data-i18n-alt="captcha_alt">
-                <button type="button" class="refresh-captcha" data-i18n="refresh_captcha">🔄 Refresh</button>
-            </p>
+            <?php captcha_render('captcha.php'); ?>
             <button type="submit" data-i18n="send_reset_link">Send Reset Link</button>
         </form>
         <script src="../assets/js/refresh-captcha.js?v=<?php echo $asset_version; ?>"></script>

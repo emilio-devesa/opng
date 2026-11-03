@@ -7,6 +7,7 @@ require("../includes/password_validation.php");
 require("../includes/http_input.php");
 require("../includes/error_messages.php");
 require("../includes/assets.php");
+require_once("../includes/captcha.php");
 require("../database.php");
 
 if (!in_array($_SERVER["REQUEST_METHOD"], ["GET", "POST"], true)) {
@@ -33,7 +34,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     } elseif ($password === null || $captcha_answer === null) {
         $form_error_key = 'error_invalid_registration';
     } else {
-        $captcha_answer = strtoupper($captcha_answer);
         $password_error = password_validation_error($password);
 
         if (
@@ -57,16 +57,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 } elseif ($limit_result === RateLimitResult::Limited) {
                     $db->close();
                     $form_error_key = 'error_registration_rate_limit';
-                } elseif (
-                    !isset($_SESSION['captcha'])
-                    || !is_string($_SESSION['captcha'])
-                    || $captcha_answer !== $_SESSION['captcha']
-                ) {
+                } elseif (!captcha_validate($captcha_answer)) {
                     $db->close();
                     $form_error_key = 'captcha_incorrect';
                 } else {
-                    unset($_SESSION['captcha']); // Evita reutilización del CAPTCHA
-
                     $stmt = null;
                     try {
                         $stmt = $db->prepare("SELECT id FROM users WHERE email = ?");
@@ -141,12 +135,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 <input id="password" type="password" name="password" minlength="12" maxlength="72" autocomplete="new-password" aria-describedby="password-policy" required>
                 <span id="password-policy" class="field-help" data-i18n="password_policy">Use a password between 12 and 72 bytes.</span>
             </p>
-            <p>
-                <label for="captcha_answer" data-i18n="captcha_label">Please enter the captcha text:</label>
-                <input id="captcha_answer" type="text" name="captcha_answer" autocomplete="off" required>
-                <img src="captcha.php" alt="CAPTCHA" class="captcha-image" data-i18n-alt="captcha_alt">
-                <button type="button" class="refresh-captcha" data-i18n="refresh_captcha">🔄 Refresh</button>
-            </p>
+            <?php captcha_render('captcha.php'); ?>
             <button type="submit" data-i18n="register">Sign up</button>
         </form>
         <p><a href="login.php" data-i18n="have_account">Already have an account? Sign in</a></p>

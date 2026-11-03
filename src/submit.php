@@ -10,6 +10,7 @@ require("includes/paste_validation.php");
 require("includes/user_quota.php");
 require("includes/http_input.php");
 require("includes/error_messages.php");
+require_once("includes/captcha.php");
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -56,16 +57,9 @@ if ($user_id !== null) {
 // Guests must solve the local CAPTCHA before creating an anonymous paste.
 if ($user_id === null) {
     $captcha_answer = http_string_parameter($_POST, 'captcha_answer', 5);
-    $captcha_code = $_SESSION['captcha'] ?? null;
-    if (
-        $captcha_answer === null
-        || !is_string($captcha_code)
-        || !hash_equals($captcha_code, strtoupper($captcha_answer))
-    ) {
-        unset($_SESSION['captcha']);
+    if (!captcha_validate($captcha_answer)) {
         opng_error_redirect('captcha_incorrect');
     }
-    unset($_SESSION['captcha']);
 }
 
 // Conectar a la base de datos
