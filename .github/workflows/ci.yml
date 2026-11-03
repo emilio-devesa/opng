@@ -68,6 +68,9 @@ jobs:
       - name: Client IP resolution regression test
         run: php tests/client_ip_test.php
 
+      - name: Deployment configuration regression test
+        run: php tests/deployment_config_test.php
+
       - name: SQL backup serialization regression test
         run: php tests/sql_backup_test.php
 

@@ -1,0 +1,20 @@
+# Open Pastebin NG — repository-root fallback hardening.
+#
+# The supported DocumentRoot is `src/` (see README.md). If a hosting panel
+# points at the repository root by mistake, this file keeps `.git/`, `tests/`,
+# `tools/`, `composer.*` and the documentation out of HTTP reach. It is a
+# safety net, not a supported deployment mode: the application still expects
+# to be reached through `src/`.
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Only the application tree is served.
+    RewriteRule ^src(?:/|$) - [L]
+    RewriteRule ^ - [R=404,L]
+</IfModule>
+
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>

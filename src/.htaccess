@@ -10,6 +10,23 @@
 </FilesMatch>
 
 # ------------------------------------------------------------------
+# Internal directories and development files must never be served.
+# The application expects the document root to be src/; these rules are a
+# second line of defence if a hosting panel points it one level higher.
+# ------------------------------------------------------------------
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^includes(?:/|$) - [R=404,L]
+    RewriteRule ^(?:tests|tools|database|deploy|docs)(?:/|$) - [R=404,L]
+    RewriteRule ^install\.php$ - [R=404,L]
+    RewriteRule ^\. - [R=404,L]
+</IfModule>
+
+<FilesMatch "^(?:composer\.(?:json|lock)|phpstan\.neon|.*\.md|.*\.dist)$">
+    Require all denied
+</FilesMatch>
+
+# ------------------------------------------------------------------
 # Sin listados de directorio (fix R7). Si un directorio no tiene
 # index, Apache devuelve 403 en lugar de mostrar su contenido.
 # ------------------------------------------------------------------
@@ -25,6 +42,15 @@ Options -Indexes
     Header always set X-Frame-Options "DENY"
     Header always set Referrer-Policy "strict-origin-when-cross-origin"
     Header always set Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+    # HSTS is only meaningful on TLS responses. Browsers ignore it over HTTP.
+    Header always set Strict-Transport-Security "max-age=15768000" env=HTTPS
+</IfModule>
+
+# Assets are queried with ?v=<version>, so a long immutable cache is safe.
+<IfModule mod_headers.c>
+    <FilesMatch "\.(css|js|json|png|jpe?g|gif|svg|ico|woff2?)$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
 </IfModule>
 
 # ------------------------------------------------------------------
