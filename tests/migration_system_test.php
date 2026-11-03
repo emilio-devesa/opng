@@ -21,6 +21,22 @@ expect_migration(
     'the v1.0 baseline migration is present and recognized',
     $failures
 );
+expect_migration(
+    array_key_exists('0002_foreign_keys', $migrations),
+    'the foreign-key migration is present and recognized',
+    $failures
+);
+$foreign_keys = file_get_contents($migrations['0002_foreign_keys'] ?? '');
+expect_migration(
+    is_string($foreign_keys)
+        && str_contains($foreign_keys, 'SET user_id = NULL')
+        && str_contains($foreign_keys, 'SET actor_id = NULL')
+        && str_contains($foreign_keys, "CONSTRAINT_NAME = 'fk_entries_user'")
+        && str_contains($foreign_keys, "CONSTRAINT_NAME = 'fk_audit_actor'")
+        && str_contains($foreign_keys, 'ON DELETE SET NULL'),
+    'the foreign-key migration detaches orphan rows and is re-runnable',
+    $failures
+);
 $versions = array_keys($migrations);
 $sorted = $versions;
 sort($sorted, SORT_STRING);
@@ -55,6 +71,8 @@ foreach ([
     'idx_users_role',
     'idx_entries_cursor',
     'ft_entries_topic',
+    'fk_entries_user',
+    'fk_audit_actor',
 ] as $marker) {
     expect_migration(
         is_string($schema) && str_contains($schema, $marker),

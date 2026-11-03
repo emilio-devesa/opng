@@ -35,7 +35,8 @@ CREATE TABLE IF NOT EXISTS entries (
     KEY idx_entries_user (user_id),
     KEY idx_entries_topic (topic, id),
     KEY idx_entries_language (language, id),
-    FULLTEXT KEY ft_entries_topic (topic)
+    FULLTEXT KEY ft_entries_topic (topic),
+    CONSTRAINT fk_entries_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS rate_limits (
@@ -68,7 +69,8 @@ CREATE TABLE IF NOT EXISTS audit_log (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     KEY idx_audit_created (created_at, id),
-    KEY idx_audit_actor (actor_id)
+    KEY idx_audit_actor (actor_id),
+    CONSTRAINT fk_audit_actor FOREIGN KEY (actor_id) REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT IGNORE INTO storage_counters (counter_key, used_bytes)

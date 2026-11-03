@@ -44,6 +44,30 @@ if (!in_array('0001_baseline', $migration_versions, true)) {
 }
 echo "PASS: schema_migrations records the v1.0 baseline\n";
 
+$fk_rules = [];
+$fk_result = $db->query(
+    "SELECT TABLE_NAME, CONSTRAINT_NAME, DELETE_RULE
+     FROM information_schema.REFERENTIAL_CONSTRAINTS
+     WHERE CONSTRAINT_SCHEMA = DATABASE()
+       AND CONSTRAINT_NAME IN ('fk_entries_user', 'fk_audit_actor')"
+);
+while ($fk_row = $fk_result->fetch_assoc()) {
+    $fk_rules[$fk_row['CONSTRAINT_NAME']] = [
+        'table' => $fk_row['TABLE_NAME'],
+        'delete_rule' => $fk_row['DELETE_RULE'],
+    ];
+}
+$fk_result->free();
+if (
+    ($fk_rules['fk_entries_user']['table'] ?? null) !== 'entries'
+    || ($fk_rules['fk_entries_user']['delete_rule'] ?? null) !== 'SET NULL'
+    || ($fk_rules['fk_audit_actor']['table'] ?? null) !== 'audit_log'
+    || ($fk_rules['fk_audit_actor']['delete_rule'] ?? null) !== 'SET NULL'
+) {
+    throw new RuntimeException('The user/actor foreign keys were not created with ON DELETE SET NULL.');
+}
+echo "PASS: entries.user_id and audit_log.actor_id use ON DELETE SET NULL\n";
+
 $audit_columns = [];
 $audit_result = $db->query(
     "SELECT COLUMN_NAME
