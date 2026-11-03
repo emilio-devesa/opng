@@ -26,16 +26,147 @@ enum RateLimitResult
 }
 
 /**
- * IP del cliente. No se confía en X-Forwarded-For por defecto porque el
- * cliente puede falsearla; si OPNG está detrás de un proxy de confianza,
- * conviene adaptar esta función.
+ * Parse OPNG_TRUSTED_PROXIES (comma-separated IPs or CIDR ranges).
+ *
+ * @return list<string>
+ */
+function trusted_proxy_ranges(): array
+{
+    $raw = getenv('OPNG_TRUSTED_PROXIES');
+    if (!is_string($raw) || trim($raw) === '') {
+        return [];
+    }
+
+    $ranges = [];
+    foreach (explode(',', $raw) as $entry) {
+        $entry = trim($entry);
+        if ($entry === '') {
+            continue;
+        }
+
+        if (str_contains($entry, '/')) {
+            [$subnet, $bits] = explode('/', $entry, 2);
+            if (
+                filter_var($subnet, FILTER_VALIDATE_IP) !== false
+                && ctype_digit($bits)
+                && (int) $bits <= (strlen((string) inet_pton($subnet)) * 8)
+            ) {
+                $ranges[] = $subnet . '/' . $bits;
+            }
+            continue;
+        }
+
+        if (filter_var($entry, FILTER_VALIDATE_IP) !== false) {
+            $ranges[] = $entry;
+        }
+    }
+
+    return $ranges;
+}
+
+function ip_in_ranges(string $ip, array $ranges): bool
+{
+    foreach ($ranges as $range) {
+        if (!str_contains($range, '/')) {
+            if ($ip === $range) {
+                return true;
+            }
+            continue;
+        }
+
+        [$subnet, $bits] = explode('/', $range, 2);
+        $ip_binary = inet_pton($ip);
+        $subnet_binary = inet_pton($subnet);
+        if ($ip_binary === false || $subnet_binary === false || strlen($ip_binary) !== strlen($subnet_binary)) {
+            continue;
+        }
+
+        $bits = (int) $bits;
+        $whole_bytes = intdiv($bits, 8);
+        $remaining_bits = $bits % 8;
+
+        if ($whole_bytes > 0 && substr($ip_binary, 0, $whole_bytes) !== substr($subnet_binary, 0, $whole_bytes)) {
+            continue;
+        }
+        if ($remaining_bits === 0) {
+            return true;
+        }
+
+        $mask = (0xFF << (8 - $remaining_bits)) & 0xFF;
+        if (
+            (ord($ip_binary[$whole_bytes]) & $mask)
+            === (ord($subnet_binary[$whole_bytes]) & $mask)
+        ) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function normalized_forwarded_ip(string $value): ?string
+{
+    $value = trim($value, " \t\"");
+    if (filter_var($value, FILTER_VALIDATE_IP) !== false) {
+        return $value;
+    }
+
+    // Bracketed IPv6 with an optional port: [2001:db8::1]:443
+    if (
+        preg_match('/\A\[([0-9a-fA-F:.]+)\](?::\d+)?\z/', $value, $matches) === 1
+        && filter_var($matches[1], FILTER_VALIDATE_IP) !== false
+    ) {
+        return $matches[1];
+    }
+
+    // IPv4 with a port: 198.51.100.7:443
+    if (
+        preg_match('/\A(\d{1,3}(?:\.\d{1,3}){3}):\d+\z/', $value, $matches) === 1
+        && filter_var($matches[1], FILTER_VALIDATE_IP) !== false
+    ) {
+        return $matches[1];
+    }
+
+    return null;
+}
+
+/**
+ * IP del cliente.
+ *
+ * Without OPNG_TRUSTED_PROXIES the forwarded headers are ignored (a client can
+ * forge them). When the direct peer is a configured proxy, X-Forwarded-For is
+ * walked from right to left and the first untrusted address is returned, so a
+ * client cannot prepend a fake address to the chain.
  */
 function client_ip(): string
 {
     $remote_addr = $_SERVER['REMOTE_ADDR'] ?? null;
-    return is_string($remote_addr) && filter_var($remote_addr, FILTER_VALIDATE_IP) !== false
+    $remote = is_string($remote_addr) && filter_var($remote_addr, FILTER_VALIDATE_IP) !== false
         ? $remote_addr
         : '0.0.0.0';
+
+    $trusted_proxies = trusted_proxy_ranges();
+    if ($trusted_proxies === [] || !ip_in_ranges($remote, $trusted_proxies)) {
+        return $remote;
+    }
+
+    $forwarded = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? null;
+    if (!is_string($forwarded) || trim($forwarded) === '') {
+        return $remote;
+    }
+
+    $candidates = array_reverse(explode(',', $forwarded));
+    foreach ($candidates as $candidate) {
+        $candidate_ip = normalized_forwarded_ip($candidate);
+        if ($candidate_ip === null) {
+            continue;
+        }
+        if (!ip_in_ranges($candidate_ip, $trusted_proxies)) {
+            return $candidate_ip;
+        }
+    }
+
+    return $remote;
 }
 
 /**

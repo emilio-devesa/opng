@@ -65,6 +65,9 @@ jobs:
       - name: Rate-limit outcome regression test
         run: php tests/rate_limit_result_test.php
 
+      - name: Client IP resolution regression test
+        run: php tests/client_ip_test.php
+
       - name: SQL backup serialization regression test
         run: php tests/sql_backup_test.php
 

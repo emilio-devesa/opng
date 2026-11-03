@@ -21,6 +21,10 @@
  *
  *     OPNG_FORCE_HTTPS=1          Mark the session cookie Secure when TLS
  *                                 terminates at a proxy that PHP cannot see.
+ *     OPNG_TRUSTED_PROXIES        Comma-separated IPs/CIDRs of reverse proxies
+ *                                 (for example 10.0.0.0/8,192.0.2.10). Only
+ *                                 their X-Forwarded-For header is trusted for
+ *                                 rate limiting; leave empty otherwise.
  *     OPNG_STORAGE_QUOTA_BYTES    Global paste-text quota in bytes
  *                                 (default: 10 GiB).
  *     OPNG_BACKUP_MAX_SECONDS     Maximum duration of an admin backup
