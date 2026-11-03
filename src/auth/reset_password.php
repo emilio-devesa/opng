@@ -154,6 +154,7 @@ if ($_SERVER["REQUEST_METHOD"] === "GET" && !empty($_SESSION['reset_password_suc
             }
 
             if ($reset_completed) {
+                csrf_rotate();
                 $_SESSION['reset_password_success'] = true;
                 header("Location: reset_password.php", true, 303);
                 exit;

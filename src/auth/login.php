@@ -172,6 +172,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $_SESSION["role"] = $user['role'];
         $_SESSION["session_version"] = (int) ($user['session_version'] ?? 0);
         $_SESSION["opng_authenticated_at"] = time();
+        // The pre-login page token must not remain valid after authentication.
+        csrf_rotate();
 
         // Redirigir al usuario a la página de origen después del login
         header("Location: " . $redirect_url);

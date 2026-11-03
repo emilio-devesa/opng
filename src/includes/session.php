@@ -37,6 +37,15 @@ function session_start_secured(): void
     ini_set('session.use_strict_mode', '1');
     ini_set('session.use_only_cookies', '1');
     ini_set('session.cookie_httponly', '1');
+    // 48 hex-equivalent characters with the largest entropy alphabet. This
+    // raises the guessing cost without changing the session API (SEC-13).
+    ini_set('session.sid_length', '48');
+    ini_set('session.sid_bits_per_character', '6');
+
+    // `__Host-` requires Secure, Path=/ and no Domain, so it is only valid on
+    // HTTPS. Plain-HTTP development keeps the unprefixed name. PHP's session
+    // API has no Priority attribute; set `Priority=High` at the TLS proxy.
+    session_name($is_https ? '__Host-opng_session' : 'opng_session');
 
     session_set_cookie_params([
         'lifetime' => 0,

@@ -104,6 +104,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                                 // every other session of the account.
                                 $_SESSION['session_version'] = (int) ($_SESSION['session_version'] ?? 0) + 1;
                                 session_regenerate_id(true);
+                                csrf_rotate();
                                 $_SESSION['change_password_success'] = true;
                                 $db->close();
                                 header('Location: change_password.php', true, 303);
