@@ -181,10 +181,31 @@ if (
 }
 if (
     !is_string($layout)
-    || !str_contains($layout, '<h1 data-i18n="title_index">')
-    || !str_contains($layout, 'data-i18n="title_index"')
+    || str_contains($layout, '<h1')
+    || !str_contains($layout, '<p class="site-name" data-i18n="title_index">')
 ) {
-    $failures[] = 'The header heading must render the site name instead of duplicating the page title';
+    $failures[] = 'The shared layout must not add a second h1; the site name is a brand paragraph';
+}
+$heading_pages = [
+    '/src/index.php',
+    '/src/view.php',
+    '/src/pastebin.php',
+    '/src/error.php',
+    '/src/auth/login.php',
+    '/src/auth/register.php',
+    '/src/auth/request_reset.php',
+    '/src/auth/reset_password.php',
+    '/src/auth/change_password.php',
+    '/src/admin/admin.php',
+    '/src/admin/empty.php',
+    '/src/admin/delete_database.php',
+    '/src/admin/seed_instructions.php',
+];
+foreach ($heading_pages as $heading_path) {
+    $heading_source = file_get_contents($root . $heading_path);
+    if (!is_string($heading_source) || substr_count($heading_source, '<h1') !== 1) {
+        $failures[] = "Page must render exactly one h1 heading: {$heading_path}";
+    }
 }
 if (
     !is_string($layout)

@@ -35,7 +35,7 @@ header('X-Frame-Options: DENY');
     <a class="skip-link" href="#Content" data-i18n="skip_to_content">Skip to content</a>
     <header id="SiteHeader">
         <div class="header-top">
-            <h1 data-i18n="title_index">Open Pastebin NG</h1>
+            <p class="site-name" data-i18n="title_index">Open Pastebin NG</p>
             <div class="header-actions">
                 <a class="header-home" href="<?php echo $base; ?>index.php" aria-label="Home" title="Home" data-i18n-aria-label="home" data-i18n-title="home">🏠</a>
                 <div class="header-tools">
