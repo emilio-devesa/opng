@@ -173,6 +173,37 @@ function client_ip(): string
  * Read the current counter without recording a new attempt. Used to reject a
  * request before paying for bcrypt when the bucket is already exhausted.
  */
+/**
+ * Hash a rate-limit key for one specific window.
+ *
+ * Including the window in the hash lets the table keep the current and the
+ * previous bucket as separate rows without changing the primary key. The
+ * sliding-window estimate then weighs both buckets (ROB-09).
+ */
+function rate_limit_window_hash(string $key, int $window_start): string
+{
+    return hash('sha256', $key . '|' . $window_start);
+}
+
+/**
+ * Weighted estimate for the sliding window.
+ *
+ * The previous bucket keeps the fraction of its window that still overlaps
+ * the current one. At the start of a new window its weight is 1, so a burst
+ * cannot double the allowed rate at the boundary; it decays linearly to 0.
+ */
+function rate_limit_estimate(int $current_hits, int $previous_hits, int $window_start, int $window, int $now): float
+{
+    if ($window < 1) {
+        return 0.0;
+    }
+
+    $elapsed = max(0, min($window, $now - $window_start));
+    $previous_weight = ($window - $elapsed) / $window;
+
+    return $current_hits + ($previous_hits * $previous_weight);
+}
+
 function rate_limit_status(mysqli $db, string $action, string $key, int $limit, int $window): RateLimitResult
 {
     if ($limit < 1 || $window < 1 || $action === '' || strlen($action) > 32) {
@@ -180,19 +211,23 @@ function rate_limit_status(mysqli $db, string $action, string $key, int $limit, 
         return RateLimitResult::Unavailable;
     }
 
-    $window_start = intdiv(time(), $window) * $window;
-    $key_hash = hash('sha256', $key);
+    $now = time();
+    $window_start = intdiv($now, $window) * $window;
+    $previous_start = $window_start - $window;
+    $current_hash = rate_limit_window_hash($key, $window_start);
+    $previous_hash = rate_limit_window_hash($key, $previous_start);
     $stmt = null;
 
     try {
         $stmt = $db->prepare(
-            'SELECT hits FROM rate_limits WHERE action = ? AND key_hash = ? AND window_start = ?'
+            'SELECT window_start, hits FROM rate_limits
+             WHERE action = ? AND key_hash IN (?, ?)'
         );
         if (!$stmt) {
             error_log('OPNG ratelimit.php: ' . $db->error);
             return RateLimitResult::Unavailable;
         }
-        $stmt->bind_param('ssi', $action, $key_hash, $window_start);
+        $stmt->bind_param('sss', $action, $current_hash, $previous_hash);
         if (!$stmt->execute()) {
             error_log('OPNG ratelimit.php: ' . $stmt->error);
             return RateLimitResult::Unavailable;
@@ -202,12 +237,20 @@ function rate_limit_status(mysqli $db, string $action, string $key, int $limit, 
             error_log('OPNG ratelimit.php: could not read the rate-limit counter');
             return RateLimitResult::Unavailable;
         }
-        $row = $result->fetch_assoc();
+        $current_hits = 0;
+        $previous_hits = 0;
+        while ($row = $result->fetch_assoc()) {
+            if ((int) $row['window_start'] === $window_start) {
+                $current_hits = (int) $row['hits'];
+            } elseif ((int) $row['window_start'] === $previous_start) {
+                $previous_hits = (int) $row['hits'];
+            }
+        }
         $result->free();
 
-        $hits = is_array($row) ? (int) ($row['hits'] ?? 0) : 0;
+        $estimate = rate_limit_estimate($current_hits, $previous_hits, $window_start, $window, $now);
 
-        return $hits >= $limit ? RateLimitResult::Limited : RateLimitResult::Allowed;
+        return $estimate >= $limit ? RateLimitResult::Limited : RateLimitResult::Allowed;
     } catch (mysqli_sql_exception $exception) {
         error_log('OPNG ratelimit.php: ' . $exception->getMessage());
         return RateLimitResult::Unavailable;
@@ -219,22 +262,29 @@ function rate_limit_status(mysqli $db, string $action, string $key, int $limit, 
 }
 
 /**
- * Remove the counter for (action, key). Called after a successful login so a
- * legitimate user never accumulates failed-attempt budget.
+ * Remove the current and previous counters for (action, key). Called after a
+ * successful login so a legitimate user never accumulates failed-attempt
+ * budget.
  */
-function rate_limit_clear(mysqli $db, string $action, string $key): bool
+function rate_limit_clear(mysqli $db, string $action, string $key, int $window = 600): bool
 {
-    if ($action === '' || strlen($action) > 32) {
+    if ($action === '' || strlen($action) > 32 || $window < 1) {
         return false;
     }
 
     try {
-        $key_hash = hash('sha256', $key);
-        $stmt = $db->prepare('DELETE FROM rate_limits WHERE action = ? AND key_hash = ?');
+        $window_start = intdiv(time(), $window) * $window;
+        $hashes = [
+            rate_limit_window_hash($key, $window_start),
+            rate_limit_window_hash($key, $window_start - $window),
+        ];
+        $stmt = $db->prepare(
+            'DELETE FROM rate_limits WHERE action = ? AND key_hash IN (?, ?)'
+        );
         if (!$stmt) {
             return false;
         }
-        $stmt->bind_param('ss', $action, $key_hash);
+        $stmt->bind_param('sss', $action, $hashes[0], $hashes[1]);
         $deleted = $stmt->execute();
         $stmt->close();
 
@@ -266,8 +316,11 @@ function record_rate_limit_hit(mysqli $db, string $action, string $key, int $lim
         return RateLimitResult::Unavailable;
     }
 
-    $window_start = intdiv(time(), $window) * $window;
-    $key_hash = hash('sha256', $key);
+    $now = time();
+    $window_start = intdiv($now, $window) * $window;
+    $previous_start = $window_start - $window;
+    $key_hash = rate_limit_window_hash($key, $window_start);
+    $previous_hash = rate_limit_window_hash($key, $previous_start);
     $stmt = null;
 
     try {
@@ -278,14 +331,13 @@ function record_rate_limit_hit(mysqli $db, string $action, string $key, int $lim
             "INSERT INTO rate_limits (action, key_hash, window_start, hits)
              VALUES (?, ?, ?, LAST_INSERT_ID(1))
              ON DUPLICATE KEY UPDATE
-                hits = LAST_INSERT_ID(IF(window_start = ?, hits + 1, 1)),
-                window_start = ?"
+                hits = LAST_INSERT_ID(hits + 1)"
         );
         if (!$stmt) {
             error_log('OPNG ratelimit.php: ' . $db->error);
             return RateLimitResult::Unavailable;
         }
-        $stmt->bind_param('ssiii', $action, $key_hash, $window_start, $window_start, $window_start);
+        $stmt->bind_param('ssi', $action, $key_hash, $window_start);
         if (!$stmt->execute()) {
             error_log('OPNG ratelimit.php: ' . $stmt->error);
             return RateLimitResult::Unavailable;
@@ -297,12 +349,14 @@ function record_rate_limit_hit(mysqli $db, string $action, string $key, int $lim
         // Some MySQL/MariaDB drivers do not expose LAST_INSERT_ID(expr) when
         // the table has no AUTO_INCREMENT column. Fall back to a read.
         if ($hits < 1) {
-            $stmt = $db->prepare("SELECT hits FROM rate_limits WHERE action = ? AND key_hash = ?");
+            $stmt = $db->prepare(
+                'SELECT hits FROM rate_limits WHERE action = ? AND key_hash = ? AND window_start = ?'
+            );
             if (!$stmt) {
                 error_log('OPNG ratelimit.php: ' . $db->error);
                 return RateLimitResult::Unavailable;
             }
-            $stmt->bind_param('ss', $action, $key_hash);
+            $stmt->bind_param('ssi', $action, $key_hash, $window_start);
             if (!$stmt->execute()) {
                 error_log('OPNG ratelimit.php: ' . $stmt->error);
                 return RateLimitResult::Unavailable;
@@ -323,6 +377,34 @@ function record_rate_limit_hit(mysqli $db, string $action, string $key, int $lim
             $hits = (int) $row['hits'];
         }
 
+        // Include the weighted previous bucket so a burst at the window edge
+        // cannot double the effective rate.
+        $previous_hits = 0;
+        $stmt = $db->prepare(
+            'SELECT hits FROM rate_limits WHERE action = ? AND key_hash = ? AND window_start = ?'
+        );
+        if (!$stmt) {
+            error_log('OPNG ratelimit.php: ' . $db->error);
+            return RateLimitResult::Unavailable;
+        }
+        $stmt->bind_param('ssi', $action, $previous_hash, $previous_start);
+        if (!$stmt->execute()) {
+            error_log('OPNG ratelimit.php: ' . $stmt->error);
+            return RateLimitResult::Unavailable;
+        }
+        $previous_result = $stmt->get_result();
+        if (!$previous_result) {
+            error_log('OPNG ratelimit.php: could not read the previous rate-limit bucket');
+            return RateLimitResult::Unavailable;
+        }
+        $previous_row = $previous_result->fetch_assoc();
+        $previous_result->free();
+        $stmt->close();
+        $stmt = null;
+        if (is_array($previous_row)) {
+            $previous_hits = (int) $previous_row['hits'];
+        }
+
         // Cleanup of expired windows (1% of the calls).
         if (random_int(1, 100) === 1) {
             $threshold = time() - 86400;
@@ -331,7 +413,9 @@ function record_rate_limit_hit(mysqli $db, string $action, string $key, int $lim
             }
         }
 
-        return $hits <= $limit ? RateLimitResult::Allowed : RateLimitResult::Limited;
+        $estimate = rate_limit_estimate($hits, $previous_hits, $window_start, $window, $now);
+
+        return $estimate > $limit ? RateLimitResult::Limited : RateLimitResult::Allowed;
     } finally {
         if ($stmt instanceof mysqli_stmt) {
             $stmt->close();

@@ -160,8 +160,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         // A successful login clears the account-scoped buckets; the IP-wide
         // bucket keeps counting failures from other accounts on that address.
-        rate_limit_clear($db, 'login', client_ip() . '|' . $normalized_email);
-        rate_limit_clear($db, 'login_account', $normalized_email);
+        rate_limit_clear($db, 'login', client_ip() . '|' . $normalized_email, 600);
+        rate_limit_clear($db, 'login_account', $normalized_email, 600);
         $db->close();
 
         // (S10) Regenerar el ID de sesión para evitar session fixation
