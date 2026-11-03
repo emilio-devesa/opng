@@ -501,6 +501,18 @@ try {
     echo "OK: table admin_metrics_cache\n";
 
     $conn->query("
+        CREATE TABLE IF NOT EXISTS storage_counters (
+            counter_key VARCHAR(32) NOT NULL PRIMARY KEY,
+            used_bytes BIGINT UNSIGNED NOT NULL DEFAULT 0
+        ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+    ");
+    $conn->query(
+        "INSERT IGNORE INTO storage_counters (counter_key, used_bytes)
+         SELECT 'global', COALESCE(SUM(OCTET_LENGTH(text)), 0) FROM entries"
+    );
+    echo "OK: table storage_counters\n";
+
+    $conn->query("
         CREATE TABLE IF NOT EXISTS audit_log (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             actor_id INT NULL,

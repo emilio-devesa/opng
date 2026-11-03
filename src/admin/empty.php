@@ -9,6 +9,7 @@ require_once('../includes/admin_guard.php');
 require_once("../includes/error_messages.php");
 require_once('../includes/admin_metrics.php');
 require_once('../includes/audit_log.php');
+require_once('../includes/user_quota.php');
 
 $db = database_connect();
 if (!$db) {
@@ -57,6 +58,9 @@ try {
     $transaction_started = true;
     if (!$db->query("DELETE FROM entries")) {
         throw new RuntimeException('Entries could not be removed.');
+    }
+    if (!global_quota_zero($db)) {
+        throw new RuntimeException('Global storage counter could not be reset.');
     }
     audit_log_record($db, $session_user_id, 'database.empty', 'entries');
     if (!$db->commit()) {

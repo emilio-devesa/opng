@@ -9,6 +9,7 @@ require_once('../includes/admin_guard.php');
 require_once("../includes/error_messages.php");
 require_once('../includes/admin_metrics.php');
 require_once('../includes/audit_log.php');
+require_once('../includes/user_quota.php');
 
 // Verificar que la solicitud es POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -47,6 +48,27 @@ try {
         opng_error_redirect('error_permission', '../error.php');
     }
 
+    // Measure the entry before deleting it so the global counter stays in
+    // sync without a full-table SUM().
+    $entry_bytes = 0;
+    $size_stmt = $db->prepare(
+        'SELECT OCTET_LENGTH(text) AS text_bytes FROM entries WHERE id = ? FOR UPDATE'
+    );
+    $size_stmt->bind_param('s', $input_ID);
+    if (!$size_stmt->execute()) {
+        $size_stmt->close();
+        throw new RuntimeException('Entry size lookup failed.');
+    }
+    $size_result = $size_stmt->get_result();
+    $size_row = $size_result ? $size_result->fetch_assoc() : null;
+    if ($size_result instanceof mysqli_result) {
+        $size_result->free();
+    }
+    $size_stmt->close();
+    if (is_array($size_row)) {
+        $entry_bytes = (int) ($size_row['text_bytes'] ?? 0);
+    }
+
     // Si el usuario es administrador, puede eliminar cualquier paste.
     if ($user_role === "admin") {
         $stmt = $db->prepare("DELETE FROM entries WHERE id = ?");
@@ -61,7 +83,11 @@ try {
     }
     $deleted = $stmt->affected_rows === 1;
     $stmt->close();
+    $stmt = null;
     if ($deleted) {
+        if (!global_quota_consume($db, -$entry_bytes)) {
+            throw new RuntimeException('Global storage counter could not be updated.');
+        }
         audit_log_record($db, $user_id, 'entry.delete', $input_ID);
     }
     if (!$db->commit()) {

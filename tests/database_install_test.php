@@ -28,7 +28,7 @@ while ($row = $result->fetch_assoc()) {
 }
 $result->free();
 sort($table_names);
-if ($table_names !== ['admin_metrics_cache', 'audit_log', 'entries', 'rate_limits', 'users']) {
+if ($table_names !== ['admin_metrics_cache', 'audit_log', 'entries', 'rate_limits', 'storage_counters', 'users']) {
     throw new RuntimeException('The installer did not leave exactly the lowercase application tables.');
 }
 echo "PASS: application tables use lowercase names on a case-sensitive server\n";
@@ -70,6 +70,7 @@ $expected_user_columns = [
     'reset_token',
     'reset_token_expires',
     'role',
+    'session_version',
     'username',
 ];
 if ($user_columns !== $expected_user_columns) {

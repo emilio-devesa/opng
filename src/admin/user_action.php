@@ -8,6 +8,7 @@ require_once('../database.php');
 require_once("../includes/error_messages.php");
 require_once('../includes/admin_metrics.php');
 require_once('../includes/audit_log.php');
+require_once('../includes/user_quota.php');
 
 function redirect_admin(string $message): never
 {
@@ -108,6 +109,24 @@ try {
             $stmt->close();
             $stmt = null;
         } else {
+            // Measure the account's pastes before deleting them. The target
+            // user row is locked above, so no concurrent paste can slip in.
+            $usage_stmt = $db->prepare(
+                'SELECT COALESCE(SUM(OCTET_LENGTH(text)), 0) AS used_bytes FROM entries WHERE user_id = ?'
+            );
+            $usage_stmt->bind_param('i', $target_user_id);
+            if (!$usage_stmt->execute()) {
+                $usage_stmt->close();
+                throw new RuntimeException('User entry size lookup failed.');
+            }
+            $usage_result = $usage_stmt->get_result();
+            $usage_row = $usage_result ? $usage_result->fetch_assoc() : null;
+            if ($usage_result instanceof mysqli_result) {
+                $usage_result->free();
+            }
+            $usage_stmt->close();
+            $deleted_bytes = is_array($usage_row) ? (int) ($usage_row['used_bytes'] ?? 0) : 0;
+
             $stmt = $db->prepare('DELETE FROM entries WHERE user_id = ?');
             $stmt->bind_param('i', $target_user_id);
             if (!$stmt->execute()) {
@@ -115,6 +134,10 @@ try {
             }
             $stmt->close();
             $stmt = null;
+
+            if (!global_quota_consume($db, -$deleted_bytes)) {
+                throw new RuntimeException('Global storage counter could not be updated.');
+            }
         }
 
         $stmt = $db->prepare('DELETE FROM users WHERE id = ?');

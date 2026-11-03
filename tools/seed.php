@@ -20,6 +20,7 @@ if (PHP_SAPI !== 'cli') {
 }
 
 require __DIR__ . '/../src/config.php';
+require __DIR__ . '/../src/includes/user_quota.php';
 
 $db = new mysqli($mysql_server, $mysql_username, $mysql_password, $mysql_dbname);
 if ($db->connect_error) {
@@ -624,6 +625,12 @@ foreach ($entries as $e) {
     $inserted++;
 }
 $stmt->close();
+
+// The seed inserts rows directly, bypassing submit.php; reconcile the global
+// storage counter so the next writes see the real usage.
+if (!global_quota_recount($db)) {
+    fwrite(STDERR, "WARNING: could not reconcile the global storage counter\n");
+}
 
 // ---------------------------------------------------------------------------
 // Resumen

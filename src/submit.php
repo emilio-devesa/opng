@@ -89,31 +89,43 @@ try {
     }
 
     // Global soft cap for all paste text, configurable with
-    // OPNG_STORAGE_QUOTA_BYTES (default 10 GiB).
-    $global_used = global_storage_usage($db);
+    // OPNG_STORAGE_QUOTA_BYTES (default 10 GiB). The counter row is locked
+    // inside the same transaction as the insert, so concurrent writes cannot
+    // overshoot the quota (SEC-04/ROB-03) and no full-table SUM() runs per
+    // request (PERF-01).
+    $id = bin2hex(random_bytes(8));
+    $text_bytes = strlen($text);
+    $transaction_started = false;
+    $db->begin_transaction();
+    $transaction_started = true;
+
+    $global_used = global_quota_lock($db);
     if ($global_used === null) {
+        error_log('OPNG submit.php: global storage counter is unavailable');
+        $db->rollback();
+        $transaction_started = false;
         $db->close();
         opng_error_redirect('error_database_operation');
     }
-    if (!global_quota_allows($global_used, strlen($text))) {
+    if (!global_quota_allows($global_used, $text_bytes)) {
+        $db->rollback();
+        $transaction_started = false;
         $db->close();
         opng_error_redirect('error_global_storage_quota');
     }
 
-    $id = bin2hex(random_bytes(8));
-    $transaction_started = false;
     if ($user_id !== null) {
-        $db->begin_transaction();
-        $transaction_started = true;
         $usage = lock_user_quota($db, (int) $user_id);
         if ($usage === null) {
             error_log('OPNG submit.php: authenticated account was not found while checking storage quota');
             $db->rollback();
+            $transaction_started = false;
             $db->close();
             opng_error_redirect('error_database_operation');
         }
-        if (!user_quota_allows($usage, 0, strlen($text))) {
+        if (!user_quota_allows($usage, 0, $text_bytes)) {
             $db->rollback();
+            $transaction_started = false;
             $db->close();
             opng_error_redirect('error_storage_quota');
         }
@@ -130,20 +142,30 @@ try {
     if (!$stmt->execute()) {
         error_log("OPNG submit.php: " . $stmt->error);
         $stmt->close();
-        if ($transaction_started) {
-            $db->rollback();
-        }
+        $db->rollback();
+        $transaction_started = false;
         $db->close();
         opng_error_redirect('error_save_paste');
     }
     $stmt->close();
     $stmt = null;
-    if ($transaction_started && !$db->commit()) {
-        error_log("OPNG submit.php: failed to commit the paste transaction");
+
+    if (!global_quota_consume($db, $text_bytes)) {
+        error_log('OPNG submit.php: could not update the global storage counter');
         $db->rollback();
+        $transaction_started = false;
         $db->close();
         opng_error_redirect('error_save_paste');
     }
+
+    if (!$db->commit()) {
+        error_log("OPNG submit.php: failed to commit the paste transaction");
+        $db->rollback();
+        $transaction_started = false;
+        $db->close();
+        opng_error_redirect('error_save_paste');
+    }
+    $transaction_started = false;
     $db->close();
 } catch (mysqli_sql_exception $exception) {
     error_log("OPNG submit.php: " . $exception->getMessage());
