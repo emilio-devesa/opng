@@ -86,6 +86,9 @@ jobs:
       - name: Schema migration regression test
         run: php tests/migration_system_test.php
 
+      - name: Health endpoint regression test
+        run: php tests/health_endpoint_test.php
+
       - name: SQL backup serialization regression test
         run: php tests/sql_backup_test.php
 
