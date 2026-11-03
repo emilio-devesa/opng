@@ -89,6 +89,9 @@ jobs:
       - name: Health endpoint regression test
         run: php tests/health_endpoint_test.php
 
+      - name: Robustness regression test
+        run: php tests/robustness_test.php
+
       - name: SQL backup serialization regression test
         run: php tests/sql_backup_test.php
 

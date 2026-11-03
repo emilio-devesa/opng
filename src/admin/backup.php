@@ -175,8 +175,11 @@ try {
 }
 
 if (fseek($temporary_stream, 0) !== 0) {
+    // No response body has been sent yet, so fail cleanly instead of throwing
+    // an uncaught exception that would leave a truncated download (ROB-05).
+    error_log('OPNG backup.php: backup temporary stream could not be rewound.');
     fclose($temporary_stream);
-    throw new RuntimeException('Backup temporary stream could not be rewound.');
+    opng_error_redirect('error_database_operation', '../error.php');
 }
 
 header('Content-Type: application/sql; charset=utf-8');
