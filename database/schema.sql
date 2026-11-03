@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS rate_limits (
 CREATE TABLE IF NOT EXISTS admin_metrics_cache (
     cache_key VARCHAR(32) NOT NULL PRIMARY KEY,
     payload MEDIUMTEXT NOT NULL,
-    expires_at INT UNSIGNED NOT NULL,
+    expires_at BIGINT UNSIGNED NOT NULL,
     KEY idx_admin_metrics_expiry (expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

@@ -26,6 +26,19 @@ expect_migration(
     'the foreign-key migration is present and recognized',
     $failures
 );
+expect_migration(
+    array_key_exists('0003_admin_metrics_expires_bigint', $migrations),
+    'the admin metrics timestamp migration is present and recognized',
+    $failures
+);
+$expires_migration = file_get_contents($migrations['0003_admin_metrics_expires_bigint'] ?? '');
+expect_migration(
+    is_string($expires_migration)
+        && str_contains($expires_migration, 'ALTER TABLE admin_metrics_cache')
+        && str_contains($expires_migration, 'MODIFY expires_at BIGINT UNSIGNED NOT NULL'),
+    'the admin metrics timestamp migration widens expires_at to BIGINT',
+    $failures
+);
 $foreign_keys = file_get_contents($migrations['0002_foreign_keys'] ?? '');
 expect_migration(
     is_string($foreign_keys)

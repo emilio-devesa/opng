@@ -30,6 +30,19 @@ expect_robust(
     $failures
 );
 
+$schema = file_get_contents($root . '/database/schema.sql');
+$install = file_get_contents($root . '/src/install.php');
+expect_robust(
+    is_string($schema)
+        && is_string($install)
+        && str_contains($schema, 'expires_at BIGINT UNSIGNED NOT NULL')
+        && str_contains($install, 'expires_at BIGINT UNSIGNED NOT NULL')
+        && !str_contains($schema, 'expires_at INT UNSIGNED')
+        && !str_contains($install, 'expires_at INT UNSIGNED'),
+    'the admin metrics cache timestamp no longer uses a 32-bit INT',
+    $failures
+);
+
 foreach ($failures as $failure) {
     fwrite(STDERR, "FAIL: {$failure}\n");
 }
