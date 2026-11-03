@@ -28,10 +28,21 @@ while ($row = $result->fetch_assoc()) {
 }
 $result->free();
 sort($table_names);
-if ($table_names !== ['admin_metrics_cache', 'audit_log', 'entries', 'rate_limits', 'storage_counters', 'users']) {
+if ($table_names !== ['admin_metrics_cache', 'audit_log', 'entries', 'rate_limits', 'schema_migrations', 'storage_counters', 'users']) {
     throw new RuntimeException('The installer did not leave exactly the lowercase application tables.');
 }
 echo "PASS: application tables use lowercase names on a case-sensitive server\n";
+
+$migration_versions = [];
+$migration_result = $db->query('SELECT version FROM schema_migrations ORDER BY version');
+while ($migration_row = $migration_result->fetch_assoc()) {
+    $migration_versions[] = $migration_row['version'];
+}
+$migration_result->free();
+if (!in_array('0001_baseline', $migration_versions, true)) {
+    throw new RuntimeException('The installer did not record the v1.0 schema baseline.');
+}
+echo "PASS: schema_migrations records the v1.0 baseline\n";
 
 $audit_columns = [];
 $audit_result = $db->query(

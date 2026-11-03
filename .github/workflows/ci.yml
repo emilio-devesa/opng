@@ -83,6 +83,9 @@ jobs:
       - name: Performance contract regression test
         run: php tests/performance_contract_test.php
 
+      - name: Schema migration regression test
+        run: php tests/migration_system_test.php
+
       - name: SQL backup serialization regression test
         run: php tests/sql_backup_test.php
 

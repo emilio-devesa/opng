@@ -1,0 +1,5 @@
+-- 0001_baseline.sql
+--
+-- Baseline marker for the v1.0 schema. The canonical table definitions live in
+-- database/schema.sql and are created by src/install.php. This file exists so
+-- every installation records which migration baseline it started from.

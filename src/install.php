@@ -7,6 +7,7 @@ if (PHP_SAPI !== 'cli') {
 }
 
 require __DIR__ . '/config.php';
+require __DIR__ . '/includes/schema.php';
 $database_name = getenv('OPNG_DB_NAME') ?: $mysql_dbname;
 
 function install_fail(string $message, ?string $detail = null): never
@@ -556,6 +557,15 @@ try {
             echo "OK: index {$index_name} already exists\n";
         }
     }
+
+    // Apply versioned migrations after the idempotent bootstrap. Fresh
+    // installations and upgrades both end with the same recorded version.
+    $applied_migrations = schema_apply_migrations($conn, __DIR__ . '/../database/migrations');
+    foreach ($applied_migrations as $applied_version) {
+        $migration_report[] = "applied migration {$applied_version}";
+        echo "OK: applied migration {$applied_version}\n";
+    }
+    echo 'OK: schema version ' . (schema_current_version($conn) ?? 'none') . "\n";
 
     echo "\nMigration report:\n";
     if ($migration_report === []) {
