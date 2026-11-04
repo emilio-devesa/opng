@@ -35,6 +35,9 @@ jobs:
       - name: Password hashing regression test
         run: php tests/password_rehash_test.php
 
+      - name: Account enumeration regression test
+        run: php tests/account_enumeration_test.php
+
       - name: Input limits regression test
         run: php tests/input_validation_test.php
 

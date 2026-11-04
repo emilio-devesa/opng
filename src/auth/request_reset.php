@@ -97,6 +97,11 @@ if (!$simulation_enabled) {
                             }
                             $update->close();
                             $update = null;
+                        } else {
+                            // Run the same statement shape for an unknown
+                            // address so timing does not confirm whether an
+                            // account exists (SEC-10).
+                            $db->query('UPDATE users SET reset_token = reset_token WHERE id = 0');
                         }
                         if ($result instanceof mysqli_result) {
                             $result->free();

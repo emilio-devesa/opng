@@ -132,9 +132,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         opng_error_redirect('error_auth_unavailable', '../error.php');
     }
 
-    // Perform the same bcrypt check when no account exists to reduce enumeration timing.
-    $dummy_password_hash = '$2y$10$ROoOfaJDwIVN2F857mUKXurQvjhmsoCwjxC8a8JO8.vTDLK7q7b5y';
-    $password_hash = $user['password_hash'] ?? $dummy_password_hash;
+    // Perform the same bcrypt work when no account exists to reduce enumeration timing.
+    // Generate the dummy hash lazily with the current PASSWORD_DEFAULT options so
+    // it keeps matching new hashes across PHP upgrades.
+    $password_hash = $user['password_hash'] ?? password_hash('opng-timing-equalizer', PASSWORD_DEFAULT);
     $password_is_valid = password_verify($password, $password_hash);
 
     if ($user !== null && $password_is_valid) {

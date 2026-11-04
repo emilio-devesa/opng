@@ -192,7 +192,7 @@
     "error_login_rate_limit": "Trop de tentatives de connexion. Réessayez dans 10 minutes.",
     "error_invalid_registration": "Vérifiez les limites du nom d'utilisateur, de l'e-mail et du mot de passe.",
     "error_registration_rate_limit": "Trop de tentatives d'inscription. Veuillez réessayer plus tard.",
-    "error_email_registered": "Cette adresse e-mail est déjà inscrite.",
+    "error_email_registered": "Le compte n'a pas pu être créé avec ces informations. Connectez-vous ou réinitialisez votre mot de passe.",
     "error_registration": "L'inscription n'a pas pu aboutir.",
     "error_empty_pastes": "Impossible de supprimer les pastes.",
     "error_invalid_language": "La langue sélectionnée est invalide.",

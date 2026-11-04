@@ -192,7 +192,7 @@
     "error_login_rate_limit": "登录尝试次数过多，请在 10 分钟后重试。",
     "error_invalid_registration": "请检查用户名、电子邮箱和密码长度限制。",
     "error_registration_rate_limit": "注册尝试次数过多，请稍后重试。",
-    "error_email_registered": "此电子邮箱已注册。",
+    "error_email_registered": "无法使用这些信息创建账户。请尝试登录或重置密码。",
     "error_registration": "无法完成注册。",
     "error_empty_pastes": "无法删除 pastes。",
     "error_invalid_language": "所选语言无效。",

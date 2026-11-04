@@ -192,7 +192,7 @@
     "error_login_rate_limit": "Too many login attempts. Please try again in 10 minutes.",
     "error_invalid_registration": "Please check the username, email, and password limits.",
     "error_registration_rate_limit": "Too many registration attempts. Please try again later.",
-    "error_email_registered": "This email is already registered.",
+    "error_email_registered": "The account could not be created with those details. Try signing in or resetting your password.",
     "error_registration": "Registration could not be completed.",
     "error_empty_pastes": "The pastes could not be deleted.",
     "error_invalid_language": "The selected language is not valid.",

@@ -70,6 +70,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                         if ($stmt->num_rows > 0) {
                             $stmt->close();
                             $stmt = null;
+                            // Spend the same bcrypt work as the successful path
+                            // so duplicated-email responses do not become a
+                            // timing oracle. The visible message is generic.
+                            password_hash($password, PASSWORD_DEFAULT);
                             $db->close();
                             $form_error_key = 'error_email_registered';
                         } else {

@@ -192,7 +192,7 @@
     "error_login_rate_limit": "Demasiados intentos de inicio de sesión. Inténtalo de nuevo en 10 minutos.",
     "error_invalid_registration": "Comprueba los límites del nombre de usuario, correo electrónico y contraseña.",
     "error_registration_rate_limit": "Demasiados intentos de registro. Inténtalo de nuevo más tarde.",
-    "error_email_registered": "Este correo electrónico ya está registrado.",
+    "error_email_registered": "No se pudo crear la cuenta con esos datos. Prueba a iniciar sesión o a restablecer la contraseña.",
     "error_registration": "No se pudo completar el registro.",
     "error_empty_pastes": "No se pudieron eliminar los pastes.",
     "error_invalid_language": "El lenguaje seleccionado no es válido.",
