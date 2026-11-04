@@ -116,3 +116,30 @@ assert_same(
     str_contains((string) $reset_source, "rate_limit_hit(\$db, 'reset_password'"),
     'the reset endpoint is rate limited before the token lookup'
 );
+
+// SEC-08: the token is exchanged for a short-lived session and never leaked by
+// the Referer header or kept in the form markup.
+assert_same(
+    true,
+    str_contains((string) $reset_source, "header('Referrer-Policy: no-referrer')")
+        && str_contains((string) $reset_source, "header('Cache-Control: no-store"),
+    'the reset page sets no-referrer and no-store response headers'
+);
+assert_same(
+    true,
+    str_contains((string) $reset_source, 'password_reset_session_store($token_hash)')
+        && str_contains((string) $reset_source, 'header("Location: reset_password.php", true, 303)'),
+    'a valid reset token is exchanged for a session and removed from the URL'
+);
+assert_same(
+    false,
+    str_contains((string) $reset_source, 'name="token"'),
+    'the reset form no longer embeds the token in the page'
+);
+assert_same(
+    true,
+    function_exists('password_reset_session_store')
+        && function_exists('password_reset_session_get')
+        && function_exists('password_reset_session_clear'),
+    'the reset session helpers are available'
+);
