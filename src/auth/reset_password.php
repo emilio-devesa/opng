@@ -6,6 +6,7 @@ require("../includes/password_validation.php");
 require_once("../includes/password_reset.php");
 require("../includes/http_input.php");
 require("../includes/ratelimit.php");
+require_once("../includes/audit_log.php");
 require("../database.php");
 
 if (!in_array($_SERVER["REQUEST_METHOD"], ["GET", "POST"], true)) {
@@ -135,6 +136,7 @@ if ($_SERVER["REQUEST_METHOD"] === "GET" && !empty($_SESSION['reset_password_suc
                         $stmt->execute();
                         $result = $stmt->get_result();
                         $token_record = $result ? $result->fetch_assoc() : null;
+                        $reset_user_id = is_array($token_record) ? (int) ($token_record['id'] ?? 0) : 0;
                         if ($result instanceof mysqli_result) {
                             $result->free();
                         }
@@ -156,6 +158,7 @@ if ($_SERVER["REQUEST_METHOD"] === "GET" && !empty($_SESSION['reset_password_suc
                             $stmt->execute();
                             if ($stmt->affected_rows === 1) {
                                 $reset_completed = true;
+                                audit_log_record($db, $reset_user_id, 'auth.reset_completed', '');
                             } else {
                                 $error_message = "Invalid or expired reset link.";
                             }

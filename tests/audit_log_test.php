@@ -8,6 +8,17 @@ $failures = [];
 if (!function_exists('audit_log_record') || !function_exists('audit_log_ip_hash')) {
     $failures[] = 'The audit log helpers are missing';
 }
+if (!function_exists('audit_log_prune') || !function_exists('audit_log_email_target')) {
+    $failures[] = 'The audit retention and email-hash helpers are missing';
+}
+
+$email_target = audit_log_email_target('Someone@Example.test');
+if (
+    $email_target !== 'email:' . hash('sha256', 'someone@example.test')
+    || str_contains($email_target, 'someone@example.test')
+) {
+    $failures[] = 'Audit email targets must be stable SHA-256 hashes, not clear text';
+}
 
 $_SERVER['REMOTE_ADDR'] = '203.0.113.7';
 $first_hash = audit_log_ip_hash();
@@ -33,11 +44,34 @@ foreach ([
     'src/admin/empty.php' => 'database.empty',
     'src/admin/user_action.php' => 'user.role',
     'src/admin/backup.php' => 'backup.download',
+    'src/auth/login.php' => 'auth.login_failed',
+    'src/auth/request_reset.php' => 'auth.reset_requested',
+    'src/auth/reset_password.php' => 'auth.reset_completed',
+    'src/auth/change_password.php' => 'auth.password_changed',
 ] as $path => $action) {
     $source = file_get_contents($root . '/' . $path);
     if (!is_string($source) || !str_contains($source, 'audit_log_record(') || !str_contains($source, $action)) {
         $failures[] = "Missing audit logging in {$path}";
     }
+}
+
+$login = file_get_contents($root . '/src/auth/login.php');
+if (!is_string($login) || !str_contains($login, 'auth.login_limited') || !str_contains($login, 'auth.login')) {
+    $failures[] = 'Login does not audit successes, failures and rate-limit blocks';
+}
+
+$prune = file_get_contents($root . '/tools/audit_prune.php');
+if (
+    !is_string($prune)
+    || !str_contains($prune, "PHP_SAPI !== 'cli'")
+    || !str_contains($prune, 'audit_log_prune($db')
+) {
+    $failures[] = 'tools/audit_prune.php is missing or not CLI-only';
+}
+
+$readme = file_get_contents($root . '/README.md');
+if (!is_string($readme) || !str_contains($readme, 'OPNG_AUDIT_RETENTION_DAYS')) {
+    $failures[] = 'README.md does not document audit retention';
 }
 
 $admin = file_get_contents($root . '/src/admin/admin.php');

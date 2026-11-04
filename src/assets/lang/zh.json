@@ -235,5 +235,11 @@
     "audit_backup_download": "已下载备份",
     "reset_rate_limit": "密码重置尝试次数过多，请稍后再试。",
     "reauth_password": "当前密码（确认）：",
-    "error_reauth": "请输入当前密码以确认此操作。"
+    "error_reauth": "请输入当前密码以确认此操作。",
+    "audit_auth_login": "登录成功",
+    "audit_auth_login_failed": "登录失败",
+    "audit_auth_login_limited": "登录受限",
+    "audit_auth_reset_requested": "已请求重置密码",
+    "audit_auth_reset_completed": "密码重置完成",
+    "audit_auth_password_changed": "密码已更改"
 }

@@ -736,6 +736,12 @@ require(__DIR__ . "/../includes/layout_header.php");
                             'user.role' => 'audit_user_role',
                             'user.delete' => 'audit_user_delete',
                             'backup.download' => 'audit_backup_download',
+                            'auth.login' => 'audit_auth_login',
+                            'auth.login_failed' => 'audit_auth_login_failed',
+                            'auth.login_limited' => 'audit_auth_login_limited',
+                            'auth.reset_requested' => 'audit_auth_reset_requested',
+                            'auth.reset_completed' => 'audit_auth_reset_completed',
+                            'auth.password_changed' => 'audit_auth_password_changed',
                             default => '',
                         };
                         $audit_action_text = match ($audit_action_key) {
@@ -744,6 +750,12 @@ require(__DIR__ . "/../includes/layout_header.php");
                             'audit_user_role' => 'User role changed',
                             'audit_user_delete' => 'User deleted',
                             'audit_backup_download' => 'Backup downloaded',
+                            'audit_auth_login' => 'Sign-in succeeded',
+                            'audit_auth_login_failed' => 'Sign-in failed',
+                            'audit_auth_login_limited' => 'Sign-in rate limited',
+                            'audit_auth_reset_requested' => 'Password reset requested',
+                            'audit_auth_reset_completed' => 'Password reset completed',
+                            'audit_auth_password_changed' => 'Password changed',
                             default => $audit_action,
                         };
                         $audit_actor = (string) ($audit_entry['username'] ?? '');

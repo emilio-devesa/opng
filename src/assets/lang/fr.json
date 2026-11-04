@@ -235,5 +235,11 @@
     "audit_backup_download": "Sauvegarde téléchargée",
     "reset_rate_limit": "Trop de tentatives de réinitialisation. Veuillez réessayer plus tard.",
     "reauth_password": "Mot de passe actuel (confirmation) :",
-    "error_reauth": "Saisissez votre mot de passe actuel pour confirmer cette action."
+    "error_reauth": "Saisissez votre mot de passe actuel pour confirmer cette action.",
+    "audit_auth_login": "Connexion réussie",
+    "audit_auth_login_failed": "Connexion échouée",
+    "audit_auth_login_limited": "Connexion limitée",
+    "audit_auth_reset_requested": "Réinitialisation demandée",
+    "audit_auth_reset_completed": "Réinitialisation terminée",
+    "audit_auth_password_changed": "Mot de passe modifié"
 }

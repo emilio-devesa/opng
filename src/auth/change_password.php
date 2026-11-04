@@ -6,6 +6,7 @@ require("../includes/ratelimit.php");
 require("../includes/password_validation.php");
 require("../includes/http_input.php");
 require("../includes/error_messages.php");
+require_once("../includes/audit_log.php");
 require("../database.php");
 
 if (!in_array($_SERVER["REQUEST_METHOD"], ["GET", "POST"], true)) {
@@ -106,6 +107,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                                 session_regenerate_id(true);
                                 csrf_rotate();
                                 $_SESSION['change_password_success'] = true;
+                                audit_log_record($db, $user_id, 'auth.password_changed', '');
                                 $db->close();
                                 header('Location: change_password.php', true, 303);
                                 exit;

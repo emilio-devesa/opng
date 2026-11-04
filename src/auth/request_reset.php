@@ -8,6 +8,7 @@ require("../includes/http_input.php");
 require("../includes/error_messages.php");
 require("../includes/assets.php");
 require_once("../includes/captcha.php");
+require_once("../includes/audit_log.php");
 require("../database.php");
 
 $asset_version = opng_asset_version();
@@ -68,6 +69,7 @@ if (!$simulation_enabled) {
                 ) {
                     $message = "If an account exists for this address, a reset link has been generated.";
                 } else {
+                    audit_log_record($db, null, 'auth.reset_requested', audit_log_email_target($email));
                     $stmt = null;
                     $update = null;
                     try {

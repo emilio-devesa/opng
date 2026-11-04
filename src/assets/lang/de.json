@@ -235,5 +235,11 @@
     "audit_backup_download": "Backup heruntergeladen",
     "reset_rate_limit": "Zu viele Versuche zum Zurücksetzen des Passworts. Bitte später erneut versuchen.",
     "reauth_password": "Aktuelles Passwort (Bestätigung):",
-    "error_reauth": "Gib dein aktuelles Passwort ein, um diese Aktion zu bestätigen."
+    "error_reauth": "Gib dein aktuelles Passwort ein, um diese Aktion zu bestätigen.",
+    "audit_auth_login": "Anmeldung erfolgreich",
+    "audit_auth_login_failed": "Anmeldung fehlgeschlagen",
+    "audit_auth_login_limited": "Anmeldung begrenzt",
+    "audit_auth_reset_requested": "Passwort-Zurücksetzung angefordert",
+    "audit_auth_reset_completed": "Passwort-Zurücksetzung abgeschlossen",
+    "audit_auth_password_changed": "Passwort geändert"
 }

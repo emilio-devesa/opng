@@ -235,5 +235,11 @@
     "audit_backup_download": "Backup downloaded",
     "reset_rate_limit": "Too many password reset attempts. Please try again later.",
     "reauth_password": "Current password (confirmation):",
-    "error_reauth": "Enter your current password to confirm this action."
+    "error_reauth": "Enter your current password to confirm this action.",
+    "audit_auth_login": "Sign-in succeeded",
+    "audit_auth_login_failed": "Sign-in failed",
+    "audit_auth_login_limited": "Sign-in rate limited",
+    "audit_auth_reset_requested": "Password reset requested",
+    "audit_auth_reset_completed": "Password reset completed",
+    "audit_auth_password_changed": "Password changed"
 }

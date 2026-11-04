@@ -9,6 +9,7 @@ require_once("../includes/captcha.php");
 require("../database.php");
 require("../includes/error_messages.php");
 require("../includes/assets.php");
+require_once("../includes/audit_log.php");
 
 $asset_version = opng_asset_version();
 
@@ -101,6 +102,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             opng_error_redirect('error_service_unavailable', '../error.php');
         }
         if ($limit_result === RateLimitResult::Limited) {
+            audit_log_record($db, null, 'auth.login_limited', audit_log_email_target($normalized_email));
             $db->close();
             opng_error_redirect('error_login_rate_limit', '../error.php');
         }
@@ -163,6 +165,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         // bucket keeps counting failures from other accounts on that address.
         rate_limit_clear($db, 'login', client_ip() . '|' . $normalized_email, 600);
         rate_limit_clear($db, 'login_account', $normalized_email, 600);
+        audit_log_record($db, (int) $user['id'], 'auth.login', '');
         $db->close();
 
         // (S10) Regenerar el ID de sesión para evitar session fixation
@@ -189,6 +192,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     foreach ($login_limits as [$limit_action, $limit_key, $limit_max]) {
         rate_limit_hit($db, $limit_action, $limit_key, $limit_max, 600);
     }
+    audit_log_record($db, null, 'auth.login_failed', audit_log_email_target($normalized_email));
     $db->close();
     // Redirigir ANTES de emitir cualquier salida
     // (fix H3/U5: anteriormente el header() se llamaba dentro del <body>,

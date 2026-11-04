@@ -235,5 +235,11 @@
     "audit_backup_download": "Copia de seguridad descargada",
     "reset_rate_limit": "Demasiados intentos de restablecimiento. Inténtalo de nuevo más tarde.",
     "reauth_password": "Contraseña actual (confirmación):",
-    "error_reauth": "Introduce tu contraseña actual para confirmar esta acción."
+    "error_reauth": "Introduce tu contraseña actual para confirmar esta acción.",
+    "audit_auth_login": "Inicio de sesión correcto",
+    "audit_auth_login_failed": "Inicio de sesión fallido",
+    "audit_auth_login_limited": "Inicio de sesión limitado",
+    "audit_auth_reset_requested": "Restablecimiento solicitado",
+    "audit_auth_reset_completed": "Restablecimiento completado",
+    "audit_auth_password_changed": "Contraseña cambiada"
 }
