@@ -313,18 +313,24 @@ foreach ([
 }
 
 $backup_script = file_get_contents($root . '/src/admin/backup.php');
+$backup_library = file_get_contents($root . '/src/includes/sql_backup.php');
+$backup_source = is_string($backup_script) && is_string($backup_library)
+    ? $backup_script . "\n" . $backup_library
+    : '';
 if (
     !is_string($backup_script)
+    || !is_string($backup_library)
     || !str_contains($backup_script, 'Content-Disposition: attachment')
     || !str_contains($backup_script, 'no-store')
-    || !str_contains($backup_script, 'MYSQLI_TRANS_START_READ_ONLY')
+    || !str_contains($backup_library, 'MYSQLI_TRANS_START_READ_ONLY')
     || !str_contains($backup_script, "REQUEST_METHOD'] !== 'POST'")
     || !str_contains($backup_script, 'csrf_valid')
     || !str_contains($backup_script, 'audit_log_record')
-    || !str_contains($backup_script, 'OPNG_BACKUP_MAX_SECONDS')
-    || !str_contains($backup_script, 'OPNG_BACKUP_MAX_BYTES')
+    || !str_contains($backup_source, 'OPNG_BACKUP_MAX_SECONDS')
+    || !str_contains($backup_source, 'OPNG_BACKUP_MAX_BYTES')
     || !str_contains($backup_script, 'set_time_limit')
     || !str_contains($backup_script, 'error_backup_limit')
+    || !str_contains($backup_script, 'sql_backup_dump(')
 ) {
     $failures[] = 'Database backup is missing download headers, cache protection, a read-only snapshot, POST/CSRF, audit logging, or time/size limits';
 }

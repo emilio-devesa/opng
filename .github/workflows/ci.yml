@@ -242,6 +242,15 @@ jobs:
           OPNG_DB_NAME: opng_ci
         run: php tests/performance_query_plan_test.php
 
+      - name: Verify backup restore into a clean, differently named database
+        env:
+          OPNG_TEST_ALLOW_DATABASE_FIXTURES: '1'
+          OPNG_TEST_DB_HOST: 127.0.0.1
+          OPNG_TEST_DB_PORT: '3306'
+          OPNG_TEST_DB_USER: root
+          OPNG_TEST_DB_PASS: ci-root-password
+        run: php tests/backup_restore_test.php
+
       - name: Verify ambiguous case variants abort without changing data
         env:
           OPNG_DB_HOST: 127.0.0.1
