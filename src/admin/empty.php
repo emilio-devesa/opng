@@ -6,6 +6,7 @@ require_once('../includes/csrf.php');
 require_once('../database.php');
 require_once('../includes/http_input.php');
 require_once('../includes/admin_guard.php');
+require_once('../includes/reauth.php');
 require_once("../includes/error_messages.php");
 require_once('../includes/admin_metrics.php');
 require_once('../includes/audit_log.php');
@@ -33,6 +34,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             <p data-i18n="empty_confirm">Are you sure you want to continue?</p>
             <form method="post">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
+                <label for="empty_current_password" data-i18n="reauth_password">Current password:</label>
+                <input id="empty_current_password" type="password" name="current_password" maxlength="72" autocomplete="current-password" required>
                 <button type="submit" class="danger" data-i18n="empty_yes">Yes, empty it</button>
             </form>
             <a href="admin.php" data-i18n="cancel">Cancel</a>
@@ -49,6 +52,14 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 // Verificar token CSRF
 if (!csrf_valid($_POST['csrf_token'] ?? null)) {
     opng_error_redirect('error_csrf', '../error.php');
+}
+
+// Emptying the database is irreversible: require the current password even
+// when the CSRF token and the JavaScript confirmation are present (SEC-07).
+$current_password = http_string_parameter($_POST, 'current_password', 72, false);
+if (!reauthenticate_user($db, $session_user_id, $current_password, 'admin_reauth_empty')) {
+    $db->close();
+    opng_error_redirect('error_reauth', '../error.php');
 }
 
 // DELETE works with the runtime DML account; TRUNCATE would require DROP privileges.

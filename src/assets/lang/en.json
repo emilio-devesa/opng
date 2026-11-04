@@ -233,5 +233,7 @@
     "audit_user_role": "User role changed",
     "audit_user_delete": "User deleted",
     "audit_backup_download": "Backup downloaded",
-    "reset_rate_limit": "Too many password reset attempts. Please try again later."
+    "reset_rate_limit": "Too many password reset attempts. Please try again later.",
+    "reauth_password": "Current password (confirmation):",
+    "error_reauth": "Enter your current password to confirm this action."
 }

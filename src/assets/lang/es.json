@@ -233,5 +233,7 @@
     "audit_user_role": "Rol de usuario cambiado",
     "audit_user_delete": "Usuario eliminado",
     "audit_backup_download": "Copia de seguridad descargada",
-    "reset_rate_limit": "Demasiados intentos de restablecimiento. Inténtalo de nuevo más tarde."
+    "reset_rate_limit": "Demasiados intentos de restablecimiento. Inténtalo de nuevo más tarde.",
+    "reauth_password": "Contraseña actual (confirmación):",
+    "error_reauth": "Introduce tu contraseña actual para confirmar esta acción."
 }

@@ -585,6 +585,8 @@ require(__DIR__ . "/../includes/layout_header.php");
                 <button class="admin-field-clear" type="button" aria-label="Clear field" title="Clear field" data-i18n-aria-label="admin_clear_field" data-i18n-title="admin_clear_field" hidden>×</button>
             </div>
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
+            <label for="drop_current_password" data-i18n="reauth_password">Current password:</label>
+            <input id="drop_current_password" type="password" name="current_password" maxlength="72" autocomplete="current-password" required>
             <button type="submit" data-i18n="drop_entry" title="Drop">Drop Entry</button>
         </form>
     </fieldset>
@@ -648,6 +650,10 @@ require(__DIR__ . "/../includes/layout_header.php");
         <form method="post" action="user_action.php" class="admin-user-actions">
             <span id="user_action_confirm" data-i18n="admin_user_confirm_action" hidden>Confirm this user-management action. Deleting a user and possibly their pastes is irreversible.</span>
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
+            <p class="admin-reauth-field">
+                <label for="user_action_current_password" data-i18n="reauth_password">Current password:</label>
+                <input id="user_action_current_password" type="password" name="current_password" maxlength="72" autocomplete="current-password" required>
+            </p>
             <div class="admin-user-action-primary">
                 <label for="admin_record_number" data-i18n="admin_user_id">User ID:</label>
                 <div class="admin-input-wrap">
@@ -691,6 +697,8 @@ require(__DIR__ . "/../includes/layout_header.php");
         </form>
         <form action="backup.php" method="post">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
+            <label for="backup_current_password" data-i18n="reauth_password">Current password:</label>
+            <input id="backup_current_password" type="password" name="current_password" maxlength="72" autocomplete="current-password" required>
             <button type="submit" data-i18n="admin_download_backup">Download backup</button>
         </form>
         <form action="empty.php" method="get">

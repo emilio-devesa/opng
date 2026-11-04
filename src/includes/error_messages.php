@@ -34,6 +34,7 @@ const OPNG_ERROR_KEYS = [
     'error_permission',
     'error_registration',
     'error_registration_rate_limit',
+    'error_reauth',
     'error_save_paste',
     'error_service_unavailable',
     'error_sign_in_to_edit',
@@ -64,6 +65,7 @@ function opng_error_status(string $key): int
 {
     return match ($key) {
         'error_permission' => 403,
+        'error_reauth' => 403,
         'error_entry_not_found' => 404,
         'error_method_not_allowed' => 405,
         'error_invalid_credentials' => 401,

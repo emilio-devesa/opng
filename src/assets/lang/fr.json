@@ -233,5 +233,7 @@
     "audit_user_role": "Rôle utilisateur modifié",
     "audit_user_delete": "Utilisateur supprimé",
     "audit_backup_download": "Sauvegarde téléchargée",
-    "reset_rate_limit": "Trop de tentatives de réinitialisation. Veuillez réessayer plus tard."
+    "reset_rate_limit": "Trop de tentatives de réinitialisation. Veuillez réessayer plus tard.",
+    "reauth_password": "Mot de passe actuel (confirmation) :",
+    "error_reauth": "Saisissez votre mot de passe actuel pour confirmer cette action."
 }

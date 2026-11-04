@@ -233,5 +233,7 @@
     "audit_user_role": "Função de utilizador alterada",
     "audit_user_delete": "Utilizador eliminado",
     "audit_backup_download": "Cópia de segurança descarregada",
-    "reset_rate_limit": "Demasiadas tentativas de reposição de palavra-passe. Tente novamente mais tarde."
+    "reset_rate_limit": "Demasiadas tentativas de reposição de palavra-passe. Tente novamente mais tarde.",
+    "reauth_password": "Palavra-passe atual (confirmação):",
+    "error_reauth": "Introduza a sua palavra-passe atual para confirmar esta ação."
 }

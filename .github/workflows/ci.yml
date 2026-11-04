@@ -38,6 +38,9 @@ jobs:
       - name: Account enumeration regression test
         run: php tests/account_enumeration_test.php
 
+      - name: Reauthentication regression test
+        run: php tests/reauth_test.php
+
       - name: Input limits regression test
         run: php tests/input_validation_test.php
 

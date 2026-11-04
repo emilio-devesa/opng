@@ -182,6 +182,8 @@ require(__DIR__ . "/includes/layout_header.php");
                     <span id="delete_confirm" data-i18n="delete_confirm" hidden>Are you sure you want to delete this paste? This action cannot be undone.</span>
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
                     <input type="hidden" name="input_ID" value="<?php echo htmlspecialchars($array['id'], ENT_QUOTES, 'UTF-8'); ?>">
+                    <label class="visually-hidden" for="delete_current_password" data-i18n="reauth_password">Current password:</label>
+                    <input id="delete_current_password" type="password" name="current_password" maxlength="72" autocomplete="current-password" required>
                     <button type="submit" class="danger" aria-label="Delete Paste" title="Delete Paste" data-i18n-aria-label="delete_paste" data-i18n-title="delete_paste">
                         <span aria-hidden="true">🗑️</span>
                         <span class="visually-hidden" data-i18n="delete_paste">Delete Paste</span>

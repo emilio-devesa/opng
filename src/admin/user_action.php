@@ -4,6 +4,7 @@ session_start_secured();
 require_once('../includes/csrf.php');
 require_once('../includes/http_input.php');
 require_once('../includes/admin_guard.php');
+require_once('../includes/reauth.php');
 require_once('../database.php');
 require_once("../includes/error_messages.php");
 require_once('../includes/admin_metrics.php');
@@ -47,6 +48,14 @@ if (!$db) {
     redirect_admin('user_operation_failed');
 }
 $current_user_id = require_admin($db, 'user_action.php');
+
+// Role changes and account deletion require an explicit password confirmation
+// in addition to CSRF (SEC-07).
+$current_password = http_string_parameter($_POST, 'current_password', 72, false);
+if (!reauthenticate_user($db, $current_user_id, $current_password, 'admin_reauth_user')) {
+    $db->close();
+    opng_error_redirect('error_reauth', '../error.php');
+}
 
 $transaction_started = false;
 try {

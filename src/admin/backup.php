@@ -4,6 +4,7 @@ session_start_secured();
 require_once('../includes/csrf.php');
 require_once('../includes/http_input.php');
 require_once('../includes/admin_guard.php');
+require_once('../includes/reauth.php');
 require_once('../includes/sql_backup.php');
 require_once('../includes/audit_log.php');
 require_once('../database.php');
@@ -25,6 +26,14 @@ if (!$db) {
 }
 
 $session_user_id = require_admin($db, 'backup.php');
+
+// A valid CSRF token is not proof that the account owner approved downloading
+// password hashes and reset tokens (SEC-07).
+$current_password = http_string_parameter($_POST, 'current_password', 72, false);
+if (!reauthenticate_user($db, $session_user_id, $current_password, 'admin_reauth_backup')) {
+    $db->close();
+    opng_error_redirect('error_reauth', '../error.php');
+}
 
 // Bound the dump so a large database cannot exhaust the request time or the
 // temporary stream. Operators can raise both limits for scheduled backups.
