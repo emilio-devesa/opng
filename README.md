@@ -125,6 +125,15 @@ php src/install.php
 
 The CLI installer creates lowercase `users`, `entries`, `rate_limits`, `admin_metrics_cache` and `audit_log` tables and the listing, cursor, owner, topic and language indexes plus the FULLTEXT topic index. It safely renames the legacy `Users`/`Entries` names only when the lowercase destination does not exist; ambiguous case variants stop the migration without deleting data. Existing `entries.text` is widened to `MEDIUMTEXT` for 1 MiB pastes, legacy `NULL` dates become `1970-01-01 00:00:00` so `date` can be `NOT NULL`, and `topic`/`language` become `NOT NULL` (`topic` as `VARCHAR(255)`) so the date, topic and language sorts can use their indexes. Re-run it with the migration account after schema upgrades; index creation is idempotent. Back up the database before schema migrations. Remove `install.php` from a public document root after installation even though it refuses web execution.
 
+Once the schema is ready, revoke the migration credentials and run the startup doctor from the repository root. It checks the configuration file permissions, the runtime database password, the schema version, `display_errors`, `OPNG_DEV_RESET`, leftover installer credentials and HTTPS:
+
+```bash
+OPNG_PUBLIC_URL=https://your-host \
+php tools/doctor.php
+```
+
+The doctor exits non-zero on failures; `--strict` also fails on warnings and `--json` prints a machine-readable checklist for container entrypoints. Set `OPNG_PUBLIC_URL` (or `OPNG_FORCE_HTTPS=1` behind a TLS-terminating proxy) so the HTTPS check can be definitive. Never expose the runtime password or the doctor's output to visitors.
+
 4️⃣ **Enforce input and request limits**
 
 Paste text is limited to **1 MiB (1,048,576 bytes)** and topics to **255 bytes**. The server validates both limits on create and edit; the editors display the remaining byte budget live (UTF-8 bytes, matching the server check). The Nginx example allows a 4 MiB request body to account for form encoding. Configure PHP `post_max_size` to at least `4M` (and any reverse proxy/body limit accordingly). Normal accounts have a **100 MiB cumulative text quota** across owned pastes and replies; admins and anonymous pastes are exempt. A separate **global paste-text quota** (default **10 GiB**) caps the whole instance; override it with `OPNG_STORAGE_QUOTA_BYTES`. Anonymous guests must solve the local CAPTCHA before creating a paste. Existing content is never removed by either quota. Accounts already over the limit may edit only without increasing their stored bytes. New and reset passwords must be 12–72 bytes; existing passwords remain valid for login.
@@ -150,7 +159,7 @@ The topic search uses a MySQL/MariaDB FULLTEXT index and requires all entered wo
 - [ ] Keep `src/config.php` and database credentials out of version control and HTTP access. Use a unique, non-empty runtime password and rotate it if it was ever committed or shared; do not reuse the example development credentials. Set `post_max_size` and proxy request limits to at least `4M`. Set `OPNG_STORAGE_QUOTA_BYTES` to a global paste-text limit that fits the database volume (default 10 GiB); the admin panel warns when it is nearly full.
 - [ ] Enable OPcache from [`deploy/php/opng.ini`](deploy/php/opng.ini) (or copy its values into the PHP-FPM pool). `opcache.validate_timestamps=0` is the fastest mode, but then every deployment must restart PHP-FPM or call `opcache_reset()`. For Nginx, include [`deploy/nginx/gzip.conf`](deploy/nginx/gzip.conf) to compress versioned CSS/JS/JSON. Measure response time and transfer size before/after; both changes are deployment-only.
 - [ ] Configure private server/application logs, confirm visitors receive generic errors, and ensure the log path is writable only by the service account and administrators.
-- [ ] After installation or upgrade, verify the expected schema/indexes, create and view a test paste, search and paginate, and confirm the HTTP error log has no database/configuration leaks.
+- [ ] After installation or upgrade, verify the expected schema/indexes, create and view a test paste, search and paginate, and confirm the HTTP error log has no database/configuration leaks. Run `php tools/doctor.php --strict` and fix every reported failure before serving traffic.
 - [ ] Test a database backup restore before relying on the deployment; a backup that has never been restored is not a verified recovery plan.
 
 ---
@@ -226,6 +235,7 @@ For security reasons, access to **admin features** is restricted to administrato
   php tests/permissions_test.php
   php tests/sql_backup_test.php
   php tests/frontend_contract_test.php
+  php tests/doctor_test.php
   ```
 
 - **Database connection failure test** — CI runs `tests/database_connection_test.php` against an isolated runner with intentionally invalid credentials. It requires `OPNG_TEST_ALLOW_CONNECTION_PROBE=1`; do not set that flag for tests against a shared or production environment.

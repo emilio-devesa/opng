@@ -579,6 +579,7 @@ try {
     echo "\nSchema installation complete.\n";
     echo "The target database was not created or dropped by this installer.\n";
     echo "Revoke the migration account when installation is complete.\n";
+    echo "Then run the startup doctor: php tools/doctor.php\n";
     $conn->close();
 } catch (mysqli_sql_exception $exception) {
     install_fail('Database operation failed; check the configured migration account and server log.', $exception->getMessage());

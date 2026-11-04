@@ -41,6 +41,9 @@ jobs:
       - name: Reauthentication regression test
         run: php tests/reauth_test.php
 
+      - name: Startup doctor regression test
+        run: php tests/doctor_test.php
+
       - name: Input limits regression test
         run: php tests/input_validation_test.php
 
