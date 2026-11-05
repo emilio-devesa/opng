@@ -25,6 +25,9 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS entries (
     id VARCHAR(255) PRIMARY KEY,
+    parent_id VARCHAR(255) NULL,
+    root_id VARCHAR(255) NULL,
+    depth TINYINT UNSIGNED NOT NULL DEFAULT 0,
     user_id INT NULL,
     date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     language VARCHAR(20) NOT NULL DEFAULT '',
@@ -35,8 +38,11 @@ CREATE TABLE IF NOT EXISTS entries (
     KEY idx_entries_user (user_id),
     KEY idx_entries_topic (topic, id),
     KEY idx_entries_language (language, id),
+    KEY idx_entries_parent (parent_id, date, id),
+    KEY idx_entries_root (root_id, date, id),
     FULLTEXT KEY ft_entries_topic (topic),
-    CONSTRAINT fk_entries_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL
+    CONSTRAINT fk_entries_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL,
+    CONSTRAINT fk_entries_parent FOREIGN KEY (parent_id) REFERENCES entries (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS rate_limits (

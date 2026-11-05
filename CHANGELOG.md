@@ -1,6 +1,26 @@
 # Open Pastebin NG - Changelog
 ============================
 
+## Version 1.0.0-beta.1 (in development)
+
+### Phase 3 — Feature Historial (F1)
+#### 🧵 Thread model and migration
+- Added migration `0004_entry_threads` and the canonical `database/schema.sql` columns `entries.parent_id`, `entries.root_id` and `entries.depth`. Existing rows are backfilled as roots (`root_id = id`, `depth = 0`); legacy `RE: ` topics are intentionally not linked heuristically.
+- `parent_id` references `entries.id` with `ON DELETE SET NULL`, so deleting a node detaches its replies without deleting them; `root_id` is preserved so the orphaned subtree remains reachable. Added `idx_entries_parent` and `idx_entries_root` for history queries and child checks.
+- Added `src/includes/thread.php`: parent lookup with optional row lock, position calculation (maximum depth 32), one-query chronological page fetch (maximum 500 nodes), ancestor derivation and tree grouping. Corrupt cycles are guarded without extra queries.
+- Added `tools/link_legacy_replies.php` for reviewed migrations of legacy `RE: ` pastes: `--dry-run` lists candidates, `--apply` requires explicit `--reply`/`--parent` IDs, validates topic/date/depth, recalculates the subtree and writes `entry.link_legacy` to `audit_log`. It does not use recursive CTEs, so MySQL 5.7 remains supported.
+
+#### ✍️ Replies and history UI
+- `view.php?tab=reply` now submits a hidden `parent_id`; `submit.php` validates the ID with the shared input helpers, locks the parent inside the quota transaction, rejects missing parents and depth 33, stores `parent_id`/`root_id`/`depth`, and redirects to the new reply. The reply textarea starts empty instead of copying the parent text.
+- Added the **History** tab for entries that are replies or have replies. It shows a chronological `<ol>` with topic, `<time>`, author (`Guest` when anonymous) and *Ancestor*/*Current*/*Descendant* badges, plus a semantic nested `<ul>` branch graph with connector CSS, `aria-current="page"` and no JavaScript dependency.
+- Large threads show the first 500 entries, a translated “very large thread” notice, a `<details>` branch toggle and a `date, id` “Load more” cursor. Deleted parents/roots show a preserved-replies notice; links and topics are escaped.
+- Added `error_thread_too_deep`, the history UI strings and both notice/toggle strings to all six catalogs (268 keys each).
+
+#### 🧪 Tests and docs
+- Added `tests/thread_test.php` (position, depth 32, grouping, cycle guard, migration/schema/UI/catalog contracts) and `tests/thread_integration_test.php` (disposable database: root → reply → nested reply, chronological history and authors, parent/root deletion, depth-32 chain, `delete_entries`/`preserve`, `DELETE FROM entries`).
+- Extended `tests/database_install_test.php` (migration/columns/indexes/SET NULL FK/backfill on an upgraded legacy schema), `tests/performance_query_plan_test.php` (`idx_entries_root` plan and 500-node page) and `tests/backup_restore_test.php` (threaded rows survive a portable restore).
+- Documented the feature, migration and integration tests in `README.md`; CI now runs both thread suites.
+
 ## Version 0.9.0 (2026)
 
 ### Phase 1 — Integrity and error reporting

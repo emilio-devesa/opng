@@ -31,6 +31,23 @@ expect_migration(
     'the admin metrics timestamp migration is present and recognized',
     $failures
 );
+expect_migration(
+    array_key_exists('0004_entry_threads', $migrations),
+    'the entry-thread migration is present and recognized',
+    $failures
+);
+$threads_migration = file_get_contents($migrations['0004_entry_threads'] ?? '');
+expect_migration(
+    is_string($threads_migration)
+        && str_contains($threads_migration, 'ADD COLUMN parent_id VARCHAR(255) NULL')
+        && str_contains($threads_migration, 'ADD COLUMN root_id VARCHAR(255) NULL')
+        && str_contains($threads_migration, 'ADD COLUMN depth TINYINT UNSIGNED NOT NULL DEFAULT 0')
+        && str_contains($threads_migration, 'idx_entries_root')
+        && str_contains($threads_migration, 'ON DELETE SET NULL')
+        && str_contains($threads_migration, 'UPDATE entries SET root_id = id, depth = 0'),
+    'the entry-thread migration adds the relation, indexes, delete rule and backfill',
+    $failures
+);
 $expires_migration = file_get_contents($migrations['0003_admin_metrics_expires_bigint'] ?? '');
 expect_migration(
     is_string($expires_migration)
@@ -83,8 +100,11 @@ foreach ([
     'idx_users_created',
     'idx_users_role',
     'idx_entries_cursor',
+    'idx_entries_parent',
+    'idx_entries_root',
     'ft_entries_topic',
     'fk_entries_user',
+    'fk_entries_parent',
     'fk_audit_actor',
 ] as $marker) {
     expect_migration(

@@ -11,6 +11,7 @@ require("includes/user_quota.php");
 require("includes/admin_metrics.php");
 require("includes/http_input.php");
 require("includes/error_messages.php");
+require("includes/thread.php");
 require_once("includes/captcha.php");
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -45,6 +46,13 @@ try {
 }
 if (!isset($rules[$language])) {
     opng_error_redirect('error_invalid_language');
+}
+
+// Replies carry the parent entry ID in a hidden field. The relationship is
+// validated inside the transaction so a deleted parent cannot be referenced.
+$parent_id = http_string_parameter($_POST, 'parent_id', 255, false);
+if ($parent_id !== null && !http_valid_entry_id($parent_id)) {
+    opng_error_redirect('error_invalid_paste');
 }
 
 $user_id = $_SESSION['user_id'] ?? null;
@@ -126,12 +134,64 @@ try {
         }
     }
 
+    $parent = null;
+    if ($parent_id !== null) {
+        // Lock the parent row until the insert commits: a concurrent delete
+        // either waits or makes this reply fail cleanly instead of leaving a
+        // dangling parent_id.
+        $parent = thread_parent_for_reply($db, $parent_id, true);
+        if ($parent === null) {
+            $db->rollback();
+            $transaction_started = false;
+            $db->close();
+            opng_error_redirect('error_entry_not_found');
+        }
+    }
+
+    try {
+        $position = thread_position($parent, $id);
+    } catch (ThreadDepthException $exception) {
+        $db->rollback();
+        $transaction_started = false;
+        $db->close();
+        opng_error_redirect('error_thread_too_deep');
+    }
+
+    $position_parent_id = $position['parent_id'];
+    $position_root_id = $position['root_id'];
+    $position_depth = $position['depth'];
+
     if ($user_id === null) {
-        $stmt = $db->prepare("INSERT INTO entries (id, user_id, language, text, topic) VALUES (?, NULL, ?, ?, ?)");
-        $stmt->bind_param("ssss", $id, $language, $text, $topic);
+        $stmt = $db->prepare(
+            "INSERT INTO entries (id, parent_id, root_id, depth, user_id, language, text, topic)
+             VALUES (?, ?, ?, ?, NULL, ?, ?, ?)"
+        );
+        $stmt->bind_param(
+            "sssisss",
+            $id,
+            $position_parent_id,
+            $position_root_id,
+            $position_depth,
+            $language,
+            $text,
+            $topic
+        );
     } else {
-        $stmt = $db->prepare("INSERT INTO entries (id, user_id, language, text, topic) VALUES (?, ?, ?, ?, ?)");
-        $stmt->bind_param("sisss", $id, $user_id, $language, $text, $topic);
+        $stmt = $db->prepare(
+            "INSERT INTO entries (id, parent_id, root_id, depth, user_id, language, text, topic)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        $stmt->bind_param(
+            "sssiisss",
+            $id,
+            $position_parent_id,
+            $position_root_id,
+            $position_depth,
+            $user_id,
+            $language,
+            $text,
+            $topic
+        );
     }
 
     if (!$stmt->execute()) {
@@ -174,6 +234,11 @@ try {
     }
     $db->close();
     opng_error_redirect('error_save_paste');
+}
+
+if ($parent_id !== null) {
+    header("Location: view.php?id=" . urlencode($id));
+    exit;
 }
 
 header("Location: index.php?msg=" . urlencode("Paste created successfully"));

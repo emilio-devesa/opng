@@ -35,6 +35,56 @@ try {
         $stmt->bind_param('sissss', $id, $owner_id, $language, $text, $topic, $date);
         $stmt->execute();
     }
+
+    // A 500-node thread exercises the production history query and its
+    // (root_id, date, id) index without loading the rest of the fixtures.
+    $thread_root = $prefix . 'thread-root';
+    $thread_stmt = $db->prepare(
+        'INSERT INTO entries (id, parent_id, root_id, depth, user_id, language, text, topic, date)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    );
+    $thread_parent = null;
+    $thread_root_id = $thread_root;
+    $thread_text = 'Synthetic thread fixture.';
+    $thread_language = 'text';
+    $thread_date = gmdate('Y-m-d H:i:s', $base_timestamp);
+    $thread_depth = 0;
+    $thread_stmt->bind_param(
+        'sssiissss',
+        $thread_root,
+        $thread_parent,
+        $thread_root_id,
+        $thread_depth,
+        $owner_id,
+        $thread_language,
+        $thread_text,
+        $thread_text,
+        $thread_date
+    );
+    $thread_stmt->execute();
+    $parent_id = $thread_root;
+    for ($index = 1; $index <= 499; $index++) {
+        $thread_id = $prefix . 'thread-' . str_pad((string) $index, 3, '0', STR_PAD_LEFT);
+        $depth = 1;
+        $thread_topic = 'Thread reply ' . $index;
+        $thread_date = gmdate('Y-m-d H:i:s', $base_timestamp + $index);
+        $thread_stmt->bind_param(
+            'sssiissss',
+            $thread_id,
+            $parent_id,
+            $thread_root_id,
+            $depth,
+            $owner_id,
+            $thread_language,
+            $thread_text,
+            $thread_topic,
+            $thread_date
+        );
+        $thread_stmt->execute();
+        $parent_id = $thread_id;
+    }
+    $thread_stmt->close();
+    $thread_stmt = null;
     if (!$db->commit()) {
         throw new RuntimeException('Synthetic performance fixtures could not be committed.');
     }
@@ -43,6 +93,33 @@ try {
     // Refresh index statistics after the bulk load; otherwise the optimizer
     // can keep a stale "tiny table" plan and pick a filesort.
     $db->query('ANALYZE TABLE entries');
+
+    $thread_sql = "SELECT entries.id, entries.parent_id, entries.root_id, entries.depth,
+                          entries.topic, entries.date, u.username
+                   FROM entries
+                   LEFT JOIN users u ON u.id = entries.user_id
+                   WHERE entries.root_id = '{$thread_root}'
+                   ORDER BY entries.date ASC, entries.id ASC
+                   LIMIT 501";
+    $thread_plan = $db->query('EXPLAIN ' . $thread_sql)->fetch_assoc();
+    if (
+        ($thread_plan['key'] ?? null) !== 'idx_entries_root'
+        || str_contains(strtolower((string) ($thread_plan['Extra'] ?? '')), 'filesort')
+    ) {
+        throw new RuntimeException('The history query did not use idx_entries_root without filesort.');
+    }
+
+    $thread_started = hrtime(true);
+    $thread_result = $db->query($thread_sql);
+    $thread_rows = $thread_result->fetch_all(MYSQLI_ASSOC);
+    $thread_result->free();
+    $thread_elapsed_ms = (hrtime(true) - $thread_started) / 1e6;
+    if (count($thread_rows) !== 500) {
+        throw new RuntimeException('The 500-node thread did not return every entry.');
+    }
+    if ($thread_elapsed_ms >= 100) {
+        throw new RuntimeException('A 500-node history page took ' . round($thread_elapsed_ms, 2) . ' ms.');
+    }
 
     $search_plan = $db->query(
         "EXPLAIN SELECT id FROM entries
@@ -103,13 +180,16 @@ try {
         throw new RuntimeException('A username prefix search did not use the unique index.');
     }
 
-    echo "PASS: FULLTEXT, cursor-listing, quota, and admin user query plans use their indexes on 5,000 synthetic rows\n";
+    echo "PASS: FULLTEXT, cursor-listing, history, quota, and admin user query plans use their indexes on synthetic rows\n";
 } finally {
     if ($transaction_started) {
         $db->rollback();
     }
     if ($stmt instanceof mysqli_stmt) {
         $stmt->close();
+    }
+    if (isset($thread_stmt) && $thread_stmt instanceof mysqli_stmt) {
+        $thread_stmt->close();
     }
     $pattern = $prefix . '%';
     $cleanup = $db->prepare('DELETE FROM entries WHERE id LIKE ?');

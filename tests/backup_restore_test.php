@@ -155,6 +155,28 @@ try {
     $insert_entry->execute();
     $insert_entry->close();
 
+    // Threaded rows must survive the dump/restore with parent_id, root_id and
+    // depth intact, not just the entry text.
+    $insert_reply = $db->prepare(
+        'INSERT INTO entries (id, parent_id, root_id, depth, user_id, date, language, text, topic)
+         VALUES (?, ?, ?, 1, ?, NOW(), ?, ?, ?)'
+    );
+    $reply_id = 'restore-reply';
+    $reply_text = 'threaded reply';
+    $reply_topic = 'RE: Restore topic';
+    $insert_reply->bind_param(
+        'sssisss',
+        $reply_id,
+        $entry_id,
+        $entry_id,
+        $user_id,
+        $language,
+        $reply_text,
+        $reply_topic
+    );
+    $insert_reply->execute();
+    $insert_reply->close();
+
     $db->query("INSERT INTO schema_migrations (version) VALUES ('0003_admin_metrics_expires_bigint')");
     $db->query(
         "INSERT INTO storage_counters (counter_key, used_bytes) VALUES ('global', 1234)

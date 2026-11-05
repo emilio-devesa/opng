@@ -40,6 +40,7 @@ const OPNG_ERROR_KEYS = [
     'error_sign_in_to_edit',
     'error_storage_quota',
     'error_text_too_large',
+    'error_thread_too_deep',
     'error_topic_required',
     'error_topic_too_large',
     'error_update_paste',

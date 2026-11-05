@@ -39,10 +39,12 @@ while ($migration_row = $migration_result->fetch_assoc()) {
     $migration_versions[] = $migration_row['version'];
 }
 $migration_result->free();
-if (!in_array('0001_baseline', $migration_versions, true)) {
-    throw new RuntimeException('The installer did not record the v1.0 schema baseline.');
+foreach (['0001_baseline', '0002_foreign_keys', '0003_admin_metrics_expires_bigint', '0004_entry_threads'] as $expected_migration) {
+    if (!in_array($expected_migration, $migration_versions, true)) {
+        throw new RuntimeException("The installer did not record migration {$expected_migration}.");
+    }
 }
-echo "PASS: schema_migrations records the v1.0 baseline\n";
+echo "PASS: schema_migrations records the v1.0 baseline and every upgrade migration\n";
 
 $fk_rules = [];
 $fk_result = $db->query(
@@ -257,6 +259,64 @@ foreach (['idx_entries_cursor', 'idx_entries_user', 'idx_entries_topic', 'idx_en
         throw new RuntimeException("The entries index {$required_index} is missing.");
     }
 }
+
+$thread_columns = [];
+$thread_column_result = $db->query(
+    "SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'entries'
+       AND COLUMN_NAME IN ('parent_id', 'root_id', 'depth')"
+);
+while ($thread_column_row = $thread_column_result->fetch_assoc()) {
+    $thread_columns[$thread_column_row['COLUMN_NAME']] = $thread_column_row;
+}
+$thread_column_result->free();
+if (
+    !isset($thread_columns['parent_id'], $thread_columns['root_id'], $thread_columns['depth'])
+    || $thread_columns['parent_id']['DATA_TYPE'] !== 'varchar'
+    || $thread_columns['parent_id']['IS_NULLABLE'] !== 'YES'
+    || $thread_columns['root_id']['DATA_TYPE'] !== 'varchar'
+    || $thread_columns['root_id']['IS_NULLABLE'] !== 'YES'
+    || $thread_columns['depth']['DATA_TYPE'] !== 'tinyint'
+    || $thread_columns['depth']['IS_NULLABLE'] !== 'NO'
+) {
+    throw new RuntimeException('Migration 0004 did not add the thread columns to an upgraded entries table.');
+}
+echo "PASS: migration 0004 added parent_id, root_id and depth to the upgraded table\n";
+
+foreach (['idx_entries_parent', 'idx_entries_root'] as $thread_index) {
+    $thread_index_result = $db->query(
+        "SELECT INDEX_NAME FROM information_schema.STATISTICS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'entries'
+           AND INDEX_NAME = '{$thread_index}'
+         LIMIT 1"
+    )->fetch_assoc();
+    if ($thread_index_result === null) {
+        throw new RuntimeException("The thread index {$thread_index} is missing.");
+    }
+}
+echo "PASS: thread parent/root indexes are present\n";
+
+$thread_fk = $db->query(
+    "SELECT DELETE_RULE
+     FROM information_schema.REFERENTIAL_CONSTRAINTS
+     WHERE CONSTRAINT_SCHEMA = DATABASE()
+       AND CONSTRAINT_NAME = 'fk_entries_parent'"
+)->fetch_assoc();
+if ($thread_fk === null || $thread_fk['DELETE_RULE'] !== 'SET NULL') {
+    throw new RuntimeException('fk_entries_parent was not created with ON DELETE SET NULL.');
+}
+echo "PASS: fk_entries_parent preserves replies with ON DELETE SET NULL\n";
+
+$legacy_thread = $db->query(
+    "SELECT root_id, depth FROM entries WHERE id = 'legacy'"
+)->fetch_assoc();
+if ($legacy_thread === null || $legacy_thread['root_id'] !== 'legacy' || (int) $legacy_thread['depth'] !== 0) {
+    throw new RuntimeException('Migration 0004 did not backfill the legacy entry as a thread root.');
+}
+echo "PASS: existing entries were backfilled with root_id = id and depth = 0\n";
 
 $search = '+legacy*';
 $legacy_id = 'legacy';

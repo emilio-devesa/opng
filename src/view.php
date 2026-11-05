@@ -12,6 +12,8 @@ require("includes/http_input.php");
 require("includes/account_role.php");
 require("includes/error_messages.php");
 require("includes/assets.php");
+require("includes/thread.php");
+require("includes/pagination_cursor.php");
 
 $asset_version = opng_asset_version();
 
@@ -42,7 +44,13 @@ if (!$db) {
 // Obtener la entrada desde la base de datos
 $array = null;
 try {
-    $stmt = $db->prepare("SELECT id, user_id, language, text, topic, date FROM entries WHERE id = ?");
+    $stmt = $db->prepare(
+        "SELECT e.id, e.user_id, e.language, e.text, e.topic, e.date,
+                e.parent_id, e.root_id, e.depth,
+                EXISTS(SELECT 1 FROM entries c WHERE c.parent_id = e.id) AS has_children
+         FROM entries e
+         WHERE e.id = ?"
+    );
     $stmt->bind_param("s", $id);
     if (!$stmt->execute()) {
         throw new RuntimeException('Entry lookup query failed.');
@@ -55,7 +63,6 @@ try {
     $result->free();
     $stmt->close();
     $role = refresh_account_role($db) ?? 'guest';
-    $db->close();
 } catch (mysqli_sql_exception | RuntimeException $exception) {
     error_log('OPNG view.php: ' . $exception->getMessage());
     if (isset($stmt) && $stmt instanceof mysqli_stmt) {
@@ -96,17 +103,39 @@ $base = '';
 // Mensajes que llegan vía ?msg= (p. ej. tras editar el paste en update.php)
 $flash_message = http_string_parameter($_GET, 'msg', 128) ?? '';
 
-// Pestañas de la vista: Ver / Editar / Responder
+// Relación real: la entrada es una respuesta o tiene al menos una respuesta.
+// Los pastes legacy con "RE: " en el tema no cuentan hasta vincularse. depth
+// conserva la pertenencia al hilo aunque el padre directo haya sido borrado
+// (ON DELETE SET NULL deja parent_id a NULL).
+$has_relation = is_string($array['parent_id'] ?? null)
+    || (int) ($array['has_children'] ?? 0) > 0
+    || (int) ($array['depth'] ?? 0) > 0
+    || (is_string($array['root_id'] ?? null) && $array['root_id'] !== $array['id']);
+$thread_root_id = is_string($array['root_id'] ?? null) && $array['root_id'] !== ''
+    ? $array['root_id']
+    : $array['id'];
+$thread_deleted_parent = $array['parent_id'] === null
+    && (int) ($array['depth'] ?? 0) > 0;
+$thread_nodes = [];
+$thread_truncated = false;
+$thread_next_cursor = null;
+$thread_grouped = ['by_id' => [], 'children' => [], 'roots' => []];
+$thread_ancestors = [];
+$thread_cursor_value = null;
+$thread_root_topic = null;
+
+// Pestañas de la vista: Ver / Editar / Responder / Historial
 $tab = http_string_parameter($_GET, 'tab', 5, false);
 if (array_key_exists('tab', $_GET) && $tab === null) {
     opng_error_redirect('error_invalid_paste');
 }
 $tab ??= 'view';
-$valid_tabs = ['view', 'edit', 'reply'];
+$valid_tabs = ['view', 'edit', 'reply', 'history'];
 if (!in_array($tab, $valid_tabs, true)) {
     opng_error_redirect('error_invalid_paste');
 }
 if ($tab === 'edit' && !$can_edit) { $tab = 'view'; }
+if ($tab === 'history' && !$has_relation) { $tab = 'view'; }
 
 $rules = [];
 if ($tab === 'edit' || $tab === 'reply') {
@@ -116,6 +145,68 @@ if ($tab === 'edit' || $tab === 'reply') {
         opng_error_redirect('error_language_config');
     }
 }
+
+if ($tab === 'history') {
+    $thread_cursor_value = http_string_parameter($_GET, 'cursor', 2048, false);
+    $thread_cursor = null;
+    if ($thread_cursor_value !== null) {
+        $thread_cursor = decode_entry_cursor($thread_cursor_value);
+        if ($thread_cursor === null) {
+            $db->close();
+            opng_error_redirect('error_invalid_cursor');
+        }
+    }
+
+    try {
+        $thread_page = thread_fetch_page($db, $thread_root_id, $thread_cursor);
+        $thread_nodes = $thread_page['nodes'];
+        $thread_truncated = $thread_page['truncated'];
+        $thread_next_cursor = $thread_page['next_cursor'];
+        $thread_grouped = thread_group($thread_nodes);
+        $thread_ancestors = thread_ancestor_ids($thread_nodes, $array['id']);
+
+        // Later cursor pages do not contain the root, but the summary must not
+        // claim it was deleted. One indexed primary-key lookup resolves it.
+        if (
+            $thread_cursor !== null
+            && !isset($thread_grouped['by_id'][$thread_root_id])
+        ) {
+            $root_stmt = $db->prepare('SELECT topic FROM entries WHERE id = ?');
+            if (!$root_stmt) {
+                throw new RuntimeException('Thread root lookup could not be prepared.');
+            }
+            $root_stmt->bind_param('s', $thread_root_id);
+            $root_stmt->execute();
+            $root_row = $root_stmt->get_result()->fetch_assoc();
+            $root_stmt->close();
+            if (is_array($root_row) && is_string($root_row['topic'] ?? null)) {
+                $thread_root_topic = $root_row['topic'];
+            }
+        }
+    } catch (mysqli_sql_exception | RuntimeException $exception) {
+        error_log('OPNG view.php: ' . $exception->getMessage());
+        $db->close();
+        opng_error_redirect('error_database_operation');
+    }
+}
+
+$db->close();
+
+$thread_root_node = $thread_grouped['by_id'][$thread_root_id] ?? null;
+// On the first page the root is always present unless it was deleted. Later
+// cursor pages legitimately start after the root, so they never raise the
+// orphaned-thread notice on their own.
+$thread_root_deleted = $thread_nodes !== []
+    && $thread_cursor_value === null
+    && $thread_root_node === null;
+$thread_next_href = $thread_next_cursor !== null
+    ? 'view.php?' . http_build_query(
+        ['id' => $id, 'tab' => 'history', 'cursor' => $thread_next_cursor],
+        '',
+        '&',
+        PHP_QUERY_RFC3986
+    )
+    : '';
 
 $highlight_language_class = match (strtolower($language)) {
     'plaintext' => 'language-plaintext',
@@ -151,6 +242,9 @@ require(__DIR__ . "/includes/layout_header.php");
         <a href="view.php?id=<?php echo urlencode($id); ?>&tab=edit" class="tab tab-edit <?php echo $tab === 'edit' ? 'active' : ''; ?>" data-i18n="tab_edit"<?php echo $tab === 'edit' ? ' aria-current="page"' : ''; ?>>Edit</a>
         <?php endif; ?>
         <a href="view.php?id=<?php echo urlencode($id); ?>&tab=reply" class="tab tab-reply <?php echo $tab === 'reply' ? 'active' : ''; ?>" data-i18n="tab_reply"<?php echo $tab === 'reply' ? ' aria-current="page"' : ''; ?>>Reply</a>
+        <?php if ($has_relation): ?>
+        <a href="view.php?id=<?php echo urlencode($id); ?>&tab=history" class="tab tab-history <?php echo $tab === 'history' ? 'active' : ''; ?>" data-i18n="tab_history"<?php echo $tab === 'history' ? ' aria-current="page"' : ''; ?>>History</a>
+        <?php endif; ?>
     </nav>
     <div class="container">
         <?php if ($tab === 'view'): ?>
@@ -224,6 +318,7 @@ require(__DIR__ . "/includes/layout_header.php");
             <h2 id="reply-title" data-i18n="reply:">Reply (new paste):</h2>
             <form method="post" action="submit.php" class="editor-form">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
+                <input type="hidden" name="parent_id" value="<?php echo htmlspecialchars($array['id'], ENT_QUOTES, 'UTF-8'); ?>">
                 <label for="reply_topic" data-i18n="topic:">Topic:</label>
                 <input id="reply_topic" type="text" name="input_topic" maxlength="255" value="RE: <?php echo htmlspecialchars($array['topic'], ENT_QUOTES, 'UTF-8'); ?>" required>
                 <label data-i18n="select_language:" for="input_language">Select language:</label>
@@ -235,13 +330,153 @@ require(__DIR__ . "/includes/layout_header.php");
                     <?php endforeach; ?>
                 </select>
                 <label for="reply_text" data-i18n="text">Enter your text here</label>
-                <textarea id="reply_text" name="input_text" maxlength="1048576" rows="<?php echo $textarea_rows; ?>" cols="80" required><?php echo htmlspecialchars($array['text'], ENT_QUOTES, 'UTF-8'); ?></textarea>
+                <textarea id="reply_text" name="input_text" maxlength="1048576" rows="<?php echo $textarea_rows; ?>" cols="80" required></textarea>
                 <div class="length-meter" data-length-meter-for="reply_text" data-max-bytes="1048576">
                     <progress class="length-meter-bar" max="1048576" value="0" aria-label="Paste length" data-i18n-aria-label="length_meter_label"></progress>
                     <span class="length-meter-text"><span class="length-meter-value">1.00</span> <span data-i18n="length_mb_remaining">MB remaining</span></span>
                 </div>
                 <button data-i18n="submit" id="submit" type="submit">Submit</button>
             </form>
+        </section>
+        <?php endif; ?>
+        <?php if ($tab === 'history' && $has_relation): ?>
+        <section class="box history-panel" aria-labelledby="history-title">
+            <h2 id="history-title" data-i18n="history_title">Thread history</h2>
+            <p data-i18n="history_intro">Entries in this thread in chronological order, with their author and date.</p>
+            <dl class="history-summary">
+                <div>
+                    <dt data-i18n="history_entries">Entries:</dt>
+                    <dd><?php echo count($thread_nodes); ?><?php echo $thread_truncated ? '+' : ''; ?></dd>
+                </div>
+                <div>
+                    <dt data-i18n="history_thread_root">Thread root:</dt>
+                    <dd>
+                        <?php if ($thread_root_node !== null): ?>
+                        <a href="view.php?id=<?php echo urlencode($thread_root_id); ?>"><?php echo htmlspecialchars((string) $thread_root_node['topic'], ENT_QUOTES, 'UTF-8'); ?></a>
+                        <?php elseif ($thread_root_topic !== null): ?>
+                        <a href="view.php?id=<?php echo urlencode($thread_root_id); ?>"><?php echo htmlspecialchars($thread_root_topic, ENT_QUOTES, 'UTF-8'); ?></a>
+                        <?php else: ?>
+                        <span data-i18n="history_deleted_root">Deleted entry</span>
+                        <?php endif; ?>
+                    </dd>
+                </div>
+            </dl>
+            <?php if ($thread_root_deleted): ?>
+            <p class="history-notice" role="status" data-i18n="history_deleted_root_notice">The thread root was deleted; its replies are preserved.</p>
+            <?php elseif ($thread_deleted_parent): ?>
+            <p class="history-notice" role="status" data-i18n="history_deleted_parent">The original entry was deleted; its replies are preserved.</p>
+            <?php endif; ?>
+            <?php if ($thread_nodes === []): ?>
+            <p data-i18n="history_no_related">No related entries are available.</p>
+            <?php else: ?>
+            <h3 data-i18n="history_list_title">Chronological list</h3>
+            <ol class="history-list">
+                <?php foreach ($thread_nodes as $node): ?>
+                <?php
+                $node_is_current = $node['id'] === $array['id'];
+                $node_is_ancestor = isset($thread_ancestors[$node['id']]);
+                $node_badge_key = $node_is_current
+                    ? 'history_current'
+                    : ($node_is_ancestor ? 'history_ancestor' : 'history_descendant');
+                $node_badge_text = $node_is_current
+                    ? 'Current'
+                    : ($node_is_ancestor ? 'Ancestor' : 'Descendant');
+                ?>
+                <li class="history-item<?php echo $node_is_current ? ' history-current' : ''; ?>">
+                    <a href="view.php?id=<?php echo urlencode($node['id']); ?>"<?php echo $node_is_current ? ' aria-current="page"' : ''; ?>><?php echo htmlspecialchars($node['topic'], ENT_QUOTES, 'UTF-8'); ?></a>
+                    <span class="history-badge history-badge-<?php echo htmlspecialchars($node_badge_key, ENT_QUOTES, 'UTF-8'); ?>" data-i18n="<?php echo htmlspecialchars($node_badge_key, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($node_badge_text, ENT_QUOTES, 'UTF-8'); ?></span>
+                    <span class="history-meta">
+                        <time datetime="<?php echo htmlspecialchars(str_replace(' ', 'T', $node['date']), ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($node['date'], ENT_QUOTES, 'UTF-8'); ?></time>
+                        <span class="history-author">
+                            <span data-i18n="history_author">Author:</span>
+                            <?php if ($node['username'] !== null): ?>
+                            <?php echo htmlspecialchars($node['username'], ENT_QUOTES, 'UTF-8'); ?>
+                            <?php else: ?>
+                            <span data-i18n="history_guest">Guest</span>
+                            <?php endif; ?>
+                        </span>
+                    </span>
+                </li>
+                <?php endforeach; ?>
+            </ol>
+            <figure class="thread-graph">
+                <figcaption data-i18n="history_branch_graph">Branch graph</figcaption>
+                <p class="thread-graph-description" data-i18n="history_graph_description">Nested branches show how each reply relates to its parent. The current entry is highlighted.</p>
+                <?php if ($thread_truncated): ?>
+                <details class="thread-graph-details" open>
+                    <summary data-i18n="history_toggle_branches">Show or hide branches</summary>
+                <?php endif; ?>
+                <ul class="thread-tree">
+                    <?php
+                    $thread_rendered = [];
+                    $render_thread_branch = function (string $node_id, int $level) use (
+                        &$render_thread_branch,
+                        &$thread_rendered,
+                        $thread_grouped,
+                        $thread_ancestors,
+                        $array
+                    ): void {
+                        if (isset($thread_rendered[$node_id]) || $level > OPNG_MAX_THREAD_DEPTH + 1) {
+                            return;
+                        }
+                        $node = $thread_grouped['by_id'][$node_id] ?? null;
+                        if (!is_array($node)) {
+                            return;
+                        }
+                        $thread_rendered[$node_id] = true;
+                        $node_is_current = $node_id === $array['id'];
+                        $node_is_ancestor = isset($thread_ancestors[$node_id]);
+                        $node_badge_key = $node_is_current
+                            ? 'history_current'
+                            : ($node_is_ancestor ? 'history_ancestor' : 'history_descendant');
+                        $node_badge_text = $node_is_current
+                            ? 'Current'
+                            : ($node_is_ancestor ? 'Ancestor' : 'Descendant');
+                        echo '<li class="thread-node' . ($node_is_current ? ' history-current' : '') . '">';
+                        echo '<span class="thread-node-main">';
+                        echo '<a href="view.php?id=' . urlencode($node_id) . '"' . ($node_is_current ? ' aria-current="page"' : '') . '>'
+                            . htmlspecialchars($node['topic'], ENT_QUOTES, 'UTF-8') . '</a>';
+                        echo ' <span class="history-badge history-badge-' . htmlspecialchars($node_badge_key, ENT_QUOTES, 'UTF-8')
+                            . '" data-i18n="' . htmlspecialchars($node_badge_key, ENT_QUOTES, 'UTF-8') . '">'
+                            . htmlspecialchars($node_badge_text, ENT_QUOTES, 'UTF-8') . '</span>';
+                        echo '<span class="history-meta"><time datetime="'
+                            . htmlspecialchars(str_replace(' ', 'T', $node['date']), ENT_QUOTES, 'UTF-8') . '">'
+                            . htmlspecialchars($node['date'], ENT_QUOTES, 'UTF-8') . '</time> · '
+                            . '<span data-i18n="history_author">Author:</span> ';
+                        echo $node['username'] !== null
+                            ? htmlspecialchars($node['username'], ENT_QUOTES, 'UTF-8')
+                            : '<span data-i18n="history_guest">Guest</span>';
+                        echo '</span></span>';
+
+                        $children = $thread_grouped['children'][$node_id] ?? [];
+                        if ($children !== []) {
+                            echo '<ul class="thread-tree">';
+                            foreach ($children as $child_id) {
+                                $render_thread_branch((string) $child_id, $level + 1);
+                            }
+                            echo '</ul>';
+                        }
+                        echo '</li>';
+                    };
+                    foreach ($thread_grouped['roots'] as $root_id) {
+                        $render_thread_branch((string) $root_id, 0);
+                    }
+                    ?>
+                </ul>
+                <?php if ($thread_truncated): ?>
+                </details>
+                <?php endif; ?>
+            </figure>
+            <?php endif; ?>
+            <?php if ($thread_truncated): ?>
+            <p class="history-large-thread" data-i18n="history_large_thread">This thread is very large; only the first page is shown.</p>
+            <?php if ($thread_next_href !== ''): ?>
+            <p><a class="history-load-more" href="<?php echo htmlspecialchars($thread_next_href, ENT_QUOTES, 'UTF-8'); ?>" data-i18n="history_load_more">Load more</a></p>
+            <?php endif; ?>
+            <?php endif; ?>
+            <p class="history-back">
+                <a href="view.php?id=<?php echo urlencode($id); ?>&tab=view" data-i18n="history_back">Back to the entry</a>
+            </p>
         </section>
         <?php endif; ?>
     </div>
