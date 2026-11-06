@@ -62,7 +62,7 @@ jobs:
           OPNG_INSTALL_DB_USER: root
           OPNG_INSTALL_DB_PASS: release-root-password
           OPNG_ADMIN_PASSWORD: release-smoke-password
-          OPNG_PUBLIC_URL: http://127.0.0.1:8080
+          OPNG_PUBLIC_URL: https://127.0.0.1:8080
         run: |
           set -e
           mysql --protocol=TCP -h 127.0.0.1 -uroot -prelease-root-password \
