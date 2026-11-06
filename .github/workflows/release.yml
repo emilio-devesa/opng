@@ -1,0 +1,113 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  classic:
+    name: Build and publish classic release
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: release-root-password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: gd, mbstring, mysqli, zip
+          coverage: none
+
+      - name: Verify release contracts and non-database tests
+        run: |
+          set -e
+          cp src/config.example.php src/config.php
+          php tests/release_contract_test.php
+          php tests/migration_system_test.php
+          php tests/thread_test.php
+          php tests/frontend_contract_test.php
+          php tests/doctor_test.php
+          php tests/deployment_config_test.php
+
+      - name: Build classic zip, tarball and checksums
+        run: |
+          set -e
+          version="${GITHUB_REF_NAME#v}"
+          bash tools/build_release.sh --version "$version"
+
+      - name: Smoke-test the extracted artifact
+        env:
+          OPNG_DB_HOST: 127.0.0.1:3306
+          OPNG_DB_USER: root
+          OPNG_DB_PASS: release-root-password
+          OPNG_DB_NAME: opng_release
+          OPNG_INSTALL_DB_HOST: 127.0.0.1
+          OPNG_INSTALL_DB_PORT: '3306'
+          OPNG_INSTALL_DB_USER: root
+          OPNG_INSTALL_DB_PASS: release-root-password
+          OPNG_ADMIN_PASSWORD: release-smoke-password
+          OPNG_PUBLIC_URL: http://127.0.0.1:8080
+        run: |
+          set -e
+          mysql --protocol=TCP -h 127.0.0.1 -uroot -prelease-root-password \
+            -e 'CREATE DATABASE opng_release CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci'
+          rm -rf /tmp/opng-smoke
+          mkdir -p /tmp/opng-smoke
+          unzip -q dist/opng-*-classic.zip -d /tmp/opng-smoke
+          package="$(find /tmp/opng-smoke -maxdepth 1 -type d -name 'opng-*' | head -n 1)"
+          cd "$package"
+          cp src/config.example.php src/config.php
+          php tools/install.php
+          php tools/create_admin.php --username=release-admin --email=release@example.test --if-empty
+          php -S 127.0.0.1:8080 -t src >/tmp/opng-smoke-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in 1 2 3 4 5; do
+            if curl -fsS http://127.0.0.1:8080/healthz.php >/tmp/opng-health.json; then
+              break
+            fi
+            sleep 1
+          done
+          grep -q '"status":"ok"' /tmp/opng-health.json
+          curl -fsS http://127.0.0.1:8080/ >/dev/null
+          php tools/backup.php /tmp/opng-smoke.sql
+          test -s /tmp/opng-smoke.sql
+          php tools/doctor.php
+          kill "$server_pid"
+          wait "$server_pid" 2>/dev/null || true
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: classic-release
+          path: |
+            dist/opng-*-classic.zip
+            dist/opng-*-classic.tar.gz
+            dist/SHA256SUMS
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/opng-*-classic.zip
+            dist/opng-*-classic.tar.gz
+            dist/SHA256SUMS
+          generate_release_notes: true
+          fail_on_unmatched_files: true

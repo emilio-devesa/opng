@@ -5,9 +5,9 @@
 This project is based on **[Open Pastebin](http://sourceforge.net/projects/openpastebin/)**. All you need is a **web server with PHP and MySQL**.
 Open Pastebin NG is **free software** released under the **[GNU GPL license](LICENSE)**.
 
-⚠️ **This software is in BETA stage**, wich means it is still under development. Use it at your own risk.
+⚠️ **Open Pastebin NG v1.0.0 is the first stable release.** Back up your database and review [`docs/UPGRADING.md`](docs/UPGRADING.md) before upgrading from 0.9.x.
 
-**Current version:** `0.9.0` (see [`src/includes/version.php`](src/includes/version.php) and [`CHANGELOG.md`](CHANGELOG.md)).
+**Current version:** `1.0.0` (see [`src/includes/version.php`](src/includes/version.php) and [`CHANGELOG.md`](CHANGELOG.md)).
 
 ---
 
@@ -78,6 +78,13 @@ php_admin_flag[session.upload_progress.enabled] = off
 ---
 
 ## 🚀 Installation
+
+The supported packaged deployment path is:
+
+- **Classic shared hosting** — upload the `opng-<version>-classic.zip`/`.tar.gz` artifact and follow [`docs/INSTALL-CLASSIC.md`](docs/INSTALL-CLASSIC.md). It covers the CLI installer, a phpMyAdmin fallback, server configs, backups and upgrades without Composer, Node or containers.
+
+The manual repository installation follows. To build a release artifact locally, run `bash tools/build_release.sh`; it writes the zip, tarball and `SHA256SUMS` to `dist/`.
+
 Follow this steps to install Open Pastebin NG:
 
 1️⃣ **Clone the repository**
@@ -145,7 +152,7 @@ The topic search uses a MySQL/MariaDB FULLTEXT index and requires all entered wo
 
 5️⃣ **Run the application**
 - If using **Apache**, place the project in `htdocs` or configure a virtual host. The shipped `src/.htaccess` blocks direct access to `config.php`/`database.php`/`rules.xml` and the `includes/` directory, disables directory listings, adds security headers including a strict same-origin CSP with `frame-ancestors 'none'` and `X-Frame-Options: DENY`, and disables `session.upload_progress`.
-- If using **Nginx**, start from [`deploy/nginx.example.conf`](deploy/nginx.example.conf). It redirects HTTP to HTTPS, blocks the installer and internal files (including `rules.xml`), denies `includes/`, sets security headers including a strict same-origin CSP with `frame-ancestors 'none'` and `X-Frame-Options: DENY`, and disables CAPTCHA caching. Configure valid certificates before enabling the TLS server block.
+- If using **Nginx**, start from [`deploy/nginx/opng.conf`](deploy/nginx/opng.conf). It redirects HTTP to HTTPS, blocks the installer and internal files (including `rules.xml`), denies `includes/`, sets security headers including a strict same-origin CSP with `frame-ancestors 'none'` and `X-Frame-Options: DENY`, and disables CAPTCHA caching. Configure valid certificates before enabling the TLS server block.
 - The example Nginx configuration terminates TLS directly and sets PHP's HTTPS state explicitly. If a trusted reverse proxy terminates TLS, configure the backend so that only the proxy can set the HTTPS state; do not trust arbitrary client-supplied `X-Forwarded-Proto`. If the proxy does not expose HTTPS to PHP, set `OPNG_FORCE_HTTPS=1`; this marks the session cookie `Secure` without adding redirects.
 - Enable HSTS only after confirming HTTPS works across the entire hostname for the chosen max-age.
 - **Use `src/` as the document root**, not the repository root, so `tools/`, `README.md` and `.git/` are never reachable over HTTP.
@@ -223,7 +230,7 @@ For security reasons, access to **admin features** is restricted to administrato
 
   `src/config.php` is excluded from analysis. The PHPStan job needs no local configuration; the lint job creates a throwaway example config only for its isolated database-connection failure test.
 
-- **MySQL integration tests** — the installation and query-plan tests write temporary rows (the plan test inserts 5,000 listing fixtures plus a 500-node thread) and require a disposable database. CI creates an isolated schema and explicitly opts in; do not run these tests against the live MAMP database. The backup/restore test (`tests/backup_restore_test.php`) additionally creates and drops two throwaway `opng_backup_*` databases; the thread integration test (`tests/thread_integration_test.php`) creates one `opng_thread_*` database. Opt in with `OPNG_TEST_ALLOW_DATABASE_FIXTURES=1` and provide `OPNG_TEST_DB_HOST`, `OPNG_TEST_DB_PORT`, `OPNG_TEST_DB_USER` and `OPNG_TEST_DB_PASS` for an account with `CREATE`/`DROP` privileges. The restore test verifies a portable dump restores every row, account hash, paste byte, threaded relation and foreign key into a differently named database; the thread test covers root/reply/nested creation, chronological history, depth 32, parent/root deletion, admin `delete_entries`/`preserve` and `empty.php`.
+- **MySQL integration tests** — the installation and query-plan tests write temporary rows (the plan test inserts 5,000 listing fixtures plus a 500-node thread) and require a disposable database. CI creates an isolated schema and explicitly opts in; do not run these tests against the live MAMP database. The backup/restore test (`tests/backup_restore_test.php`) additionally creates and drops two throwaway `opng_backup_*` databases; the thread integration test (`tests/thread_integration_test.php`) creates one `opng_thread_*` database; the schema drift test (`tests/schema_drift_test.php`) creates two `opng_drift_*` databases and compares `database/schema.sql` with `src/install.php` using `SHOW CREATE TABLE`. Opt in with `OPNG_TEST_ALLOW_DATABASE_FIXTURES=1` and provide `OPNG_TEST_DB_HOST`, `OPNG_TEST_DB_PORT`, `OPNG_TEST_DB_USER` and `OPNG_TEST_DB_PASS` for an account with `CREATE`/`DROP` privileges. The restore test verifies a portable dump restores every row, account hash, paste byte, threaded relation and foreign key into a differently named database; the thread test covers root/reply/nested creation, chronological history, depth 32, parent/root deletion, admin `delete_entries`/`preserve` and `empty.php`.
 
 - **Rate limiting** — persisted in the `rate_limits` table (created by `install.php`) and keyed by a SHA-256 hash of IP, account or both. Login uses three limits (IP+account 5/10 min, IP-wide 30/10 min, account-wide 10/10 min) and shows an adaptive CAPTCHA after three session failures. Paste creation allows 20/min for authenticated users and 5/min for guests, who must also solve the CAPTCHA. Registration and password-reset requests remain at 5/hour. A database failure while checking a limit returns HTTP 503 instead of pretending the limit was reached.
 
@@ -241,6 +248,7 @@ For security reasons, access to **admin features** is restricted to administrato
   php tests/sql_backup_test.php
   php tests/thread_test.php
   php tests/frontend_contract_test.php
+  php tests/release_contract_test.php
   php tests/doctor_test.php
   ```
 
@@ -294,7 +302,7 @@ You can:
 - **Share** your version with the community
 
 ### 🔷 I found a bug and I lost my work!
-I'm sorry to hear that! Please note that **OPNG is still in BETA stage and under development**. Please report the issue so we can fix it.
+I'm sorry to hear that! Please report the issue so we can fix it. Back up your database before upgrades and keep your own copy of important pastes.
 
 ### 🔷 How can I uninstall OPNG and/or delete all data stored?
 To completely remove Open Pastebin NG, follow these steps:
@@ -311,7 +319,7 @@ This will remove **all pastes and files permanently**.
 
 ## ✅ Known Issues
 - **Pastes created before v0.8** may show literal HTML entities (for example `&lt;` or `&amp;lt;`). Older versions escaped the text *before* storing it; v0.8 stores raw text and escapes at render time. Legacy content is intentionally left untouched — editing a paste and replacing the affected characters corrects it.
-- Otherwise, there are no known issues. However, as this is a **BETA release**, some unexpected bugs may still exist.
+- Otherwise, there are no known issues. Report anything unexpected with the version, deployment type and reproduction steps.
 
 ---
 

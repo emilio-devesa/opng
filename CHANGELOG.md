@@ -1,7 +1,7 @@
 # Open Pastebin NG - Changelog
 ============================
 
-## Version 1.0.0-beta.1 (in development)
+## Version 1.0.0 (2026)
 
 ### Phase 3 — Feature Historial (F1)
 #### 🧵 Thread model and migration
@@ -20,6 +20,18 @@
 - Added `tests/thread_test.php` (position, depth 32, grouping, cycle guard, migration/schema/UI/catalog contracts) and `tests/thread_integration_test.php` (disposable database: root → reply → nested reply, chronological history and authors, parent/root deletion, depth-32 chain, `delete_entries`/`preserve`, `DELETE FROM entries`).
 - Extended `tests/database_install_test.php` (migration/columns/indexes/SET NULL FK/backfill on an upgraded legacy schema), `tests/performance_query_plan_test.php` (`idx_entries_root` plan and 500-node page) and `tests/backup_restore_test.php` (threaded rows survive a portable restore).
 - Documented the feature, migration and integration tests in `README.md`; CI now runs both thread suites.
+
+### Phase 4 — Release clásica para hosting compartido (F2)
+#### 📦 Artefacto y herramientas
+- Added `tools/build_release.sh`, which validates PHP syntax and builds `dist/opng-<version>-classic.zip`, `.tar.gz` and `SHA256SUMS`. The package excludes `tests/`, `.github/`, Composer/PHPStan files, screenshots, `.git/`, `src/config.php`, `tools/seed.php` and the container deployment, and always ships `src/config.example.php`.
+- Added `tools/install.php` as the canonical CLI wrapper, `tools/create_admin.php` for the first administrator (`--if-empty`, `--force`, `--print-sql`, `OPNG_ADMIN_PASSWORD`) and `tools/restore.php` for checksum-verified restores. The restore tool rejects `CREATE DATABASE`/`USE` unless explicitly allowed, uses a temporary `0600` options file and supports `OPNG_MYSQL_CLIENT`.
+- `database/schema.sql` now records migrations `0001_baseline` through `0004_entry_threads`, so a phpMyAdmin import produces the same recorded end state as the CLI installer. Added `tests/schema_drift_test.php`, which compares every `SHOW CREATE TABLE` from the two installation paths.
+- Added `tests/release_contract_test.php`: it builds a real artifact, checks exclusions, required docs/configs and published checksums.
+
+#### 🌐 Servidores, documentación y CI
+- Added `deploy/apache/opng.conf`, `deploy/apache/htaccess` and moved the canonical Nginx example to `deploy/nginx/opng.conf`. All three deny the document root, internal PHP files and development directories, and set body-size, CSP, HSTS and cache headers.
+- Added `docs/INSTALL-CLASSIC.md`, `docs/UPGRADING.md`, `docs/BACKUP-RESTORE.md` and `docs/SECURITY.md`, covering the CLI and phpMyAdmin paths, 0.9→1.0 migrations, portable backups and the production checklist.
+- Added `.github/workflows/release.yml`: on `v*` tags it runs the contracts, builds the classic artifacts, installs them into MySQL 8.0, smoke-tests the health endpoint, login provisioning and backup, and publishes the zip/tarball with `SHA256SUMS`.
 
 ## Version 0.9.0 (2026)
 

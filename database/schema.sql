@@ -81,3 +81,13 @@ CREATE TABLE IF NOT EXISTS audit_log (
 
 INSERT IGNORE INTO storage_counters (counter_key, used_bytes)
 SELECT 'global', COALESCE(SUM(OCTET_LENGTH(text)), 0) FROM entries;
+
+-- Importing this file (for example through phpMyAdmin) installs the v1.0 end
+-- state, so record every migration that is already represented above. Without
+-- these rows `tools/migrate.php` would try to apply the same ALTER statements
+-- again. `INSERT IGNORE` keeps repeated imports harmless.
+INSERT IGNORE INTO schema_migrations (version) VALUES
+    ('0001_baseline'),
+    ('0002_foreign_keys'),
+    ('0003_admin_metrics_expires_bigint'),
+    ('0004_entry_threads');

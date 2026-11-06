@@ -131,7 +131,7 @@ foreach ($source as $file) {
     }
 }
 
-foreach ([$root . '/src/.htaccess', $root . '/deploy/nginx.example.conf'] as $policy_file) {
+foreach ([$root . '/src/.htaccess', $root . '/deploy/nginx/opng.conf'] as $policy_file) {
     $policy = file_get_contents($policy_file);
     if ($policy === false) {
         $failures[] = "Could not read CSP configuration: {$policy_file}";

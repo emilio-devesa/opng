@@ -37,11 +37,11 @@ if (!is_string($root_htaccess)) {
     ], $failures);
 }
 
-$nginx = file_get_contents($root . '/deploy/nginx.example.conf');
+$nginx = file_get_contents($root . '/deploy/nginx/opng.conf');
 if (!is_string($nginx)) {
-    $failures[] = 'deploy/nginx.example.conf is missing';
+    $failures[] = 'deploy/nginx/opng.conf is missing';
 } else {
-    contains_all('deploy/nginx.example.conf', $nginx, [
+    contains_all('deploy/nginx/opng.conf', $nginx, [
         'location ^~ /includes/',
         'location = /install.php',
         'tests|tools|database|deploy|docs',

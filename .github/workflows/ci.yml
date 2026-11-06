@@ -128,6 +128,9 @@ jobs:
       - name: Frontend contract and translation regression test
         run: php tests/frontend_contract_test.php
 
+      - name: Classic release tooling and artifact regression test
+        run: php tests/release_contract_test.php
+
   phpstan:
     name: PHPStan (PHP ${{ matrix.php }})
     runs-on: ubuntu-latest
@@ -262,6 +265,15 @@ jobs:
           OPNG_TEST_DB_USER: root
           OPNG_TEST_DB_PASS: ci-root-password
         run: php tests/thread_integration_test.php
+
+      - name: Verify database/schema.sql matches the CLI installer
+        env:
+          OPNG_TEST_ALLOW_DATABASE_FIXTURES: '1'
+          OPNG_TEST_DB_HOST: 127.0.0.1
+          OPNG_TEST_DB_PORT: '3306'
+          OPNG_TEST_DB_USER: root
+          OPNG_TEST_DB_PASS: ci-root-password
+        run: php tests/schema_drift_test.php
 
       - name: Verify ambiguous case variants abort without changing data
         env:

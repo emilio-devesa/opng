@@ -7,5 +7,5 @@
 // version is no longer duplicated in templates.
 
 if (!defined('OPNG_VERSION')) {
-    define('OPNG_VERSION', '0.9.0');
+    define('OPNG_VERSION', '1.0.0');
 }

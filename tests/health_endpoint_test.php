@@ -58,7 +58,7 @@ if (is_string($source)) {
     );
 }
 
-$nginx = file_get_contents($root . '/deploy/nginx.example.conf');
+$nginx = file_get_contents($root . '/deploy/nginx/opng.conf');
 expect_health(
     is_string($nginx) && str_contains($nginx, 'healthz.php'),
     'the deployment example documents the health endpoint',
