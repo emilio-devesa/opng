@@ -133,3 +133,16 @@ interrupt an import; restore into a fresh database instead if it fails.
 
 Do not reuse the source installation's `src/config.php` when testing a restore
 in parallel; credentials and `OPNG_PUBLIC_URL` are environment-specific.
+
+## Containers
+
+In Apple Container, mount the persistent `opng-backups` volume at `/backups`:
+
+```bash
+container exec opng-app php tools/backup.php /backups/opng-$(date +%F).sql
+container exec opng-app php tools/restore.php --file=/backups/opng-2026-11-05.sql
+```
+
+Back up **before** replacing the application container or restoring the
+database. The `opng-db-data` volume holds the live database; never delete it
+without a verified backup. See [APPLE-CONTAINER.md](APPLE-CONTAINER.md).

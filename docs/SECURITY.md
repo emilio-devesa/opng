@@ -44,8 +44,8 @@ should upgrade using [UPGRADING.md](UPGRADING.md).
   `tools/install.php`/`tools/migrate.php`; revoke or drop it afterwards.
 - Both passwords are unique, long, generated randomly and not reused from
   examples. Rotate immediately if a backup or configuration leaks.
-- The database is not reachable from the internet. Publish only the web port
-  through the TLS proxy; keep the database on a private network.
+- The database is not reachable from the internet. In Apple Container, do not
+  publish port 3306; only the private `opng-net` network reaches MariaDB.
 
 ### TLS and cookies
 
@@ -95,6 +95,20 @@ should upgrade using [UPGRADING.md](UPGRADING.md).
 - The restore tool refuses dumps with `CREATE DATABASE`/`USE` unless explicitly
   allowed, verifies checksums and requires interactive confirmation.
 
+## Container hardening
+
+- Run the application image read-only (`--read-only`) with tmpfs for `/tmp`,
+  `/run`, `/var/lib/nginx` and `/var/lib/php/sessions`.
+- Publish only `127.0.0.1:8080` unless a TLS reverse proxy is in front.
+- Pin images by digest, scan them (Trivy/Grype), keep the SBOM and rebuild
+  promptly for base-image fixes.
+- Use `--cap-drop ALL` and `--security-opt no-new-privileges` only after
+  confirming Nginx can still bind port 8080 and drop to its worker user. The
+  provided configuration starts Nginx as a non-root process on port 8080 so the
+  minimal capability set is sufficient on engines that support it.
+- Never bake secrets into the image. Use `--env-file` with mode `0600` or the
+  host secret store.
+
 ## Known limitations
 
 - There is no multi-tenant isolation: all administrators are trusted.
@@ -103,3 +117,6 @@ should upgrade using [UPGRADING.md](UPGRADING.md).
   anti-bot service. It slows automation; it is not a substitute for rate limits.
 - Legacy `RE: ` topics are not linked automatically. Only reviewed pairs are
   linked with `tools/link_legacy_replies.php`.
+- Apple Container networking and healthcheck orchestration are the
+  operator's responsibility; the image exposes `/healthz.php` for external
+  checks.

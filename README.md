@@ -79,9 +79,10 @@ php_admin_flag[session.upload_progress.enabled] = off
 
 ## 🚀 Installation
 
-The supported packaged deployment path is:
+There are two supported deployment paths:
 
 - **Classic shared hosting** — upload the `opng-<version>-classic.zip`/`.tar.gz` artifact and follow [`docs/INSTALL-CLASSIC.md`](docs/INSTALL-CLASSIC.md). It covers the CLI installer, a phpMyAdmin fallback, server configs, backups and upgrades without Composer, Node or containers.
+- **Apple Container (Apple silicon)** — use the single Nginx + PHP-FPM image and the MariaDB container scripts in [`docs/APPLE-CONTAINER.md`](docs/APPLE-CONTAINER.md).
 
 The manual repository installation follows. To build a release artifact locally, run `bash tools/build_release.sh`; it writes the zip, tarball and `SHA256SUMS` to `dist/`.
 
@@ -249,6 +250,7 @@ For security reasons, access to **admin features** is restricted to administrato
   php tests/thread_test.php
   php tests/frontend_contract_test.php
   php tests/release_contract_test.php
+  php tests/container_contract_test.php
   php tests/doctor_test.php
   ```
 

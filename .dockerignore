@@ -1,0 +1,24 @@
+# Open Pastebin NG - Docker/BuildKit build context (F3).
+# Keep this file in sync with .containerignore.
+
+.git
+.github
+tests
+screenshots
+vendor
+dist
+node_modules
+
+src/config.php
+deploy/apple-container/opng.env
+deploy/apple-container/*.env
+!deploy/apple-container/opng.env.example
+
+composer.json
+composer.lock
+phpstan.neon
+.phpstan.cache
+phpstan-result-cache
+
+*.log
+.DS_Store

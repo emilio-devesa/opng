@@ -33,6 +33,14 @@
 - Added `docs/INSTALL-CLASSIC.md`, `docs/UPGRADING.md`, `docs/BACKUP-RESTORE.md` and `docs/SECURITY.md`, covering the CLI and phpMyAdmin paths, 0.9→1.0 migrations, portable backups and the production checklist.
 - Added `.github/workflows/release.yml`: on `v*` tags it runs the contracts, builds the classic artifacts, installs them into MySQL 8.0, smoke-tests the health endpoint, login provisioning and backup, and publishes the zip/tarball with `SHA256SUMS`.
 
+### Phase 5 — Apple Container (F3)
+#### 🍎 Imagen y orquestación
+- Added one arm64 application image (`deploy/apple-container/Containerfile`) with Nginx on port 8080, PHP-FPM on loopback, supervisord, OPcache, GD and mysqli. It keeps the document root at `/var/www/opng/src`, never bakes secrets into the image and removes `src/config.php` at build time.
+- Added `entrypoint.sh` (tmpfs preparation, MariaDB wait, idempotent schema bootstrap/migrations via `OPNG_AUTO_MIGRATE`, first-admin provisioning and credential scrubbing before supervisord), `healthcheck.sh`, and host scripts `start.sh`/`stop.sh`/`backup.sh`/`restore.sh`.
+- `start.sh` creates the private `opng-net` network and persistent `opng-db-data`/`opng-backups` volumes, runs MariaDB 11 without publishing 3306, starts the app read-only with tmpfs mounts, publishes only `127.0.0.1:8080` and filters `OPNG_DB_ROOT_PASSWORD` out of the application environment.
+- Added `.containerignore`, `.dockerignore` and `deploy/apple-container/opng.env.example`. Real environment files and `src/config.php` are excluded from the build context.
+- Added `tests/container_contract_test.php` and `.github/workflows/container.yml` (Buildx `linux/arm64`, GHCR on tags, SBOM and provenance). Documented installation, upgrades, backups, security and troubleshooting in `docs/APPLE-CONTAINER.md`.
+
 ## Version 0.9.0 (2026)
 
 ### Phase 1 — Integrity and error reporting

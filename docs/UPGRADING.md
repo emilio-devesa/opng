@@ -139,3 +139,9 @@ database before relying on it. See [BACKUP-RESTORE.md](BACKUP-RESTORE.md).
 - If your host cannot run PHP CLI, import `database/schema.sql` through
   phpMyAdmin only for a fresh install, not for an upgrade. For upgrades, ask
   the host to run the migration command or move to a host that provides CLI.
+
+## Apple Container
+
+For upgrades in Apple Container see
+[APPLE-CONTAINER.md](APPLE-CONTAINER.md). Keep the `opng-db-data` volume and
+back up before recreating the application container.

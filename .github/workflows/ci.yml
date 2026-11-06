@@ -131,6 +131,9 @@ jobs:
       - name: Classic release tooling and artifact regression test
         run: php tests/release_contract_test.php
 
+      - name: Apple Container contracts regression test
+        run: php tests/container_contract_test.php
+
   phpstan:
     name: PHPStan (PHP ${{ matrix.php }})
     runs-on: ubuntu-latest
