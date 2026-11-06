@@ -41,6 +41,12 @@
 - Added `.containerignore`, `.dockerignore` and `deploy/apple-container/opng.env.example`. Real environment files and `src/config.php` are excluded from the build context.
 - Added `tests/container_contract_test.php` and `.github/workflows/container.yml` (Buildx `linux/arm64`, GHCR on tags, SBOM and provenance). Documented installation, upgrades, backups, security and troubleshooting in `docs/APPLE-CONTAINER.md`.
 
+### Phase 6 — CI y cierre de release
+#### 🧪 Matriz de bases de datos (HYG-03)
+- Added a `database-mariadb` CI job alongside the existing MySQL 8.0 job. Both run the same legacy-schema migration, CLI installer, `database_install_test`, `backup_restore_test`, `thread_integration_test`, `schema_drift_test` and ambiguous-case guard, so `lower_case_table_names`, collation and FULLTEXT differences are exercised on both engines.
+- `performance_query_plan_test.php` stays MySQL-only: its `EXPLAIN` assertions encode MySQL optimizer choices, while MariaDB legitimately chooses a full scan for the small single-user fixture. MariaDB still receives the same indexes and is checked by the schema drift test.
+- Fixed `tests/backup_restore_test.php` to insert a unique `9999_backup_fixture` migration version instead of a duplicate recorded version, so the test works with the new `database/schema.sql` migration history on both engines.
+
 ## Version 0.9.0 (2026)
 
 ### Phase 1 — Integrity and error reporting

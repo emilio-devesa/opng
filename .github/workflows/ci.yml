@@ -304,6 +304,156 @@ jobs:
             exit 1
           fi
 
-          test "$(mysql --protocol=TCP -h 127.0.0.1 -uroot -pci-root-password --batch --skip-column-names -e "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = 'opng_ambiguous' AND TABLE_NAME IN ('Entries', 'entries')")" = "2"
+          # MariaDB's information_schema.TABLE_NAME is case-insensitively
+          # collated, so cast to BINARY to count the two distinct tables.
+          test "$(mysql --protocol=TCP -h 127.0.0.1 -uroot -pci-root-password --batch --skip-column-names -e "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = 'opng_ambiguous' AND BINARY TABLE_NAME IN ('Entries', 'entries')")" = "2"
+          test "$(mysql --protocol=TCP -h 127.0.0.1 -uroot -pci-root-password --batch --skip-column-names -e "SELECT COUNT(*) FROM opng_ambiguous.Entries WHERE id = 1")" = "1"
+          test "$(mysql --protocol=TCP -h 127.0.0.1 -uroot -pci-root-password --batch --skip-column-names -e "SELECT COUNT(*) FROM opng_ambiguous.entries WHERE id = 2")" = "1"
+
+  database-mariadb:
+    name: MariaDB Linux installation and privilege test
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11
+        env:
+          MARIADB_ROOT_PASSWORD: ci-root-password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli
+          coverage: none
+
+      - name: Prepare isolated legacy schema and database users
+        run: |
+          mysql --protocol=TCP -h 127.0.0.1 -uroot -pci-root-password <<'SQL'
+          CREATE DATABASE opng_ci CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+          CREATE USER 'opng_runtime'@'%' IDENTIFIED BY 'runtime-ci-password';
+          GRANT SELECT, INSERT, UPDATE, DELETE ON opng_ci.* TO 'opng_runtime'@'%';
+          CREATE USER 'opng_migrator'@'%' IDENTIFIED BY 'migrator-ci-password';
+          GRANT SELECT, INSERT, UPDATE, CREATE, ALTER, INDEX, DROP ON opng_ci.* TO 'opng_migrator'@'%';
+
+          USE opng_ci;
+          CREATE TABLE Users (
+              ID INT AUTO_INCREMENT PRIMARY KEY,
+              Username VARCHAR(50) UNIQUE NOT NULL,
+              Email VARCHAR(100) UNIQUE NOT NULL,
+              Password_hash VARCHAR(255) NOT NULL,
+              Created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+          CREATE TABLE Entries (
+              ID VARCHAR(255) PRIMARY KEY,
+              user_id INT,
+              Date DATETIME DEFAULT CURRENT_TIMESTAMP,
+              Language VARCHAR(20),
+              Text TEXT,
+              Topic TEXT
+          ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+          CREATE TABLE rate_limits (
+              action VARCHAR(32) NOT NULL,
+              key_hash CHAR(64) NOT NULL,
+              window_start INT UNSIGNED NOT NULL,
+              hits INT UNSIGNED NOT NULL DEFAULT 0,
+              PRIMARY KEY (action, key_hash),
+              KEY idx_rate_window (window_start)
+          ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+          INSERT INTO Users (Username, Email, Password_hash) VALUES ('legacy', 'legacy@example.test', 'hash');
+          INSERT INTO Entries (ID, Language, Text, Topic) VALUES ('legacy', 'text', 'legacy text', 'legacy topic');
+          SQL
+
+      - name: Run CLI installer with migration-only credentials
+        env:
+          OPNG_DB_HOST: 127.0.0.1
+          OPNG_DB_USER: opng_runtime
+          OPNG_DB_PASS: runtime-ci-password
+          OPNG_DB_NAME: opng_ci
+          OPNG_INSTALL_DB_HOST: 127.0.0.1
+          OPNG_INSTALL_DB_USER: opng_migrator
+          OPNG_INSTALL_DB_PASS: migrator-ci-password
+        run: |
+          cp src/config.example.php src/config.php
+          php src/install.php
+
+      - name: Verify lowercase schema, preserved data, and runtime privileges
+        env:
+          OPNG_TEST_ALLOW_DATABASE_FIXTURES: '1'
+          OPNG_DB_HOST: 127.0.0.1
+          OPNG_DB_USER: opng_runtime
+          OPNG_DB_PASS: runtime-ci-password
+          OPNG_DB_NAME: opng_ci
+        run: php tests/database_install_test.php
+
+      # performance_query_plan_test.php is intentionally MySQL-only: its
+      # EXPLAIN assertions encode MySQL's optimizer choices, and MariaDB
+      # legitimately prefers a full scan for the same indexed query on a
+      # small single-user fixture. The schema and index drift test below
+      # still verifies that both databases receive the same indexes.
+      - name: Verify backup restore into a clean, differently named database
+        env:
+          OPNG_TEST_ALLOW_DATABASE_FIXTURES: '1'
+          OPNG_TEST_DB_HOST: 127.0.0.1
+          OPNG_TEST_DB_PORT: '3306'
+          OPNG_TEST_DB_USER: root
+          OPNG_TEST_DB_PASS: ci-root-password
+        run: php tests/backup_restore_test.php
+
+      - name: Verify threaded history, deletion and admin behavior
+        env:
+          OPNG_TEST_ALLOW_DATABASE_FIXTURES: '1'
+          OPNG_TEST_DB_HOST: 127.0.0.1
+          OPNG_TEST_DB_PORT: '3306'
+          OPNG_TEST_DB_USER: root
+          OPNG_TEST_DB_PASS: ci-root-password
+        run: php tests/thread_integration_test.php
+
+      - name: Verify database/schema.sql matches the CLI installer
+        env:
+          OPNG_TEST_ALLOW_DATABASE_FIXTURES: '1'
+          OPNG_TEST_DB_HOST: 127.0.0.1
+          OPNG_TEST_DB_PORT: '3306'
+          OPNG_TEST_DB_USER: root
+          OPNG_TEST_DB_PASS: ci-root-password
+        run: php tests/schema_drift_test.php
+
+      - name: Verify ambiguous case variants abort without changing data
+        env:
+          OPNG_DB_HOST: 127.0.0.1
+          OPNG_DB_USER: opng_runtime
+          OPNG_DB_PASS: runtime-ci-password
+          OPNG_DB_NAME: opng_ambiguous
+          OPNG_INSTALL_DB_HOST: 127.0.0.1
+          OPNG_INSTALL_DB_USER: opng_migrator
+          OPNG_INSTALL_DB_PASS: migrator-ci-password
+        run: |
+          mysql --protocol=TCP -h 127.0.0.1 -uroot -pci-root-password <<'SQL'
+          CREATE DATABASE opng_ambiguous CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+          GRANT SELECT, INSERT, UPDATE, DELETE ON opng_ambiguous.* TO 'opng_runtime'@'%';
+          GRANT SELECT, INSERT, UPDATE, CREATE, ALTER, INDEX, DROP ON opng_ambiguous.* TO 'opng_migrator'@'%';
+          USE opng_ambiguous;
+          CREATE TABLE Entries (id INT PRIMARY KEY);
+          CREATE TABLE entries (id INT PRIMARY KEY);
+          INSERT INTO Entries VALUES (1);
+          INSERT INTO entries VALUES (2);
+          SQL
+
+          if php src/install.php; then
+            echo "Installer unexpectedly accepted ambiguous table names"
+            exit 1
+          fi
+
+          # MariaDB's information_schema.TABLE_NAME is case-insensitively
+          # collated, so cast to BINARY to count the two distinct tables.
+          test "$(mysql --protocol=TCP -h 127.0.0.1 -uroot -pci-root-password --batch --skip-column-names -e "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = 'opng_ambiguous' AND BINARY TABLE_NAME IN ('Entries', 'entries')")" = "2"
           test "$(mysql --protocol=TCP -h 127.0.0.1 -uroot -pci-root-password --batch --skip-column-names -e "SELECT COUNT(*) FROM opng_ambiguous.Entries WHERE id = 1")" = "1"
           test "$(mysql --protocol=TCP -h 127.0.0.1 -uroot -pci-root-password --batch --skip-column-names -e "SELECT COUNT(*) FROM opng_ambiguous.entries WHERE id = 2")" = "1"

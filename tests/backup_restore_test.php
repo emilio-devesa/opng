@@ -177,7 +177,7 @@ try {
     $insert_reply->execute();
     $insert_reply->close();
 
-    $db->query("INSERT INTO schema_migrations (version) VALUES ('0003_admin_metrics_expires_bigint')");
+    $db->query("INSERT INTO schema_migrations (version) VALUES ('9999_backup_fixture')");
     $db->query(
         "INSERT INTO storage_counters (counter_key, used_bytes) VALUES ('global', 1234)
          ON DUPLICATE KEY UPDATE used_bytes = VALUES(used_bytes)"
