@@ -16,12 +16,19 @@ if (isset($page_title_i18n) && is_string($page_title_i18n)) {
     $page_title_i18n_attribute = ' data-i18n="' . htmlspecialchars($page_title_i18n, ENT_QUOTES, 'UTF-8') . '"';
 }
 require_once(__DIR__ . '/csrf.php');
+require_once(__DIR__ . '/i18n.php');
+// The locale cookie/Accept-Language wins over page-local hard-coded values so
+// every page declares the language the server actually rendered.
+$lang_attr = opng_current_locale();
 $logout_csrf_token = $logged_in ? csrf_token() : '';
 header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
 header('X-Frame-Options: DENY');
+// Buffer the document so layout_footer.php can translate data-i18n nodes once,
+// before anything reaches the client (UX-04).
+ob_start();
 ?>
 <!DOCTYPE html>
-<html lang="<?php echo htmlspecialchars($lang_attr ?? 'en', ENT_QUOTES, 'UTF-8'); ?>">
+<html lang="<?php echo htmlspecialchars($lang_attr, ENT_QUOTES, 'UTF-8'); ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -92,7 +99,6 @@ header('X-Frame-Options: DENY');
     </header>
     <script src="<?php echo $base; ?>assets/js/dark-mode.js?v=<?php echo $asset_version; ?>" data-base="<?php echo $base; ?>"></script>
     <script src="<?php echo $base; ?>assets/js/language.js?v=<?php echo $asset_version; ?>" data-base="<?php echo $base; ?>" data-language-version="<?php echo $asset_version; ?>"></script>
-    <script src="<?php echo $base; ?>assets/js/confirm.js?v=<?php echo $asset_version; ?>"></script>
     <?php if ($show_search): ?>
     <script src="<?php echo $base; ?>assets/js/search-clear.js?v=<?php echo $asset_version; ?>" defer></script>
     <script src="<?php echo $base; ?>assets/js/search-help.js?v=<?php echo $asset_version; ?>" defer></script>

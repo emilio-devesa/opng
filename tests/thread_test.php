@@ -174,6 +174,7 @@ $view = file_get_contents($root . '/src/view.php');
 expect_thread(
     is_string($view)
     && str_contains($view, '$valid_tabs = [\'view\', \'edit\', \'reply\', \'history\']')
+    && str_contains($view, "http_string_parameter(\$_GET, 'tab', 8, false)")
     && str_contains($view, 'if ($tab === \'history\' && !$has_relation)')
     && str_contains($view, 'thread_fetch_page($db, $thread_root_id, $thread_cursor)')
     && str_contains($view, 'thread_group($thread_nodes)')
@@ -183,7 +184,7 @@ expect_thread(
     && str_contains($view, 'class="thread-graph"')
     && str_contains($view, 'class="thread-tree"')
     && str_contains($view, 'aria-current="page"')
-    && str_contains($view, '<time datetime=')
+    && str_contains($view, 'opng_datetime_html(')
     && str_contains($view, 'history_deleted_parent')
     && str_contains($view, 'history_deleted_root_notice')
     && str_contains($view, 'history_large_thread')

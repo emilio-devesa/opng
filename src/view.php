@@ -13,7 +13,8 @@ require("includes/account_role.php");
 require("includes/error_messages.php");
 require("includes/assets.php");
 require("includes/thread.php");
-require("includes/pagination_cursor.php");
+require_once("includes/pagination_cursor.php");
+require_once("includes/i18n.php");
 
 $asset_version = opng_asset_version();
 
@@ -125,7 +126,7 @@ $thread_cursor_value = null;
 $thread_root_topic = null;
 
 // Pestañas de la vista: Ver / Editar / Responder / Historial
-$tab = http_string_parameter($_GET, 'tab', 5, false);
+$tab = http_string_parameter($_GET, 'tab', 8, false);
 if (array_key_exists('tab', $_GET) && $tab === null) {
     opng_error_redirect('error_invalid_paste');
 }
@@ -252,7 +253,7 @@ require(__DIR__ . "/includes/layout_header.php");
             <h2 id="paste-code-title" data-i18n="code:">Code:</h2>
             <dl class="paste-meta">
                 <div><dt data-i18n="language:">Language:</dt><dd><?php echo htmlspecialchars($language, ENT_QUOTES, 'UTF-8'); ?></dd></div>
-                <div><dt data-i18n="date">Date:</dt><dd><?php echo htmlspecialchars($array['date'], ENT_QUOTES, 'UTF-8'); ?></dd></div>
+                <div><dt data-i18n="date">Date:</dt><dd><?php echo opng_datetime_html((string) $array['date']); ?></dd></div>
                 <div><dt data-i18n="id">ID:</dt><dd><?php echo htmlspecialchars($array['id'], ENT_QUOTES, 'UTF-8'); ?></dd></div>
             </dl>
             <div class="code-view<?php echo $show_line_numbers ? '' : ' no-line-numbers'; ?>">
@@ -272,12 +273,15 @@ require(__DIR__ . "/includes/layout_header.php");
                     <span id="copy-error-message" data-i18n="copy_error" hidden>Could not copy the code. Check clipboard permissions and try again.</span>
                 </div>
                 <?php if ($can_delete): ?>
-                <form method="post" action="admin/drop_id.php" class="delete-paste-form" data-confirm-target="delete_confirm">
-                    <span id="delete_confirm" data-i18n="delete_confirm" hidden>Are you sure you want to delete this paste? This action cannot be undone.</span>
+                <form method="post" action="admin/drop_id.php" class="delete-paste-form">
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
                     <input type="hidden" name="input_ID" value="<?php echo htmlspecialchars($array['id'], ENT_QUOTES, 'UTF-8'); ?>">
                     <label class="visually-hidden" for="delete_current_password" data-i18n="reauth_password">Current password:</label>
                     <input id="delete_current_password" type="password" name="current_password" maxlength="72" autocomplete="current-password" required>
+                    <label class="confirm-check">
+                        <input id="delete_confirm" type="checkbox" name="confirm_delete" value="yes" required>
+                        <span data-i18n="delete_confirm">Are you sure you want to delete this paste? This action cannot be undone.</span>
+                    </label>
                     <button type="submit" class="danger" aria-label="Delete Paste" title="Delete Paste" data-i18n-aria-label="delete_paste" data-i18n-title="delete_paste">
                         <span aria-hidden="true">🗑️</span>
                         <span class="visually-hidden" data-i18n="delete_paste">Delete Paste</span>
@@ -386,7 +390,7 @@ require(__DIR__ . "/includes/layout_header.php");
                     <a href="view.php?id=<?php echo urlencode($node['id']); ?>"<?php echo $node_is_current ? ' aria-current="page"' : ''; ?>><?php echo htmlspecialchars($node['topic'], ENT_QUOTES, 'UTF-8'); ?></a>
                     <span class="history-badge history-badge-<?php echo htmlspecialchars($node_badge_key, ENT_QUOTES, 'UTF-8'); ?>" data-i18n="<?php echo htmlspecialchars($node_badge_key, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($node_badge_text, ENT_QUOTES, 'UTF-8'); ?></span>
                     <span class="history-meta">
-                        <time datetime="<?php echo htmlspecialchars(str_replace(' ', 'T', $node['date']), ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($node['date'], ENT_QUOTES, 'UTF-8'); ?></time>
+                        <?php echo opng_datetime_html((string) $node['date']); ?>
                         <span class="history-author">
                             <span data-i18n="history_author">Author:</span>
                             <?php if ($node['username'] !== null): ?>
@@ -439,9 +443,8 @@ require(__DIR__ . "/includes/layout_header.php");
                         echo ' <span class="history-badge history-badge-' . htmlspecialchars($node_badge_key, ENT_QUOTES, 'UTF-8')
                             . '" data-i18n="' . htmlspecialchars($node_badge_key, ENT_QUOTES, 'UTF-8') . '">'
                             . htmlspecialchars($node_badge_text, ENT_QUOTES, 'UTF-8') . '</span>';
-                        echo '<span class="history-meta"><time datetime="'
-                            . htmlspecialchars(str_replace(' ', 'T', $node['date']), ENT_QUOTES, 'UTF-8') . '">'
-                            . htmlspecialchars($node['date'], ENT_QUOTES, 'UTF-8') . '</time> · '
+                        echo '<span class="history-meta">'
+                            . opng_datetime_html((string) $node['date']) . ' · '
                             . '<span data-i18n="history_author">Author:</span> ';
                         echo $node['username'] !== null
                             ? htmlspecialchars($node['username'], ENT_QUOTES, 'UTF-8')

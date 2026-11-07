@@ -4,9 +4,10 @@ require("includes/session.php");
 session_start_secured();
 require("includes/db.php");
 require("includes/topic_search.php");
-require("includes/pagination_cursor.php");
+require_once("includes/pagination_cursor.php");
 require("includes/http_input.php");
 require("includes/error_messages.php");
+require("includes/i18n.php");
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     http_response_code(405);
@@ -170,7 +171,7 @@ $show_search = true;
         <a href="pastebin.php" class="create-link" aria-label="Create new entry" title="Create new entry" data-i18n-aria-label="create_new" data-i18n-title="create_new">➕</a>
 
         <?php if ($has_newer || $has_older): ?>
-        <nav class="pagination" aria-label="Pagination" data-i18n-aria-label="pagination">
+        <nav class="pagination" aria-label="Pagination (top)" data-i18n-aria-label="pagination_top">
             <?php if ($has_newer): ?>
                 <a href="<?php echo htmlspecialchars($newer_href, ENT_QUOTES, 'UTF-8'); ?>" data-i18n="previous">« Previous</a>
             <?php endif; ?>
@@ -206,7 +207,7 @@ $show_search = true;
                     </td>
                     <td><?php echo htmlspecialchars($row['username'] ?? "Guest", ENT_QUOTES, 'UTF-8'); ?></td>
                     <td><?php echo htmlspecialchars($row['language'], ENT_QUOTES, 'UTF-8'); ?></td>
-                    <td><?php echo htmlspecialchars($row['date'], ENT_QUOTES, 'UTF-8'); ?></td>
+                    <td><?php echo opng_datetime_html((string) $row['date']); ?></td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>
@@ -215,10 +216,15 @@ $show_search = true;
 
     <?php if ($entries === [] && $q !== ''): ?>
         <p data-i18n="no_results">No entries match your search.</p>
+    <?php elseif ($entries === []): ?>
+        <p class="empty-state">
+            <span data-i18n="no_entries">No entries yet.</span>
+            <a href="pastebin.php" data-i18n="no_entries_create">Create the first one</a>.
+        </p>
     <?php endif; ?>
 
     <?php if ($has_newer || $has_older): ?>
-    <nav class="pagination" aria-label="Pagination" data-i18n-aria-label="pagination">
+    <nav class="pagination" aria-label="Pagination (bottom)" data-i18n-aria-label="pagination_bottom">
         <?php if ($has_newer): ?>
             <a href="<?php echo htmlspecialchars($newer_href, ENT_QUOTES, 'UTF-8'); ?>" data-i18n="previous">« Previous</a>
         <?php endif; ?>
