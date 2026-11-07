@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 // includes/csrf.php
 // Gestión centralizada del token CSRF (evita la generación repetida en cada página).
 

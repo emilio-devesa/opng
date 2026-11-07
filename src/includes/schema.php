@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 // includes/schema.php
 // Versioned schema migrations (ROB-01).
 //

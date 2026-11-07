@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 // includes/captcha.php
 // Shared CAPTCHA state and accessible alternative (SEC-11 / UX-03).
 //

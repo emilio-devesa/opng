@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 // includes/i18n.php
 // Server-side locale selection and translation (UX-04).
 //

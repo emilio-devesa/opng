@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 require_once(__DIR__ . '/http_input.php');
 require_once(__DIR__ . '/account_role.php');

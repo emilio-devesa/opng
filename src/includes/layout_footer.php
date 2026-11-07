@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 // includes/layout_footer.php
 // Pie de pagina comun: cierra #Content y renderiza acciones globales y copyright.
 // El tema/idioma y las acciones de auth viven ahora en el #SiteHeader

@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 /**
  * Raised when a dump would exceed the configured time or byte limit.

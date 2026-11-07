@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 // includes/version.php
 // Single source of truth for the application version.
 //

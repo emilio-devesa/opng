@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 // includes/layout_header.php
 // Cabecera HTML comun. Variables opcionales antes del include:
 //   $page_title (string, texto sin escapar — el include NO escapa el título)

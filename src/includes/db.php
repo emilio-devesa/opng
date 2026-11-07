@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 // includes/db.php
 // Conexión a MySQL usando MySQLi (fix P1/P3: SIN DDL en cada conexión).
 // La creación de base de datos/tablas vive en src/install.php.

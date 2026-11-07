@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 /**
  * Single asset version for cache busting.

@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 // includes/rules.php
 // Carga de la lista de lenguajes permitidos desde rules.xml.
 // Centraliza la lectura que antes se repetía en pastebin.php, submit.php y view.php.

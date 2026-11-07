@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 /**
  * Read a bounded string parameter without coercing arrays or other types.

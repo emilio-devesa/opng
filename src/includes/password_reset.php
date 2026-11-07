@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 function password_reset_simulation_enabled(): bool
 {

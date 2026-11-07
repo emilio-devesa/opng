@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 /**
  * Canonical error keys accepted by error.php and rendered by the shared
