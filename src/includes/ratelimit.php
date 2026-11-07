@@ -1,5 +1,7 @@
 <?php
+
 declare(strict_types=1);
+
 // includes/ratelimit.php
 // Rate limiting persistente en MySQL (fix S5/R8).
 //

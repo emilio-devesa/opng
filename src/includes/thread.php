@@ -1,5 +1,7 @@
 <?php
+
 declare(strict_types=1);
+
 // includes/thread.php
 // Related-entry threads for the Historial tab (F1).
 //

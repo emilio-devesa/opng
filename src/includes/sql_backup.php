@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 /**
@@ -56,7 +57,10 @@ function sql_backup_dump(
     }
 
     $started_at = time();
-    $write = static function ($stream, string $contents) use (
+    $write = static function (
+        $stream,
+        string $contents
+    ) use (
         $max_seconds,
         $max_bytes,
         $started_at

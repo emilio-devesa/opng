@@ -1,5 +1,7 @@
 <?php
+
 declare(strict_types=1);
+
 // includes/reauth.php
 // Server-side confirmation for destructive administrative actions (SEC-07).
 //

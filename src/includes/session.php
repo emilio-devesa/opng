@@ -1,5 +1,7 @@
 <?php
+
 declare(strict_types=1);
+
 // includes/session.php
 // Inicio de sesión con configuración endurecida:
 //   - httponly: la cookie no es accesible desde JavaScript (mitiga el robo de sesión vía XSS)

@@ -1,10 +1,12 @@
 <?php
-declare(strict_types=1);
 
 /**
  * Canonical error keys accepted by error.php and rendered by the shared
  * language catalogs. Keep this list in sync with src/assets/lang/*.json.
  */
+
+declare(strict_types=1);
+
 const OPNG_ERROR_KEYS = [
     'captcha_incorrect',
     'error_auth_unavailable',

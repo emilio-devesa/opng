@@ -1,5 +1,4 @@
 <?php
-declare(strict_types=1);
 
 /**
  * Admin dashboard metrics with a short-lived MySQL cache.
@@ -8,6 +7,9 @@ declare(strict_types=1);
  * OPNG_ADMIN_METRICS_TTL seconds in admin_metrics_cache. Read/write failures
  * fall back to computing the metrics directly.
  */
+
+declare(strict_types=1);
+
 const OPNG_ADMIN_METRICS_TTL = 300;
 const OPNG_ADMIN_METRICS_KEY = 'dashboard';
 

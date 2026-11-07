@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 const OPNG_USER_QUOTA_BYTES = 100 * 1024 * 1024;

@@ -1,10 +1,13 @@
 <?php
+
 declare(strict_types=1);
+
 // includes/rules.php
 // Carga de la lista de lenguajes permitidos desde rules.xml.
 // Centraliza la lectura que antes se repetía en pastebin.php, submit.php y view.php.
 
-function load_rules(): array {
+function load_rules(): array
+{
     $dom = new DOMDocument();
     $rules_path = __DIR__ . "/../rules.xml";
     $previous_error_mode = libxml_use_internal_errors(true);

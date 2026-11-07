@@ -1,5 +1,7 @@
 <?php
+
 declare(strict_types=1);
+
 // includes/audit_log.php
 // Persistent audit trail for sensitive administrative actions (M5).
 //

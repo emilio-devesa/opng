@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 const OPNG_MAX_PASTE_BYTES = 1048576;
