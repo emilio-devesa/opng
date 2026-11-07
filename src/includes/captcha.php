@@ -115,7 +115,7 @@ function captcha_validate(?string $answer): bool
  * Render the shared CAPTCHA field: image, refresh control and the accessible
  * text/audio alternative. The caller must have an active session.
  */
-function captcha_render(string $image_src): void
+function captcha_render(string $image_src, ?string $error_id = null): void
 {
     $question = captcha_text_challenge();
     $escape = static function (string $value): string {
@@ -123,10 +123,13 @@ function captcha_render(string $image_src): void
     };
     $image_src = $escape($image_src);
     $question = $escape($question);
+    $error_id = $error_id !== null && $error_id !== '' ? $escape($error_id) : null;
+    $described_by = $error_id !== null ? 'captcha-help ' . $error_id : 'captcha-help';
     ?>
     <div class="captcha-field">
         <label for="captcha_answer" data-i18n="captcha_label">Please enter the captcha text:</label>
-        <input id="captcha_answer" type="text" name="captcha_answer" maxlength="5" autocomplete="off" required aria-describedby="captcha-help">
+        <input id="captcha_answer" type="text" name="captcha_answer" maxlength="5" autocomplete="off" required
+            aria-describedby="<?php echo $described_by; ?>"<?php echo $error_id !== null ? ' aria-invalid="true"' : ''; ?>>
         <img src="<?php echo $image_src; ?>" alt="CAPTCHA" class="captcha-image" data-i18n-alt="captcha_alt">
         <button type="button" class="refresh-captcha" data-i18n="refresh_captcha">🔄 Refresh</button>
         <details class="captcha-text-alternative">

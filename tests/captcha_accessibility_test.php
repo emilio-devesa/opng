@@ -99,10 +99,10 @@ expect(
 );
 
 foreach ([
-    '/src/auth/register.php' => "captcha_render('captcha.php')",
-    '/src/auth/request_reset.php' => "captcha_render('captcha.php')",
-    '/src/auth/login.php' => "captcha_render('captcha.php')",
-    '/src/pastebin.php' => "captcha_render('auth/captcha.php')",
+    '/src/auth/register.php' => "captcha_render('captcha.php'",
+    '/src/auth/request_reset.php' => "captcha_render('captcha.php'",
+    '/src/auth/login.php' => "captcha_render('captcha.php'",
+    '/src/pastebin.php' => "captcha_render('auth/captcha.php'",
 ] as $path => $renderer) {
     $source = file_get_contents($root . $path);
     expect(

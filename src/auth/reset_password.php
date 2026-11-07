@@ -213,7 +213,7 @@ require(__DIR__ . '/../includes/layout_header.php');
     <?php endif; ?>
 
     <?php if ($error_message !== ""): ?>
-        <p role="alert"<?php echo $error_message_key !== '' ? ' data-i18n="' . htmlspecialchars($error_message_key, ENT_QUOTES, 'UTF-8') . '"' : ''; ?>>
+        <p role="alert" id="form-error"<?php echo $error_message_key !== '' ? ' data-i18n="' . htmlspecialchars($error_message_key, ENT_QUOTES, 'UTF-8') . '"' : ''; ?>>
             <?php echo htmlspecialchars($error_message, ENT_QUOTES, 'UTF-8'); ?>
         </p>
     <?php endif; ?>
@@ -225,7 +225,7 @@ require(__DIR__ . '/../includes/layout_header.php');
         <form method="post" class="auth-form">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
             <label for="password" data-i18n="new_password">New Password:</label>
-            <input id="password" type="password" name="password" minlength="12" maxlength="72" autocomplete="new-password" aria-describedby="password-policy" required>
+            <input id="password" type="password" name="password" minlength="12" maxlength="72" autocomplete="new-password" aria-describedby="password-policy<?php echo $error_message_key === 'password_policy' ? ' form-error' : ''; ?>"<?php echo $error_message_key === 'password_policy' ? ' aria-invalid="true" autofocus' : ''; ?> required>
             <span id="password-policy" class="field-help" data-i18n="password_policy">Use a password between 12 and 72 bytes.</span>
             <button type="submit" data-i18n="change_password">Change Password</button>
         </form>

@@ -21,6 +21,7 @@ if ($user_id === null) {
 }
 
 $form_error_key = '';
+$form_error_field = '';
 $password_changed = false;
 $csrf_token = csrf_token();
 
@@ -37,12 +38,21 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $new_password = http_string_parameter($_POST, 'new_password', 72, false);
         $confirm_password = http_string_parameter($_POST, 'confirm_password', 72, false);
 
-        if ($current_password === null || $new_password === null || $confirm_password === null) {
+        if ($current_password === null) {
             $form_error_key = 'password_policy';
+            $form_error_field = 'current_password';
+        } elseif ($new_password === null) {
+            $form_error_key = 'password_policy';
+            $form_error_field = 'new_password';
+        } elseif ($confirm_password === null) {
+            $form_error_key = 'password_policy';
+            $form_error_field = 'confirm_password';
         } elseif (password_validation_error($new_password) !== null) {
             $form_error_key = 'password_policy';
+            $form_error_field = 'new_password';
         } elseif (!hash_equals($new_password, $confirm_password)) {
             $form_error_key = 'password_mismatch';
+            $form_error_field = 'confirm_password';
         } else {
             $db = database_connect();
             if (!$db) {
@@ -80,8 +90,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                             $form_error_key = 'error_auth_unavailable';
                         } elseif (!password_verify($current_password, $account['password_hash'])) {
                             $form_error_key = 'password_incorrect';
+                            $form_error_field = 'current_password';
                         } elseif (hash_equals($current_password, $new_password)) {
                             $form_error_key = 'password_unchanged';
+                            $form_error_field = 'new_password';
                         } else {
                             $password_hash = password_hash($new_password, PASSWORD_DEFAULT);
                             // Changing the password also invalidates any pending
@@ -143,7 +155,7 @@ require(__DIR__ . '/../includes/layout_header.php');
             </p>
         <?php endif; ?>
         <?php if ($form_error_key !== ''): ?>
-            <p class="form-error" role="alert" data-i18n="<?php echo htmlspecialchars($form_error_key, ENT_QUOTES, 'UTF-8'); ?>">
+            <p class="form-error" id="form-error" role="alert" data-i18n="<?php echo htmlspecialchars($form_error_key, ENT_QUOTES, 'UTF-8'); ?>">
                 <?php echo htmlspecialchars(opng_error_text($form_error_key), ENT_QUOTES, 'UTF-8'); ?>
             </p>
         <?php endif; ?>
@@ -151,16 +163,16 @@ require(__DIR__ . '/../includes/layout_header.php');
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
             <p>
                 <label for="current_password" data-i18n="current_password">Current password:</label>
-                <input id="current_password" type="password" name="current_password" maxlength="72" autocomplete="current-password" required>
+                <input id="current_password" type="password" name="current_password" maxlength="72" autocomplete="current-password"<?php echo $form_error_field === 'current_password' ? ' aria-invalid="true" aria-describedby="form-error" autofocus' : ''; ?> required>
             </p>
             <p>
                 <label for="new_password" data-i18n="new_password">New Password:</label>
-                <input id="new_password" type="password" name="new_password" minlength="12" maxlength="72" autocomplete="new-password" aria-describedby="password-policy" required>
+                <input id="new_password" type="password" name="new_password" minlength="12" maxlength="72" autocomplete="new-password" aria-describedby="password-policy<?php echo $form_error_field === 'new_password' ? ' form-error' : ''; ?>"<?php echo $form_error_field === 'new_password' ? ' aria-invalid="true" autofocus' : ''; ?> required>
                 <span id="password-policy" class="field-help" data-i18n="password_policy">Use a password between 12 and 72 bytes.</span>
             </p>
             <p>
                 <label for="confirm_password" data-i18n="confirm_password">Confirm new password:</label>
-                <input id="confirm_password" type="password" name="confirm_password" minlength="12" maxlength="72" autocomplete="new-password" required>
+                <input id="confirm_password" type="password" name="confirm_password" minlength="12" maxlength="72" autocomplete="new-password"<?php echo $form_error_field === 'confirm_password' ? ' aria-invalid="true" aria-describedby="form-error" autofocus' : ''; ?> required>
             </p>
             <button type="submit" data-i18n="change_password">Change Password</button>
         </form>

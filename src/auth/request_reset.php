@@ -24,6 +24,7 @@ $message = "";
 $reset_link = null;
 $response_status = 200;
 $simulation_enabled = password_reset_simulation_enabled();
+$posted_email = http_string_parameter($_POST, 'email', 100) ?? '';
 
 if (!$simulation_enabled) {
     $message = "Password resets are unavailable for this installation. Please contact the administrator.";
@@ -133,6 +134,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         'message' => $message,
         'reset_link' => $reset_link,
         'status' => $response_status,
+        'email' => $posted_email,
     ];
     header("Location: request_reset.php", true, 303);
     exit;
@@ -150,6 +152,9 @@ if (isset($_SESSION['reset_request_flash'])) {
         }
         if (isset($request_flash['status']) && is_int($request_flash['status'])) {
             $response_status = $request_flash['status'];
+        }
+        if (isset($request_flash['email']) && is_string($request_flash['email'])) {
+            $posted_email = $request_flash['email'];
         }
     }
 }
@@ -169,6 +174,17 @@ $message_key = match ($message) {
     $service_unavailable_message => 'error_service_unavailable',
     default => '',
 };
+$message_is_error = in_array($message_key, [
+    'reset_unavailable',
+    'request_invalid',
+    'reset_email_captcha_required',
+    'email_invalid',
+    'captcha_incorrect',
+    'reset_service_unavailable',
+    'error_service_unavailable',
+], true);
+$email_invalid = in_array($message_key, ['reset_email_captcha_required', 'email_invalid'], true);
+$captcha_invalid = in_array($message_key, ['reset_email_captcha_required', 'captcha_incorrect'], true);
 ?>
 <?php
 $lang_attr = 'en';
@@ -185,7 +201,7 @@ require(__DIR__ . '/../includes/layout_header.php');
     <?php endif; ?>
 
     <?php if ($message !== ""): ?>
-        <p role="status"<?php echo $message_key !== '' ? ' data-i18n="' . htmlspecialchars($message_key, ENT_QUOTES, 'UTF-8') . '"' : ''; ?>>
+        <p role="<?php echo $message_is_error ? 'alert' : 'status'; ?>" id="form-error"<?php echo $message_key !== '' ? ' data-i18n="' . htmlspecialchars($message_key, ENT_QUOTES, 'UTF-8') . '"' : ''; ?>>
             <?php echo htmlspecialchars($message, ENT_QUOTES, 'UTF-8'); ?>
         </p>
     <?php endif; ?>
@@ -203,9 +219,9 @@ require(__DIR__ . '/../includes/layout_header.php');
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
             <p>
                 <label for="email" data-i18n="email">Email:</label>
-                <input id="email" type="email" name="email" maxlength="100" required>
+                <input id="email" type="email" name="email" maxlength="100" value="<?php echo htmlspecialchars($posted_email, ENT_QUOTES, 'UTF-8'); ?>"<?php echo $email_invalid ? ' aria-invalid="true" aria-describedby="form-error" autofocus' : ''; ?> required>
             </p>
-            <?php captcha_render('captcha.php'); ?>
+            <?php captcha_render('captcha.php', $captcha_invalid ? 'form-error' : null); ?>
             <button type="submit" data-i18n="send_reset_link">Send Reset Link</button>
         </form>
         <script src="../assets/js/refresh-captcha.js?v=<?php echo $asset_version; ?>"></script>
