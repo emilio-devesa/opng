@@ -71,6 +71,15 @@ jobs:
       - name: Change-password contract regression test
         run: php tests/change_password_test.php
 
+      - name: Form error association regression test
+        run: php tests/form_accessibility_test.php
+
+      - name: Destructive confirmation regression test
+        run: php tests/destructive_confirmation_test.php
+
+      - name: Server-side locale regression test
+        run: php tests/i18n_test.php
+
       - name: Global storage quota regression test
         run: php tests/global_quota_test.php
 
@@ -133,6 +142,81 @@ jobs:
 
       - name: Apple Container contracts regression test
         run: php tests/container_contract_test.php
+
+  accessibility:
+    name: HTML validation and axe accessibility
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-root-password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: gd, mbstring, mysqli
+          coverage: none
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install accessibility tooling
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
+      - name: Prepare the accessibility database
+        run: |
+          mysql --protocol=TCP -h 127.0.0.1 -uroot -pci-root-password <<'SQL'
+          CREATE DATABASE opng_a11y CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+          SQL
+          cp src/config.example.php src/config.php
+
+      - name: Install schema and seed sample content
+        env:
+          OPNG_DB_HOST: 127.0.0.1
+          OPNG_DB_USER: root
+          OPNG_DB_PASS: ci-root-password
+          OPNG_DB_NAME: opng_a11y
+          OPNG_INSTALL_DB_HOST: 127.0.0.1
+          OPNG_INSTALL_DB_USER: root
+          OPNG_INSTALL_DB_PASS: ci-root-password
+        run: |
+          php src/install.php
+          php tools/seed.php
+
+      - name: Start the PHP server
+        env:
+          OPNG_DB_HOST: 127.0.0.1
+          OPNG_DB_USER: root
+          OPNG_DB_PASS: ci-root-password
+          OPNG_DB_NAME: opng_a11y
+        run: |
+          php -S 127.0.0.1:8080 -t src > /tmp/opng-php.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8080/index.php > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/opng-php.log
+          exit 1
+
+      - name: Validate rendered HTML and run axe
+        run: node tools/a11y_check.mjs
 
   phpstan:
     name: PHPStan (PHP ${{ matrix.php }})

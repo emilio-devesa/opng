@@ -110,7 +110,7 @@ cp "$root/README.md" "$root/CHANGELOG.md" "$root/LICENSE" "$stage/"
 
 # Never ship the real configuration or development-only tooling.
 rm -f "$stage/src/config.php"
-rm -f "$stage/tools/seed.php" "$stage/tools/build_release.sh"
+rm -f "$stage/tools/seed.php" "$stage/tools/build_release.sh" "$stage/tools/a11y_check.mjs"
 rm -rf "$stage/deploy/apple-container"
 rm -f "$stage/docs/APPLE-CONTAINER.md"
 find "$stage" \( -name '.DS_Store' -o -name '*.log' -o -name '*.sqlite' \) -delete

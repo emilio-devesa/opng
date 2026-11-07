@@ -42,6 +42,14 @@
 - Added `tests/container_contract_test.php` and `.github/workflows/container.yml` (Buildx `linux/arm64`, GHCR on tags, SBOM and provenance). Documented installation, upgrades, backups, security and troubleshooting in `docs/APPLE-CONTAINER.md`.
 
 ### Phase 6 — CI y cierre de release
+#### ♿ Accesibilidad, i18n y confirmaciones (UX-04…UX-09, HYG-02)
+- Added `src/includes/i18n.php`: the `opng_lang` cookie (then `Accept-Language`, then English) selects the locale, sets `<html lang>` and translates the buffered layout with `DOMDocument` before the first paint. `language.js` keeps the cookie and `localStorage` in sync, prefers the server-rendered `lang`, and never overwrites elements with nested markup.
+- Added a dependency-free `<time datetime>` renderer with locale-aware date formats and the raw stored value in `title`; the public listing now has an explicit empty state with a “create the first entry” link.
+- Auth forms keep their inline errors, preserve safe posted values and now expose `id="form-error"`, `aria-invalid`, `aria-describedby` and `autofocus` on the first invalid field. The shared CAPTCHA accepts an error association for the same purpose.
+- Paste deletion, admin entry deletion and admin user actions now require a visible, server-enforced `confirm_delete`/`confirm_action` checkbox. The JavaScript-only confirmation (`confirm.js`) was removed, so the destructive actions remain confirmed with JavaScript disabled.
+- Added the `accessibility` CI job (`MySQL 8.0` + seeded data + PHP server + Playwright): `tools/a11y_check.mjs` validates rendered HTML with `html-validate` and runs axe WCAG 2.x rules on index, view, login, register and admin in English and Spanish. Serious/critical violations and HTML errors fail the job. Added `tests/i18n_test.php`, `tests/form_accessibility_test.php` and `tests/destructive_confirmation_test.php`; the classic artifact excludes the Node-based a11y tooling.
+- Fixed the History tab query-string limit (`tab=history` exceeded the previous five-byte limit) and added a regression assertion.
+
 #### 🧪 Matriz de bases de datos (HYG-03)
 - Added a `database-mariadb` CI job alongside the existing MySQL 8.0 job. Both run the same legacy-schema migration, CLI installer, `database_install_test`, `backup_restore_test`, `thread_integration_test`, `schema_drift_test` and ambiguous-case guard, so `lower_case_table_names`, collation and FULLTEXT differences are exercised on both engines.
 - `performance_query_plan_test.php` stays MySQL-only: its `EXPLAIN` assertions encode MySQL optimizer choices, while MariaDB legitimately chooses a full scan for the small single-user fixture. MariaDB still receives the same indexes and is checked by the schema drift test.

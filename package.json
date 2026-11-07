@@ -1,0 +1,14 @@
+{
+  "name": "opng-accessibility-checks",
+  "private": true,
+  "type": "module",
+  "description": "Rendered HTML validation and axe accessibility checks for Open Pastebin NG.",
+  "scripts": {
+    "a11y": "node tools/a11y_check.mjs"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.10.2",
+    "html-validate": "^9.7.1",
+    "playwright": "^1.55.0"
+  }
+}

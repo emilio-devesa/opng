@@ -281,7 +281,7 @@ foreach (['README.md', 'CHANGELOG.md', 'LICENSE', 'SHA256SUMS', 'tools/install.p
         $failures
     );
 }
-foreach (['/tests/', '/.github/', '/composer.json', '/composer.lock', '/phpstan.neon', '/screenshots/', '/src/config.php', '/.git/', '/tools/seed.php', '/deploy/apple-container/'] as $excluded) {
+foreach (['/tests/', '/.github/', '/composer.json', '/composer.lock', '/phpstan.neon', '/screenshots/', '/src/config.php', '/.git/', '/tools/seed.php', '/tools/a11y_check.mjs', '/deploy/apple-container/'] as $excluded) {
     expect_release(
         is_string($zip_listing) && !str_contains($zip_listing, $excluded),
         "the package excludes {$excluded}",

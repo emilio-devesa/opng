@@ -3,6 +3,7 @@ src/config.php
 
 # Dependencies / tooling
 /vendor/
+/node_modules/
 .phpstan.cache/
 phpstan-result-cache/
 
