@@ -8,6 +8,7 @@ const OPNG_ERROR_KEYS = [
     'captcha_incorrect',
     'error_auth_unavailable',
     'error_backup_limit',
+    'error_confirmation_required',
     'error_csrf',
     'error_database_operation',
     'error_database_unavailable',

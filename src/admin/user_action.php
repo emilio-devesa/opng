@@ -27,6 +27,12 @@ if (!csrf_valid($_POST['csrf_token'] ?? null)) {
     opng_error_redirect('error_csrf', '../error.php');
 }
 
+// Role changes and user deletion require an explicit server-side confirmation
+// so they cannot run when JavaScript is disabled (UX-06).
+if (($_POST['confirm_action'] ?? null) !== 'yes') {
+    opng_error_redirect('error_confirmation_required', '../error.php');
+}
+
 $target_user_id = http_positive_integer($_POST['admin_record_number'] ?? null);
 $action = http_string_parameter($_POST, 'action', 16, false);
 $delete_mode = http_string_parameter($_POST, 'delete_mode', 16, false);

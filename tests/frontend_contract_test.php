@@ -300,7 +300,6 @@ if (!is_string($license_contents) || !str_contains($license_contents, 'BSD 3-Cla
 foreach ([
     '/src/assets/js/dark-mode.js',
     '/src/assets/js/language.js',
-    '/src/assets/js/confirm.js',
     '/src/assets/js/copy.js',
     '/src/assets/js/search-clear.js',
     '/src/assets/js/search-help.js',

@@ -65,26 +65,3 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 });
-
-document.addEventListener("submit", function (event) {
-    const form = event.target;
-    const submitter = event.submitter;
-    if (
-        !(form instanceof HTMLFormElement)
-        || !form.classList.contains("admin-user-actions")
-        || !(submitter instanceof HTMLButtonElement)
-        || submitter.value !== "delete"
-    ) {
-        return;
-    }
-
-    const confirmation = document.getElementById("user_action_confirm");
-    if (!(confirmation instanceof HTMLElement)) {
-        console.error("User deletion confirmation text is missing.");
-        event.preventDefault();
-        return;
-    }
-    if (!window.confirm(confirmation.textContent.trim())) {
-        event.preventDefault();
-    }
-});

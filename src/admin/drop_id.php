@@ -24,6 +24,13 @@ if (!csrf_valid($_POST['csrf_token'] ?? null)) {
     opng_error_redirect('error_csrf', '../error.php');
 }
 
+// Deletion must be explicitly confirmed even when JavaScript is unavailable
+// (UX-06). The visible checkbox is a server-side requirement; client-side
+// `required` alone would not protect requests made without JavaScript.
+if (($_POST['confirm_delete'] ?? null) !== 'yes') {
+    opng_error_redirect('error_confirmation_required', '../error.php');
+}
+
 // Validar el ID proporcionado
 $input_ID = http_string_parameter($_POST, 'input_ID', 255, false);
 if ($input_ID === null || !http_valid_entry_id($input_ID)) {

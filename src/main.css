@@ -761,6 +761,25 @@ label {
     color: var(--text);
 }
 
+/* Explicit, server-enforced confirmation for destructive actions (UX-06). */
+.confirm-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    margin: 0.5rem 0;
+    font-weight: 400;
+}
+
+.confirm-check input[type="checkbox"] {
+    flex: none;
+    width: auto;
+    margin: 0.2rem 0 0;
+}
+
+.confirm-check span {
+    min-width: 0;
+}
+
 input[type="text"],
 input[type="email"],
 input[type="password"],
