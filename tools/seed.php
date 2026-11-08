@@ -614,10 +614,12 @@ foreach ($reply_texts as $k => $reply_text) {
 // ---------------------------------------------------------------------------
 // Insercion
 // ---------------------------------------------------------------------------
-$stmt = $db->prepare("INSERT INTO entries (id, user_id, language, text, topic, date) VALUES (?, ?, ?, ?, ?, ?)");
+// Seed rows are roots: set root_id = id and depth = 0 so history does not rely
+// on the migration backfill and a freshly seeded database has no NULL roots.
+$stmt = $db->prepare("INSERT INTO entries (id, root_id, depth, user_id, language, text, topic, date) VALUES (?, ?, 0, ?, ?, ?, ?, ?)");
 $inserted = 0;
 foreach ($entries as $e) {
-    $stmt->bind_param('sissss', $e['id'], $e['user_id'], $e['language'], $e['text'], $e['topic'], $e['date']);
+    $stmt->bind_param('ssissss', $e['id'], $e['id'], $e['user_id'], $e['language'], $e['text'], $e['topic'], $e['date']);
     if (!$stmt->execute()) {
         fwrite(STDERR, "ERROR insert {$e['id']}: " . $stmt->error . "\n");
         continue;

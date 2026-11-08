@@ -692,7 +692,8 @@ button[type="button"]:not(.copy-button):hover {
 
 .paste-actions {
     display: flex;
-    align-items: center;
+    flex-wrap: wrap;
+    align-items: flex-start;
     gap: 0.75rem;
     margin: 0.75rem 0 1rem;
 }
@@ -728,22 +729,46 @@ form.delete-paste-form button:hover {
 }
 
 #Content .paste-actions form.delete-paste-form {
-    display: flex;
-    justify-content: flex-end;
-    margin: 0 0 0 auto;
+    flex: 1 1 100%;
+    display: grid;
+    grid-template-columns: minmax(14rem, 22rem) minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 0.5rem 0.75rem;
+    margin: 0.25rem 0 0;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
+}
+
+.delete-paste-reauth {
+    min-width: 0;
+}
+
+.delete-paste-reauth label {
+    margin-bottom: 0.35rem;
+}
+
+#Content .delete-paste-reauth input[type="password"] {
+    width: 100%;
+    margin: 0;
+}
+
+#Content .paste-actions form.delete-paste-form > .confirm-check {
+    align-self: center;
+    margin: 0;
 }
 
 #Content form.delete-paste-form button {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 2.5rem;
+    min-width: 2.5rem;
     height: 2.5rem;
-    padding: 0;
+    padding: 0 0.9rem;
     background: var(--danger-soft);
     color: var(--danger);
     border: 1px solid var(--danger);
     gap: 0.4rem;
+    white-space: nowrap;
 }
 
 #Content form.delete-paste-form button:hover {
@@ -2071,6 +2096,19 @@ footer .back-to-top:hover {
 
     #SiteHeader .header-search .search-input-wrap input[type="text"] {
         max-width: none;
+    }
+
+    #Content .paste-actions form.delete-paste-form {
+        grid-template-columns: minmax(0, 1fr);
+        align-items: stretch;
+    }
+
+    #Content .paste-actions form.delete-paste-form > .confirm-check {
+        align-self: start;
+    }
+
+    #Content form.delete-paste-form button {
+        justify-self: start;
     }
 }
 

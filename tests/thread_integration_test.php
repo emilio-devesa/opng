@@ -220,6 +220,48 @@ try {
     }
     thread_integration_pass('deleting the root keeps the orphaned subtree findable');
 
+    // Legacy rows can keep root_id = NULL: the migration that backfills roots
+    // never ran on them, but replies already point at the root id. History must
+    // still include the root itself instead of showing only the replies.
+    $legacy_root = 'thread-legacy-root';
+    $stmt = $db->prepare(
+        'INSERT INTO entries (id, parent_id, root_id, depth, user_id, date, language, text, topic)
+         VALUES (?, NULL, NULL, 0, ?, ?, ?, ?, ?)'
+    );
+    $legacy_date = '2024-01-15 10:00:00';
+    $legacy_language = 'text';
+    $legacy_text = 'legacy fixture text';
+    $legacy_topic = 'Legacy root';
+    $stmt->bind_param(
+        'sissss',
+        $legacy_root,
+        $author_id,
+        $legacy_date,
+        $legacy_language,
+        $legacy_text,
+        $legacy_topic
+    );
+    $stmt->execute();
+    $stmt->close();
+    thread_integration_insert(
+        $db,
+        'thread-legacy-reply',
+        thread_parent_for_reply($db, $legacy_root),
+        $second_id,
+        'RE: Legacy root',
+        '2024-01-15 10:05:00'
+    );
+    $legacy_page = thread_fetch_page($db, $legacy_root);
+    if (
+        count($legacy_page['nodes']) !== 2
+        || $legacy_page['nodes'][0]['id'] !== $legacy_root
+        || $legacy_page['nodes'][0]['root_id'] !== null
+        || $legacy_page['nodes'][1]['id'] !== 'thread-legacy-reply'
+    ) {
+        thread_integration_fail('a legacy root with root_id = NULL was dropped from its own history');
+    }
+    thread_integration_pass('history keeps a legacy root whose root_id is NULL');
+
     $db->query('DELETE FROM entries');
 
     $chain_root = 'thread-chain-root';

@@ -13,6 +13,11 @@
 - Translated the remaining Spanish code comments in `src/` and `tools/` to English, keeping user-facing strings in the six i18n catalogs and Spanish documentation unchanged.
 - Removed stale `(v0.8)` and historical-fix prefixes that added no value to current readers. Seeded paste samples keep their original language because they are content, not comments.
 
+#### 🐛 Paste view and history fixes
+- The reply editor starts with the parent paste text, so replying keeps the original content instead of opening an empty textarea.
+- The owner's delete control is now a labelled reauthentication grid: current password, confirmation checkbox and a visible “Delete Paste” button, collapsing to one column on narrow screens.
+- History also matches the thread root by primary key, so legacy or seeded roots with `root_id = NULL` no longer disappear from their own thread. The seeder now stores `root_id = id` and `depth = 0`, and the integration suite covers a `NULL`-rooted legacy entry.
+
 ## Version 1.0.0 (2026)
 
 ### Phase 3 — Feature Historial (F1)

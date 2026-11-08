@@ -276,15 +276,17 @@ require(__DIR__ . "/includes/layout_header.php");
                 <form method="post" action="admin/drop_id.php" class="delete-paste-form">
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
                     <input type="hidden" name="input_ID" value="<?php echo htmlspecialchars($array['id'], ENT_QUOTES, 'UTF-8'); ?>">
-                    <label class="visually-hidden" for="delete_current_password" data-i18n="reauth_password">Current password:</label>
-                    <input id="delete_current_password" type="password" name="current_password" maxlength="72" autocomplete="current-password" required>
+                    <div class="delete-paste-reauth">
+                        <label for="delete_current_password" data-i18n="reauth_password">Current password:</label>
+                        <input id="delete_current_password" type="password" name="current_password" maxlength="72" autocomplete="current-password" required>
+                    </div>
                     <label class="confirm-check">
                         <input id="delete_confirm" type="checkbox" name="confirm_delete" value="yes" required>
                         <span data-i18n="delete_confirm">Are you sure you want to delete this paste? This action cannot be undone.</span>
                     </label>
-                    <button type="submit" class="danger" aria-label="Delete Paste" title="Delete Paste" data-i18n-aria-label="delete_paste" data-i18n-title="delete_paste">
+                    <button type="submit" class="danger">
                         <span aria-hidden="true">🗑️</span>
-                        <span class="visually-hidden" data-i18n="delete_paste">Delete Paste</span>
+                        <span data-i18n="delete_paste">Delete Paste</span>
                     </button>
                 </form>
                 <?php endif; ?>
@@ -334,7 +336,7 @@ require(__DIR__ . "/includes/layout_header.php");
                     <?php endforeach; ?>
                 </select>
                 <label for="reply_text" data-i18n="text">Enter your text here</label>
-                <textarea id="reply_text" name="input_text" maxlength="1048576" rows="<?php echo $textarea_rows; ?>" cols="80" required></textarea>
+                <textarea id="reply_text" name="input_text" maxlength="1048576" rows="<?php echo $textarea_rows; ?>" cols="80" required><?php echo htmlspecialchars($array['text'], ENT_QUOTES, 'UTF-8'); ?></textarea>
                 <div class="length-meter" data-length-meter-for="reply_text" data-max-bytes="1048576">
                     <progress class="length-meter-bar" max="1048576" value="0" aria-label="Paste length" data-i18n-aria-label="length_meter_label"></progress>
                     <span class="length-meter-text"><span class="length-meter-value">1.00</span> <span data-i18n="length_mb_remaining">MB remaining</span></span>
