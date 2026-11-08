@@ -19,16 +19,16 @@ if (!in_array($_SERVER["REQUEST_METHOD"], ["GET", "POST"], true)) {
     exit;
 }
 
-// Obtener la URL de redirección o establecer index.php como predeterminado
+// Get the redirect URL or default to index.php
 $redirect_url = http_string_parameter($_SESSION, 'redirect_after_login', 2048, false) ?? '../index.php';
 
-// (S6) Evitar open redirect: solo se aceptan rutas relativas internas
+// (S6) Prevent open redirects: only internal relative paths are accepted
 if (preg_match('#^(?:[a-z][a-z0-9+.-]*:|//)#i', $redirect_url)) {
     $redirect_url = '../index.php';
 }
 
-// Si el usuario ya está autenticado, redirigir a la página de inicio
-// (antes se comprobaba $_SESSION['logged_in'], que nunca se establece)
+// If the user is already authenticated, redirect to the home page
+// (previously it checked $_SESSION['logged_in'], which is never set)
 if (isset($_SESSION['user_id'])) {
     header('Location: ../index.php');
     exit();
@@ -44,7 +44,7 @@ if (
     $_SESSION["last_attempt_time"] = time();
 }
 
-// Si hay más de 5 intentos en 10 minutos, bloquear
+// Block after more than 5 attempts in 10 minutes
 if ($_SESSION["login_attempts"] >= 5 && (time() - $_SESSION["last_attempt_time"] < 600)) {
     opng_error_redirect('error_login_rate_limit', '../error.php');
 }
@@ -59,7 +59,7 @@ $form_error_field = '';
 $posted_email = http_string_parameter($_POST, 'email', 100) ?? '';
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-    // Verificar si el token CSRF existe y es válido
+    // Check whether the CSRF token exists and is valid
     if (!csrf_valid($_POST['csrf_token'] ?? null)) {
         opng_error_redirect('error_csrf', '../error.php');
     }
@@ -82,7 +82,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     }
 
     if ($form_error_key === '') {
-        // Conectar a la BD
+        // Connect to the database
         $db = database_connect();
         if (!$db) {
             opng_error_redirect('error_auth_unavailable', '../error.php');
@@ -112,7 +112,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             }
         }
 
-        // Buscar el usuario
+        // Look up the user
         $stmt = null;
         try {
             $stmt = $db->prepare("SELECT id, username, password_hash, role, session_version FROM users WHERE email = ?");
@@ -145,7 +145,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $password_is_valid = password_verify($password, $password_hash);
 
         if ($user !== null && $password_is_valid) {
-            // Autenticación exitosa, restablecer intentos fallidos
+            // Successful authentication: reset failed attempts
             $_SESSION["login_attempts"] = 0;
             captcha_clear();
 
@@ -172,7 +172,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             audit_log_record($db, (int) $user['id'], 'auth.login', '');
             $db->close();
 
-            // (S10) Regenerar el ID de sesión para evitar session fixation
+            // (S10) Regenerate the session ID to prevent session fixation
             session_regenerate_id(true);
 
             $_SESSION["user_id"] = $user['id'];
@@ -183,14 +183,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             // The pre-login page token must not remain valid after authentication.
             csrf_rotate();
 
-            // Redirigir al usuario a la página de origen después del login
+            // Redirect the user to the original page after login
             header("Location: " . $redirect_url);
 
-            unset($_SESSION['redirect_after_login']); // Eliminar variable de sesión
+            unset($_SESSION['redirect_after_login']); // Remove the session variable
             exit;
         }
 
-        // Cualquier camino que llegue aquí es un fallo de autenticación.
+        // Any path that reaches here is an authentication failure.
         $_SESSION["login_attempts"]++;
         $_SESSION["last_attempt_time"] = time();
         foreach ($login_limits as [$limit_action, $limit_key, $limit_max]) {

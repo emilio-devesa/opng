@@ -2,16 +2,16 @@
 /**
  * Link legacy "RE: " pastes to their parent as real thread replies (F1).
  *
- * Uso (desde la raíz del repo):
+ * Usage (from the repository root):
  *   php tools/link_legacy_replies.php --dry-run [--limit=50]
  *   php tools/link_legacy_replies.php --apply --reply=REPLY_ID --parent=PARENT_ID
  *
- * - Solo funciona por CLI y usa las credenciales de src/config.php.
- * - El modo --dry-run nunca escribe: lista candidatos o valida un par de IDs.
- * - El modo --apply exige IDs explícitos y revisados. No adivina relaciones:
- *   comprueba el prefijo "RE: ", el tema, el orden temporal, que la respuesta
- *   siga sin relación, y recalcula root_id/depth de toda su descendencia.
- * - Cada vínculo aplicado se registra en audit_log.
+ * - CLI only, and uses the credentials from src/config.php.
+ * - The --dry-run mode never writes: it lists candidates or validates a pair of IDs.
+ * - The --apply mode requires explicit, reviewed IDs. It never guesses relations:
+ *   it checks the "RE: " prefix, the topic, the time order, that the reply
+ *   is still unrelated, and recomputes root_id/depth for its whole subtree.
+ * - Every applied link is recorded in audit_log.
  */
 
 if (PHP_SAPI !== 'cli') {

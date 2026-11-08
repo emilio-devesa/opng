@@ -3,15 +3,15 @@
 declare(strict_types=1);
 
 // includes/session.php
-// Inicio de sesión con configuración endurecida:
-//   - httponly: la cookie no es accesible desde JavaScript (mitiga el robo de sesión vía XSS)
-//   - samesite=Lax: reduce el riesgo de uso cross-site (se elige Lax en vez de Strict
-//     para no romper la navegación desde enlaces externos en un pastebin público)
-//   - secure: se activa automáticamente si la petición llega por HTTPS
-//   - use_strict_mode: PHP rechaza IDs de sesión que no ha generado (anti-fijación)
-//   - caducidad por inactividad y absoluta
+// Session start with a hardened configuration:
+//   - httponly: the cookie is not readable from JavaScript (mitigates session theft via XSS)
+//   - samesite=Lax: reduces cross-site use (Lax instead of Strict so that
+//     navigation from external links keeps working in a public pastebin)
+//   - secure: enabled automatically when the request arrives over HTTPS
+//   - use_strict_mode: PHP rejects session IDs it did not generate (anti-fixation)
+//   - idle and absolute expiry
 //
-// Uso: en lugar de session_start(), llamar a session_start_secured().
+// Usage: call session_start_secured() instead of session_start().
 
 const OPNG_SESSION_IDLE_SECONDS = 1800;
 const OPNG_SESSION_ABSOLUTE_SECONDS = 43200;
@@ -26,7 +26,7 @@ const OPNG_SESSION_ABSOLUTE_SECONDS = 43200;
 function session_start_secured(): void
 {
     if (session_status() !== PHP_SESSION_NONE) {
-        return; // ya iniciada
+        return; // already started
     }
 
     // Trust the web server's HTTPS state only. Forwarded headers are client-

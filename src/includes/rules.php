@@ -3,8 +3,8 @@
 declare(strict_types=1);
 
 // includes/rules.php
-// Carga de la lista de lenguajes permitidos desde rules.xml.
-// Centraliza la lectura que antes se repetía en pastebin.php, submit.php y view.php.
+// Loads the allowed language list from rules.xml.
+// Centralizes the lookup that used to be duplicated in pastebin.php, submit.php and view.php.
 
 function load_rules(): array
 {

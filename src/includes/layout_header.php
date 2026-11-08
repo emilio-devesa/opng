@@ -3,11 +3,11 @@
 declare(strict_types=1);
 
 // includes/layout_header.php
-// Cabecera HTML comun. Variables opcionales antes del include:
-//   $page_title (string, texto sin escapar — el include NO escapa el título)
-//   $base       (string, prefijo de rutas; '' en paginas de src/, '../' en admin/ y auth/)
-//   $show_search (bool, true en index.php para mostrar el formulario de busqueda)
-//   $logged_in   (bool, derivado de la sesion; se recomputa aqui por comodidad)
+// Shared HTML header. Optional variables before the include:
+//   $page_title (string, unescaped text — the include does NOT escape the title)
+//   $base       (string, path prefix; '' under src/, '../' under admin/ and auth/)
+//   $show_search (bool, true in index.php to render the search form)
+//   $logged_in   (bool, derived from the session; recomputed here for convenience)
 if (!isset($base)) {
     $base = '';
 }

@@ -1,5 +1,5 @@
 <?php
-// (v0.8) Borrado de un paste. Refactor: session/csrf centralizados.
+// Paste deletion. Refactor: centralized session/CSRF.
 require_once('../includes/session.php');
 session_start_secured();
 require_once('../includes/csrf.php');
@@ -12,14 +12,14 @@ require_once('../includes/admin_metrics.php');
 require_once('../includes/audit_log.php');
 require_once('../includes/user_quota.php');
 
-// Verificar que la solicitud es POST
+// Verify that the request is POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     header('Allow: POST');
     exit;
 }
 
-// Verificar token CSRF
+// Verify the CSRF token
 if (!csrf_valid($_POST['csrf_token'] ?? null)) {
     opng_error_redirect('error_csrf', '../error.php');
 }
@@ -31,21 +31,21 @@ if (($_POST['confirm_delete'] ?? null) !== 'yes') {
     opng_error_redirect('error_confirmation_required', '../error.php');
 }
 
-// Validar el ID proporcionado
+// Validate the supplied ID
 $input_ID = http_string_parameter($_POST, 'input_ID', 255, false);
 if ($input_ID === null || !http_valid_entry_id($input_ID)) {
     opng_error_redirect('error_invalid_id', '../error.php');
 }
 
 $user_id = require_authenticated_user();
-// Conectar a la base de datos
+// Connect to the database
 $db = database_connect();
 if (!$db) {
     opng_error_redirect('error_database_unavailable', '../error.php');
 }
 
 // Deletion is irreversible; require the current password in addition to CSRF
-// and the JavaScript confirmation (SEC-07).
+// and the explicit confirmation (SEC-07).
 $current_password = http_string_parameter($_POST, 'current_password', 72, false);
 if (!reauthenticate_user($db, $user_id, $current_password, 'entry_delete')) {
     $db->close();
@@ -85,7 +85,7 @@ try {
         $entry_bytes = (int) ($size_row['text_bytes'] ?? 0);
     }
 
-    // Si el usuario es administrador, puede eliminar cualquier paste.
+    // If the user is an administrator, they may delete any paste.
     if ($user_role === "admin") {
         $stmt = $db->prepare("DELETE FROM entries WHERE id = ?");
         $stmt->bind_param("s", $input_ID);

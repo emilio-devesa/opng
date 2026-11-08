@@ -1,5 +1,5 @@
 <?php
-// (v0.8) Vaciar pastes. Refactor: session/csrf centralizados.
+// Empty pastes. Refactor: centralized session/CSRF.
 require_once('../includes/session.php');
 session_start_secured();
 require_once('../includes/csrf.php');
@@ -18,10 +18,10 @@ if (!$db) {
 }
 $session_user_id = require_admin($db, 'empty.php');
 
-// Verificar que la solicitud es POST
+// Verify that the request is POST
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $db->close();
-    // Sin POST: mostrar la página de confirmación
+    // No POST: show the confirmation page
     $csrf_token = csrf_token();
     $lang_attr = 'en';
     $page_title = 'Admin - Empty database';
@@ -49,13 +49,13 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-// Verificar token CSRF
+// Verify the CSRF token
 if (!csrf_valid($_POST['csrf_token'] ?? null)) {
     opng_error_redirect('error_csrf', '../error.php');
 }
 
 // Emptying the database is irreversible: require the current password even
-// when the CSRF token and the JavaScript confirmation are present (SEC-07).
+// when the CSRF token and the explicit confirmation are present (SEC-07).
 $current_password = http_string_parameter($_POST, 'current_password', 72, false);
 if (!reauthenticate_user($db, $session_user_id, $current_password, 'admin_reauth_empty')) {
     $db->close();

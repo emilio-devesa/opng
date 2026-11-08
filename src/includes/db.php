@@ -3,8 +3,8 @@
 declare(strict_types=1);
 
 // includes/db.php
-// Conexión a MySQL usando MySQLi (fix P1/P3: SIN DDL en cada conexión).
-// La creación de base de datos/tablas vive en src/install.php.
+// MySQL connection through MySQLi (P1/P3: no DDL on every connection).
+// Database and table creation live in src/install.php.
 
 require_once(__DIR__ . '/session.php');
 
@@ -42,6 +42,6 @@ function db_connect(): ?mysqli
     return $conn;
 }
 
-// Alias mantenido por compatibilidad con el código existente
-// que aún llama a database_connect() desde database.php.
-// NOTA: desde v0.8 ESTA FUNCIÓN NO MIGRA (ver src/install.php).
+// Alias kept for compatibility with existing code
+// that still calls database_connect() from database.php.
+// NOTE: since v0.8 THIS FUNCTION DOES NOT MIGRATE (see src/install.php).

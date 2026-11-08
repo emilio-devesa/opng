@@ -1,5 +1,5 @@
 <?php
-// (v0.8) Panel de administración.
+// Administration panel.
 require("../includes/session.php");
 session_start_secured();
 require("../includes/csrf.php");

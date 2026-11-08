@@ -1,5 +1,5 @@
 <?php
-// (v0.8) Formulario de creación. Refactor: session/csrf/rules centralizadas.
+// Creation form. Refactor: centralized session/CSRF/rules.
 require("includes/session.php");
 session_start_secured();
 require("includes/db.php");
@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 
 $csrf_token = csrf_token();
 
-// Conexión temprana para fallar rápido si la BD no está disponible
+// Early connection to fail fast when the database is unavailable
 $db = db_connect();
 if (!$db) {
     opng_error_redirect('error_database_unavailable');
@@ -44,7 +44,7 @@ require(__DIR__ . "/includes/layout_header.php");
 ?>
     <h1 data-i18n="create_new">Create New Entry</h1>
     <form method="post" action="submit.php" class="editor-form">
-        <!-- Protección CSRF -->
+        <!-- CSRF protection -->
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
 
         <label data-i18n="topic:" for="input_topic">Topic:</label>

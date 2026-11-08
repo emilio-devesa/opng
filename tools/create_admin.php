@@ -2,12 +2,12 @@
 /**
  * Create the first administrator for a classic or container installation (F2).
  *
- * Uso (desde la raíz del repo o del artefacto):
+ * Usage (from the repository root or the artifact):
  *   php tools/create_admin.php --username=admin --email=admin@example.com
  *   OPNG_ADMIN_PASSWORD='...' php tools/create_admin.php --if-empty
  *   php tools/create_admin.php --print-sql --username=admin --email=...
  *
- * - Solo funciona por CLI y usa las credenciales de src/config.php.
+ * - CLI only, and uses the credentials from src/config.php.
  * - Without --password it prompts twice without echoing the secret.
  * - Refuses to create another administrator when one already exists unless
  *   --force is explicit. --if-empty is the idempotent container/entrypoint mode.

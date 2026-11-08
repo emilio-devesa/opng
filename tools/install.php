@@ -2,7 +2,7 @@
 /**
  * CLI installer wrapper for classic/shared-hosting releases (F2).
  *
- * Uso (desde la raíz del artefacto):
+ * Usage (from the artifact root):
  *   OPNG_INSTALL_DB_USER=... OPNG_INSTALL_DB_PASS=... php tools/install.php
  *
  * Delegates to src/install.php so a hosted installation never needs to guess

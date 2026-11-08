@@ -2,17 +2,17 @@
 /**
  * Restore a portable SQL dump into the configured database (F2/F3).
  *
- * Uso (desde la raíz del repo o del artefacto):
+ * Usage (from the repository root or the artifact):
  *   php tools/restore.php --file=backup.sql [--checksum=backup.sql.sha256] [--force]
  *
- * - Solo funciona por CLI y usa las credenciales de src/config.php.
- * - Rechaza dumps que contengan CREATE DATABASE o USE salvo que se pase
- *   --allow-database-statements; los backups de OPNG son portables.
- * - Verifica un archivo .sha256 si se proporciona.
- * - Pide confirmación interactiva (escribe RESTORE) salvo --force.
- * - Usa el cliente mysql/mariadb del sistema y un archivo de opciones temporal
- *   con permisos 0600, nunca la contraseña en argv.
- * - La restauración es destructiva para las tablas incluidas en el dump.
+ * - CLI only, and uses the credentials from src/config.php.
+ * - Rejects dumps containing CREATE DATABASE or USE unless
+ *   --allow-database-statements is passed; OPNG backups are portable.
+ * - Verifies a .sha256 file when one is supplied.
+ * - Asks for interactive confirmation (type RESTORE) unless --force is used.
+ * - Uses the system mysql/mariadb client and a temporary option file
+ *   with 0600 permissions; the password is never passed in argv.
+ * - Restoring is destructive for the tables included in the dump.
  */
 
 if (PHP_SAPI !== 'cli') {

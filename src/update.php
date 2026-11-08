@@ -1,6 +1,6 @@
 <?php
-// (v0.8) Edición REAL de un paste (UPDATE), nuevo flujo del hallazgo U1.
-// Solo el autor del paste o un administrador pueden hacerlo.
+// Real paste editing (UPDATE).
+// Only the paste author or an administrator may do it.
 require("includes/session.php");
 session_start_secured();
 require("includes/db.php");
@@ -32,13 +32,13 @@ if (!csrf_valid($_POST['csrf_token'] ?? null)) {
     opng_error_redirect('error_csrf');
 }
 
-// El ID debe ser alfanumérico (mismo formato que genera submit.php)
+// The ID must be alphanumeric (same format that submit.php generates)
 $id = http_string_parameter($_POST, 'input_ID', 255, false);
 if ($id === null || !http_valid_entry_id($id)) {
     opng_error_redirect('error_invalid_id');
 }
 
-// Validación de campos
+// Field validation
 // Preserve the exact text, including leading indentation and trailing newlines.
 $text = http_string_parameter($_POST, 'input_text', OPNG_MAX_PASTE_BYTES + 1, false);
 $topic = http_string_parameter($_POST, 'input_topic', OPNG_MAX_TOPIC_BYTES + 1);
@@ -47,13 +47,13 @@ if ($text === null || $topic === null || $language === null) {
     opng_error_redirect('error_invalid_paste');
 }
 
-// Valores
+// Values
 $validation_error = paste_validation_error($text, $topic);
 if ($validation_error !== null) {
     opng_error_redirect($validation_error);
 }
 
-// Lenguaje: allowlist (igual que en submit.php)
+// Language: allowlist (same as in submit.php)
 try {
     $rules = load_rules();
 } catch (RuntimeException $exception) {
@@ -63,7 +63,7 @@ if (!isset($rules[$language])) {
     opng_error_redirect('error_invalid_language');
 }
 
-// Conectar a la base de datos
+// Connect to the database
 $db = db_connect();
 if (!$db) {
     opng_error_redirect('error_database_unavailable');
@@ -92,7 +92,7 @@ try {
         opng_error_redirect('error_entry_not_found');
     }
 
-    // Comprobar permisos: admin o propietario del paste
+    // Check permissions: admin or paste owner
     $user_role = refresh_account_role($db) ?? 'guest';
     $owner_id   = $entry['user_id'];
     $current_id = $_SESSION['user_id'];
