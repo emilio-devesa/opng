@@ -1,6 +1,18 @@
 # Open Pastebin NG - Changelog
 ============================
 
+## Version 1.1.0 (unreleased)
+
+### Phase 7 — Code hygiene
+#### 🧹 Strict types and coding standard (HYG-07)
+- Enabled `declare(strict_types=1)` in every file under `src/includes/`, the gradual first step recommended by the audit. Entry points and CLI tools keep their current coercion behaviour until their call sites are reviewed.
+- Added `PHP_CodeSniffer` with an adapted PSR-12 ruleset (`phpcs.xml`) for `src/includes/`. The ruleset excludes the procedural-file, namespace and closing-tag rules that do not apply to shared includes, and ignores long template lines. Fixed the existing violations in the directory.
+- Added `composer phpcs` and a dedicated `style` CI job. New includes must pass the ruleset; other directories will be added as they are cleaned up.
+
+#### 🌐 Comment language consistency (HYG-10)
+- Translated the remaining Spanish code comments in `src/` and `tools/` to English, keeping user-facing strings in the six i18n catalogs and Spanish documentation unchanged.
+- Removed stale `(v0.8)` and historical-fix prefixes that added no value to current readers. Seeded paste samples keep their original language because they are content, not comments.
+
 ## Version 1.0.0 (2026)
 
 ### Phase 3 — Feature Historial (F1)
