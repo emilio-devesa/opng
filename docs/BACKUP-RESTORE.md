@@ -43,9 +43,10 @@ Check that the result is non-empty before rotating older copies.
 
 ### Admin panel
 
-Sign in as an administrator, open **Admin → Backup** and re-enter your current
-password. The download uses the same portable dump and writes an audit entry.
-The password reauthentication and CSRF checks are mandatory.
+Sign in as an administrator, open **Admin → Database Actions → Download
+backup** and re-enter your current password in the confirmation dialog. The
+download uses the same portable dump and writes an audit entry. The password
+reauthentication and CSRF checks are mandatory.
 
 ### Scheduling
 
