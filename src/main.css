@@ -716,27 +716,62 @@ button[type="button"]:not(.copy-button):hover {
 
 button.danger,
 form[action="admin/drop_id.php"] button,
-form[action="drop_id.php"] button,
-form.delete-paste-form button {
+form[action="drop_id.php"] button {
     background: var(--danger-fill);
 }
 
 button.danger:hover,
 form[action="admin/drop_id.php"] button:hover,
-form[action="drop_id.php"] button:hover,
-form.delete-paste-form button:hover {
+form[action="drop_id.php"] button:hover {
     background: var(--danger-fill-hover);
 }
 
-#Content .paste-actions form.delete-paste-form {
-    flex: 1 1 100%;
+/* Delete trigger in the paste actions; the confirmation lives in a modal. */
+#Content .delete-paste-open {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: var(--danger-soft);
+    color: var(--danger);
+    border: 1px solid var(--danger);
+    white-space: nowrap;
+}
+
+#Content .delete-paste-open:hover {
+    background: var(--danger-fill);
+    color: var(--button-text);
+}
+
+/* Floating, centred confirmation card (native <dialog>). */
+.delete-paste-dialog {
+    position: fixed;
+    inset: 0;
+    width: min(30rem, calc(100vw - 2rem));
+    max-height: calc(100vh - 2rem);
+    max-height: calc(100dvh - 2rem);
+    margin: auto;
+    padding: 1.35rem 1.45rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow);
+    overflow: auto;
+}
+
+.delete-paste-dialog::backdrop {
+    background: rgba(9, 16, 30, 0.6);
+}
+
+.delete-paste-dialog h2 {
+    margin: 0;
+    font-size: 1.2rem;
+}
+
+.delete-paste-dialog form.delete-paste-form {
     display: grid;
-    grid-template-columns: minmax(14rem, 22rem) minmax(0, 1fr) auto;
-    align-items: end;
-    gap: 0.5rem 0.75rem;
-    margin: 0.25rem 0 0;
-    padding-top: 0.75rem;
-    border-top: 1px solid var(--border);
+    gap: 1rem;
+    margin: 0;
 }
 
 .delete-paste-reauth {
@@ -747,33 +782,33 @@ form.delete-paste-form button:hover {
     margin-bottom: 0.35rem;
 }
 
-#Content .delete-paste-reauth input[type="password"] {
+#Content .delete-paste-dialog input[type="password"] {
     width: 100%;
     margin: 0;
 }
 
-#Content .paste-actions form.delete-paste-form > .confirm-check {
-    align-self: center;
+#Content .delete-paste-dialog .confirm-check {
+    align-self: start;
     margin: 0;
 }
 
-#Content form.delete-paste-form button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 2.5rem;
-    height: 2.5rem;
-    padding: 0 0.9rem;
-    background: var(--danger-soft);
-    color: var(--danger);
-    border: 1px solid var(--danger);
-    gap: 0.4rem;
-    white-space: nowrap;
+.delete-paste-dialog-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.6rem;
 }
 
-#Content form.delete-paste-form button:hover {
-    filter: none;
+#Content .delete-paste-cancel,
+#Content .delete-paste-cancel:hover {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--control-border);
+}
+
+#Content .delete-paste-cancel:hover {
     background: var(--surface-2);
+    color: var(--accent);
 }
 
 /* ========================= */
@@ -2097,19 +2132,6 @@ footer .back-to-top:hover {
     #SiteHeader .header-search .search-input-wrap input[type="text"] {
         max-width: none;
     }
-
-    #Content .paste-actions form.delete-paste-form {
-        grid-template-columns: minmax(0, 1fr);
-        align-items: stretch;
-    }
-
-    #Content .paste-actions form.delete-paste-form > .confirm-check {
-        align-self: start;
-    }
-
-    #Content form.delete-paste-form button {
-        justify-self: start;
-    }
 }
 
 @media (max-width: 480px) {
@@ -2126,6 +2148,18 @@ footer .back-to-top:hover {
     #SiteHeader .header-nav,
     #SiteHeader .header-tools {
         gap: 0.25rem;
+    }
+
+    .delete-paste-dialog {
+        padding: 1.1rem;
+    }
+
+    .delete-paste-dialog-actions {
+        flex-direction: column;
+    }
+
+    .delete-paste-dialog-actions button {
+        width: 100%;
     }
 }
 

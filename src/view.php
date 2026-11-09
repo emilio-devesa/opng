@@ -273,7 +273,16 @@ require(__DIR__ . "/includes/layout_header.php");
                     <span id="copy-error-message" data-i18n="copy_error" hidden>Could not copy the code. Check clipboard permissions and try again.</span>
                 </div>
                 <?php if ($can_delete): ?>
+                <button type="button" class="danger delete-paste-open" data-delete-paste-open aria-haspopup="dialog" aria-controls="delete-paste-dialog">
+                    <span aria-hidden="true">🗑️</span>
+                    <span data-i18n="delete_paste">Delete Paste</span>
+                </button>
+                <?php endif; ?>
+            </div>
+            <?php if ($can_delete): ?>
+            <dialog id="delete-paste-dialog" class="delete-paste-dialog" aria-labelledby="delete-paste-title">
                 <form method="post" action="admin/drop_id.php" class="delete-paste-form">
+                    <h2 id="delete-paste-title" data-i18n="delete_paste">Delete Paste</h2>
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
                     <input type="hidden" name="input_ID" value="<?php echo htmlspecialchars($array['id'], ENT_QUOTES, 'UTF-8'); ?>">
                     <div class="delete-paste-reauth">
@@ -284,13 +293,16 @@ require(__DIR__ . "/includes/layout_header.php");
                         <input id="delete_confirm" type="checkbox" name="confirm_delete" value="yes" required>
                         <span data-i18n="delete_confirm">Are you sure you want to delete this paste? This action cannot be undone.</span>
                     </label>
-                    <button type="submit" class="danger">
-                        <span aria-hidden="true">🗑️</span>
-                        <span data-i18n="delete_paste">Delete Paste</span>
-                    </button>
+                    <div class="delete-paste-dialog-actions">
+                        <button type="button" class="delete-paste-cancel" data-delete-paste-close data-i18n="cancel">Cancel</button>
+                        <button type="submit" class="danger">
+                            <span aria-hidden="true">🗑️</span>
+                            <span data-i18n="delete_paste">Delete Paste</span>
+                        </button>
+                    </div>
                 </form>
-                <?php endif; ?>
-            </div>
+            </dialog>
+            <?php endif; ?>
         </section>
         <?php endif; ?>
         <?php if ($tab === 'edit' && $can_edit): ?>
@@ -490,6 +502,9 @@ require(__DIR__ . "/includes/layout_header.php");
     <script src="assets/vendor/highlight.min.js?v=<?php echo $asset_version; ?>" defer></script>
     <?php endif; ?>
     <script src="assets/js/copy.js?v=<?php echo $asset_version; ?>" defer></script>
+    <?php if ($can_delete): ?>
+    <script src="assets/js/delete-paste-dialog.js?v=<?php echo $asset_version; ?>" defer></script>
+    <?php endif; ?>
     <?php endif; ?>
     <script src="assets/js/length-meter.js?v=<?php echo $asset_version; ?>" defer></script>
 

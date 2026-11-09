@@ -305,6 +305,7 @@ foreach ([
     '/src/assets/js/search-help.js',
     '/src/assets/js/admin-tools.js',
     '/src/assets/js/length-meter.js',
+    '/src/assets/js/delete-paste-dialog.js',
 ] as $script_path) {
     if (!is_file($root . $script_path)) {
         $failures[] = "Frontend resource is missing: {$script_path}";

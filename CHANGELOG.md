@@ -15,7 +15,7 @@
 
 #### 🐛 Paste view and history fixes
 - The reply editor starts with the parent paste text, so replying keeps the original content instead of opening an empty textarea.
-- The owner's delete control is now a labelled reauthentication grid: current password, confirmation checkbox and a visible “Delete Paste” button, collapsing to one column on narrow screens.
+- The owner's delete button now opens a centred floating dialog with the current-password reauthentication field, the confirmation checkbox and Cancel/Delete actions. The dialog closes on Escape or Cancel, clears the password on close, and keeps the server-side checks as the only authority.
 - History also matches the thread root by primary key, so legacy or seeded roots with `root_id = NULL` no longer disappear from their own thread. The seeder now stores `root_id = id` and `depth = 0`, and the integration suite covers a `NULL`-rooted legacy entry.
 
 ## Version 1.0.0 (2026)
