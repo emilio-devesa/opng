@@ -18,6 +18,12 @@
 - The owner's delete button now opens a centred floating dialog with the current-password reauthentication field, the confirmation checkbox and Cancel/Delete actions. The confirmation always starts unchecked, the dialog closes on Escape or Cancel, closing clears the password and unchecks the confirmation again, and the server-side checks remain the only authority.
 - History also matches the thread root by primary key, so legacy or seeded roots with `root_id = NULL` no longer disappear from their own thread. The seeder now stores `root_id = id` and `depth = 0`, and the integration suite covers a `NULL`-rooted legacy entry.
 
+#### 🛠️ Admin panel
+- Entry deletion, role changes, user deletion, sample-data instructions, backup download, emptying the database and deleting the database now use compact action buttons that open centred native `<dialog>` modals. Passwords and confirmation checkboxes start empty and unchecked, and reopening a dialog never restores a previous confirmation.
+- The Manage Users form now has independent role-change and account-deletion forms, so each POST carries only its own password, confirmation and paste-handling option.
+- Database actions are arranged as a responsive 2×2 card grid. The audit log is a collapsible `<details>` card, so the page no longer ends with a permanently expanded table.
+- Emptying the database now requires both the current password and a server-enforced `confirm_empty` checkbox, before reauthentication and before any deletion.
+
 ## Version 1.0.0 (2026)
 
 ### Phase 3 — Feature Historial (F1)

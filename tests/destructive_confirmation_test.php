@@ -64,6 +64,34 @@ expect_destructive(
     $failures
 );
 
+$empty = file_get_contents($root . '/src/admin/empty.php');
+$confirmation_position = is_string($empty) ? strpos($empty, "\$_POST['confirm_empty']") : false;
+$reauth_position = is_string($empty) ? strpos($empty, 'reauthenticate_user(') : false;
+expect_destructive(
+    $confirmation_position !== false
+        && $reauth_position !== false
+        && $confirmation_position < $reauth_position
+        && str_contains($empty, "!== 'yes'")
+        && str_contains($empty, "'error_confirmation_required'"),
+    'emptying the database rejects a missing confirmation before reauthentication',
+    $failures
+);
+expect_destructive(
+    is_string($admin)
+        && preg_match(
+            '/id="(?:drop_confirm|role_confirm|delete_user_confirm|empty_confirm)"[^>]*\bchecked\b/',
+            $admin
+        ) !== 1,
+    'administration confirmation checkboxes start unchecked',
+    $failures
+);
+expect_destructive(
+    is_string($empty)
+        && preg_match('/id="empty_confirm"[^>]*\bchecked\b/', $empty) !== 1,
+    'the empty-database confirmation checkbox starts unchecked',
+    $failures
+);
+
 $error_messages = file_get_contents($root . '/src/includes/error_messages.php');
 expect_destructive(
     is_string($error_messages) && str_contains($error_messages, 'error_confirmation_required'),
