@@ -12,8 +12,22 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     const form = dialog.querySelector("form");
+    const confirmation = dialog.querySelector('input[name="confirm_delete"]');
+    const password = dialog.querySelector('input[name="current_password"]');
 
     openButton.addEventListener("click", function () {
+        // Start every confirmation from a clean state, even if the browser
+        // restored a previous form value after a reload.
+        if (form instanceof HTMLFormElement) {
+            form.reset();
+        }
+        if (confirmation instanceof HTMLInputElement) {
+            confirmation.checked = false;
+        }
+        if (password instanceof HTMLInputElement) {
+            password.value = "";
+        }
+
         if (typeof dialog.showModal === "function") {
             dialog.showModal();
         }

@@ -281,7 +281,7 @@ require(__DIR__ . "/includes/layout_header.php");
             </div>
             <?php if ($can_delete): ?>
             <dialog id="delete-paste-dialog" class="delete-paste-dialog" aria-labelledby="delete-paste-title">
-                <form method="post" action="admin/drop_id.php" class="delete-paste-form">
+                <form method="post" action="admin/drop_id.php" class="delete-paste-form" autocomplete="off">
                     <h2 id="delete-paste-title" data-i18n="delete_paste">Delete Paste</h2>
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
                     <input type="hidden" name="input_ID" value="<?php echo htmlspecialchars($array['id'], ENT_QUOTES, 'UTF-8'); ?>">

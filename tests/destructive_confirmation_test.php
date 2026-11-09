@@ -22,6 +22,12 @@ expect_destructive(
     'the paste delete form requires a visible confirmation checkbox',
     $failures
 );
+expect_destructive(
+    is_string($view)
+        && preg_match('/id="delete_confirm"[^>]*\bchecked\b/', $view) !== 1,
+    'the paste delete confirmation checkbox starts unchecked',
+    $failures
+);
 
 $admin = file_get_contents($root . '/src/admin/admin.php');
 expect_destructive(
