@@ -1,22 +1,25 @@
 <?php
+
+declare(strict_types=1);
+
 // includes/ratelimit.php
-// Rate limiting persistente en MySQL (fix S5/R8).
+// Persistent rate limiting in MySQL (S5/R8).
 //
-// El contador de sesión de login.php se puede saltar borrando la cookie, así
-// que además llevamos un contador por IP (y por IP+cuenta en el login) en la
-// tabla `rate_limits`. La clave se guarda hasheada: no almacenamos IPs ni
-// emails en claro.
+// The session counter in login.php can be bypassed by deleting the cookie, so
+// we also keep a counter per IP (and per IP+account for login) in the
+// `rate_limits` table. The key is stored hashed: neither IPs nor emails are
+// kept in plain text.
 //
-// Uso:
+// Usage:
 //   $result = rate_limit_hit($db, 'login', client_ip() . '|' . $email, 5, 600);
 //   if ($result === RateLimitResult::Limited) { ... }      // 429
 //   if ($result === RateLimitResult::Unavailable) { ... }  // 503
 //
-// `$limit` es el número máximo de intentos permitidos dentro de `$window`
-// segundos. El resultado distingue un límite superado (`Limited`) de un fallo
-// de base de datos (`Unavailable`): así una caída de MySQL no se presenta al
-// usuario como "demasiados intentos" (M14). En ambos casos la acción se deniega
-// (fail-closed) y el error se registra.
+// `$limit` is the maximum number of attempts allowed within `$window`
+// seconds. The result distinguishes a breached limit (`Limited`) from a database
+// failure (`Unavailable`): a MySQL outage is never reported to the user as
+// "too many attempts" (M14). Both cases deny the action (fail-closed) and log
+// the error.
 
 enum RateLimitResult
 {
@@ -131,7 +134,7 @@ function normalized_forwarded_ip(string $value): ?string
 }
 
 /**
- * IP del cliente.
+ * Client IP.
  *
  * Without OPNG_TRUSTED_PROXIES the forwarded headers are ignored (a client can
  * forge them). When the direct peer is a configured proxy, X-Forwarded-For is
@@ -296,8 +299,8 @@ function rate_limit_clear(mysqli $db, string $action, string $key, int $window =
 }
 
 /**
- * Registra un intento para (acción, clave) y devuelve si sigue dentro del
- * límite o si la comprobación no se pudo completar.
+ * Records an attempt for (action, key) and reports whether it is still within
+ * the limit or the check could not be completed.
  */
 function rate_limit_hit(mysqli $db, string $action, string $key, int $limit, int $window): RateLimitResult
 {

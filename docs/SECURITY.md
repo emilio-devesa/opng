@@ -79,8 +79,8 @@ should upgrade using [UPGRADING.md](UPGRADING.md).
   email delivery.
 - Rate limits, CAPTCHA, bcrypt hashing, session invalidation
   (`users.session_version`), CSRF rotation after privilege changes,
-  reauthentication for destructive admin actions and generic authentication
-  errors are built in. Do not disable them.
+  reauthentication plus explicit confirmation checkboxes for destructive admin
+  actions, and generic authentication errors are built in. Do not disable them.
 - The audit log records destructive admin actions, authentication events and
   backup downloads with hashed IPs and hashed email targets. Review it during
   incident response; prune it with `tools/audit_prune.php`

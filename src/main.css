@@ -692,7 +692,8 @@ button[type="button"]:not(.copy-button):hover {
 
 .paste-actions {
     display: flex;
-    align-items: center;
+    flex-wrap: wrap;
+    align-items: flex-start;
     gap: 0.75rem;
     margin: 0.75rem 0 1rem;
 }
@@ -714,41 +715,100 @@ button[type="button"]:not(.copy-button):hover {
 }
 
 button.danger,
-form[action="admin/drop_id.php"] button,
-form[action="drop_id.php"] button,
-form.delete-paste-form button {
+form[action="admin/drop_id.php"] button[type="submit"],
+form[action="drop_id.php"] button[type="submit"] {
     background: var(--danger-fill);
 }
 
 button.danger:hover,
-form[action="admin/drop_id.php"] button:hover,
-form[action="drop_id.php"] button:hover,
-form.delete-paste-form button:hover {
+form[action="admin/drop_id.php"] button[type="submit"]:hover,
+form[action="drop_id.php"] button[type="submit"]:hover {
     background: var(--danger-fill-hover);
 }
 
-#Content .paste-actions form.delete-paste-form {
-    display: flex;
-    justify-content: flex-end;
-    margin: 0 0 0 auto;
-}
-
-#Content form.delete-paste-form button {
+/* Delete trigger in the paste actions; the confirmation lives in a modal. */
+#Content .delete-paste-open {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    width: 2.5rem;
-    height: 2.5rem;
-    padding: 0;
+    gap: 0.4rem;
     background: var(--danger-soft);
     color: var(--danger);
     border: 1px solid var(--danger);
-    gap: 0.4rem;
+    white-space: nowrap;
 }
 
-#Content form.delete-paste-form button:hover {
-    filter: none;
+#Content .delete-paste-open:hover {
+    background: var(--danger-fill);
+    color: var(--button-text);
+}
+
+/* Floating, centred confirmation card (native <dialog>). */
+.delete-paste-dialog {
+    position: fixed;
+    inset: 0;
+    width: min(30rem, calc(100vw - 2rem));
+    max-height: calc(100vh - 2rem);
+    max-height: calc(100dvh - 2rem);
+    margin: auto;
+    padding: 1.35rem 1.45rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow);
+    overflow: auto;
+}
+
+.delete-paste-dialog::backdrop {
+    background: rgba(9, 16, 30, 0.6);
+}
+
+.delete-paste-dialog h2 {
+    margin: 0;
+    font-size: 1.2rem;
+}
+
+.delete-paste-dialog form.delete-paste-form {
+    display: grid;
+    gap: 1rem;
+    margin: 0;
+}
+
+.delete-paste-reauth {
+    min-width: 0;
+}
+
+.delete-paste-reauth label {
+    margin-bottom: 0.35rem;
+}
+
+#Content .delete-paste-dialog input[type="password"] {
+    width: 100%;
+    margin: 0;
+}
+
+#Content .delete-paste-dialog .confirm-check {
+    align-self: start;
+    margin: 0;
+}
+
+.delete-paste-dialog-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.6rem;
+}
+
+#Content .delete-paste-cancel,
+#Content .delete-paste-cancel:hover {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--control-border);
+}
+
+#Content .delete-paste-cancel:hover {
     background: var(--surface-2);
+    color: var(--accent);
 }
 
 /* ========================= */
@@ -1156,38 +1216,6 @@ legend {
     margin: 0;
 }
 
-#Content .admin-user-actions {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.65rem;
-    margin: 0 !important;
-}
-
-.admin-user-action-primary {
-    display: grid;
-    grid-template-columns: minmax(7rem, auto) minmax(9rem, 12rem) minmax(15rem, 1fr) auto;
-    align-items: center;
-    gap: 0.5rem 0.75rem;
-    width: 100%;
-}
-
-.admin-user-action-primary label {
-    margin: 0 !important;
-}
-
-.admin-user-action-primary input {
-    margin: 0 !important;
-}
-
-.admin-user-action-primary .admin-input-wrap {
-    min-width: 0;
-}
-
-.admin-user-action-primary > button {
-    white-space: nowrap;
-}
-
 .admin-role-options {
     display: flex;
     flex-wrap: wrap;
@@ -1264,40 +1292,226 @@ legend {
     color: var(--accent);
 }
 
-.admin-entry-delete-form {
+.admin-entry-delete-form,
+.admin-user-role-form,
+.admin-user-delete-form {
     display: grid;
-    grid-template-columns: minmax(7rem, 10rem) auto;
+    justify-items: start;
+    gap: 0.5rem;
+    margin: 0 !important;
+}
+
+.admin-entry-delete-form > .form-help {
+    margin: 0;
+}
+
+.admin-user-role-fields,
+.admin-user-delete-fields {
+    display: grid;
     align-items: end;
-    gap: 0.5rem 0.75rem;
-    width: fit-content;
-    max-width: 100%;
-    margin: 0 !important;
+    gap: 0.35rem 0.75rem;
 }
 
-.admin-entry-delete-form > label {
-    grid-column: 1 / -1;
-    margin: 0 !important;
+.admin-user-role-fields {
+    grid-template-columns: minmax(10rem, 14rem) minmax(15rem, 1fr) auto;
 }
 
-.admin-entry-delete-form > .admin-input-wrap input {
-    margin: 0 !important;
+.admin-user-delete-fields {
+    grid-template-columns: minmax(10rem, 14rem) auto;
+    justify-content: start;
 }
 
-.admin-entry-delete-form > button[type="submit"] {
+.admin-user-role-fields > label,
+.admin-user-delete-fields > label {
+    grid-column: 1;
+    grid-row: 1;
+    margin: 0;
+}
+
+.admin-user-role-fields > .admin-input-wrap,
+.admin-user-delete-fields > .admin-input-wrap {
+    grid-column: 1;
+    grid-row: 2;
+}
+
+.admin-user-role-fields > .admin-role-options {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+}
+
+.admin-user-role-fields > .admin-action-trigger {
+    grid-column: 3;
+    grid-row: 2;
+}
+
+.admin-user-delete-fields > .admin-action-trigger {
     grid-column: 2;
     grid-row: 2;
+}
+
+.admin-action-trigger {
+    width: auto;
+    max-width: 100%;
+    justify-self: start;
     white-space: nowrap;
 }
 
-.admin-db-controls {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.75rem;
+#Content .admin-action-trigger.danger {
+    background: var(--danger-fill);
+    color: var(--button-text);
+    border: 1px solid transparent;
 }
 
-.admin-db-controls form {
-    margin: 0 !important;
+#Content .admin-action-trigger.danger:hover {
+    background: var(--danger-fill-hover);
+}
+
+/* Floating, centred administration dialogs (native <dialog>). */
+.admin-action-dialog {
+    position: fixed;
+    inset: 0;
+    width: min(32rem, calc(100vw - 2rem));
+    max-height: calc(100vh - 2rem);
+    max-height: calc(100dvh - 2rem);
+    margin: auto;
+    padding: 1.35rem 1.45rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow);
+    overflow: auto;
+}
+
+.admin-action-dialog::backdrop {
+    background: rgba(9, 16, 30, 0.6);
+}
+
+.admin-action-dialog h2 {
+    margin: 0 0 0.75rem;
+    font-size: 1.2rem;
+}
+
+.admin-action-dialog p {
+    margin: 0 0 0.75rem;
+}
+
+.admin-action-dialog pre {
+    margin: 0 0 0.75rem;
+    padding: 0.65rem 0.8rem;
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-2);
+}
+
+.admin-action-dialog fieldset {
+    margin: 0.75rem 0;
+    padding: 0.75rem;
+    box-shadow: none;
+}
+
+.admin-dialog-field {
+    margin: 0.75rem 0;
+}
+
+.admin-dialog-field label {
+    margin-bottom: 0.35rem;
+}
+
+#Content .admin-action-dialog input[type="password"] {
+    width: 100%;
+    margin: 0;
+}
+
+.admin-dialog-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.6rem;
+    margin-top: 1rem;
+}
+
+.admin-db-section > .form-help {
+    margin-top: 0;
+}
+
+.admin-db-cards {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.admin-db-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    min-width: 0;
+    padding: 1rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface-2);
+}
+
+.admin-db-card h2 {
+    margin: 0;
+    font-size: 1.05rem;
+}
+
+.admin-db-card .form-help {
+    margin: 0;
+}
+
+.admin-db-card form {
+    margin: auto 0 0 !important;
+}
+
+/* Collapsible audit card. */
+.admin-audit-log {
+    margin: 0 0 1.25rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow-soft);
+    overflow: hidden;
+}
+
+.admin-audit-log > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 1rem 1.25rem;
+    cursor: pointer;
+    font-weight: 700;
+    list-style: none;
+}
+
+.admin-audit-log > summary::-webkit-details-marker {
+    display: none;
+}
+
+.admin-audit-log > summary::after {
+    content: "▸";
+    font-size: 1.1rem;
+    color: var(--muted);
+}
+
+.admin-audit-log[open] > summary::after {
+    content: "▾";
+}
+
+.admin-audit-log > summary:hover {
+    background: var(--surface-2);
+}
+
+.admin-audit-log > :not(summary) {
+    margin-left: 1.25rem;
+    margin-right: 1.25rem;
+}
+
+.admin-audit-log > :last-child {
+    margin-bottom: 1.25rem;
 }
 
 .admin-metrics-summary {
@@ -1359,6 +1573,67 @@ legend {
     color: var(--muted);
 }
 
+.admin-storage-chart {
+    display: block;
+    grid-column: 1 / -1;
+}
+
+.admin-storage-chart > figcaption {
+    margin-bottom: 0.6rem;
+}
+
+.admin-storage-progress {
+    display: block;
+    width: 100%;
+    height: 1rem;
+    appearance: none;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface-2);
+    overflow: hidden;
+}
+
+.admin-storage-progress::-webkit-progress-bar {
+    background: var(--surface-2);
+    border-radius: 999px;
+}
+
+.admin-storage-progress::-webkit-progress-value {
+    background: var(--accent);
+    border-radius: 999px;
+    transition: width 0.3s ease;
+}
+
+.admin-storage-progress::-moz-progress-bar {
+    background: var(--accent);
+    border-radius: 999px;
+}
+
+.admin-storage-progress-warning::-webkit-progress-value {
+    background: var(--danger-fill);
+}
+
+.admin-storage-progress-warning::-moz-progress-bar {
+    background: var(--danger-fill);
+}
+
+.admin-storage-chart > .admin-storage-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.35rem 0.5rem;
+    margin: 0.5rem 0 0;
+}
+
+.admin-storage-meta strong {
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+}
+
+.admin-storage-chart > .admin-search-error {
+    margin: 0.75rem 0 0;
+}
+
 .admin-pie-chart {
     display: block;
     width: 100%;
@@ -1414,21 +1689,22 @@ legend {
 }
 
 @media (max-width: 760px) {
-    .admin-user-action-primary {
-        grid-template-columns: minmax(7rem, auto) minmax(8rem, 1fr);
+    .admin-user-role-fields {
+        grid-template-columns: minmax(10rem, 14rem) minmax(0, 1fr);
+    }
+
+    .admin-user-role-fields > .admin-role-options {
+        grid-column: 2;
+        grid-row: 1 / span 2;
+    }
+
+    .admin-user-role-fields > .admin-action-trigger {
+        grid-column: 1 / -1;
+        grid-row: 3;
     }
 
     .admin-metrics-charts {
         grid-template-columns: minmax(0, 1fr);
-    }
-
-    .admin-role-options {
-        grid-column: 1 / -1;
-    }
-
-    .admin-user-action-primary > button {
-        grid-column: 1 / -1;
-        justify-self: start;
     }
 }
 
@@ -1452,12 +1728,27 @@ legend {
         align-self: flex-start;
     }
 
-    .admin-entry-delete-form {
-        grid-template-columns: minmax(0, 9rem) auto;
+    .admin-user-role-fields,
+    .admin-user-delete-fields {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .admin-user-role-fields > .admin-role-options,
+    .admin-user-role-fields > .admin-action-trigger,
+    .admin-user-delete-fields > .admin-action-trigger {
+        grid-column: 1;
+        grid-row: auto;
+    }
+
+    .admin-user-role-fields > .admin-role-options {
         width: 100%;
     }
 
     .admin-metrics-summary {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .admin-db-cards {
         grid-template-columns: minmax(0, 1fr);
     }
 }
@@ -2088,6 +2379,20 @@ footer .back-to-top:hover {
     #SiteHeader .header-nav,
     #SiteHeader .header-tools {
         gap: 0.25rem;
+    }
+
+    .delete-paste-dialog {
+        padding: 1.1rem;
+    }
+
+    .delete-paste-dialog-actions,
+    .admin-dialog-actions {
+        flex-direction: column;
+    }
+
+    .delete-paste-dialog-actions button,
+    .admin-dialog-actions button {
+        width: 100%;
     }
 }
 

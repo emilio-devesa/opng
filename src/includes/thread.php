@@ -1,4 +1,7 @@
 <?php
+
+declare(strict_types=1);
+
 // includes/thread.php
 // Related-entry threads for the Historial tab (F1).
 //
@@ -92,13 +95,16 @@ function thread_position(?array $parent, string $new_id): array
  */
 function thread_fetch_page(mysqli $db, string $root_id, ?array $cursor = null): array
 {
+    // The root row is matched by id as well: legacy and seeded roots can have
+    // root_id = NULL, so an equality filter alone would silently drop them and
+    // show only their replies in the history.
     $sql = "SELECT entries.id, entries.parent_id, entries.root_id, entries.depth,
                    entries.topic, entries.date, u.username
             FROM entries
             LEFT JOIN users u ON u.id = entries.user_id
-            WHERE entries.root_id = ?";
-    $types = 's';
-    $params = [$root_id];
+            WHERE (entries.root_id = ? OR entries.id = ?)";
+    $types = 'ss';
+    $params = [$root_id, $root_id];
 
     if ($cursor !== null) {
         $condition = entry_cursor_condition($cursor, 'newer');

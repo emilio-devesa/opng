@@ -1,6 +1,30 @@
 # Open Pastebin NG - Changelog
 ============================
 
+## Version 1.1.0 (unreleased)
+
+### Phase 7 — Code hygiene
+#### 🧹 Strict types and coding standard (HYG-07)
+- Enabled `declare(strict_types=1)` in every file under `src/includes/`, the gradual first step recommended by the audit. Entry points and CLI tools keep their current coercion behaviour until their call sites are reviewed.
+- Added `PHP_CodeSniffer` with an adapted PSR-12 ruleset (`phpcs.xml`) for `src/includes/`. The ruleset excludes the procedural-file, namespace and closing-tag rules that do not apply to shared includes, and ignores long template lines. Fixed the existing violations in the directory.
+- Added `composer phpcs` and a dedicated `style` CI job. New includes must pass the ruleset; other directories will be added as they are cleaned up.
+
+#### 🌐 Comment language consistency (HYG-10)
+- Translated the remaining Spanish code comments in `src/` and `tools/` to English, keeping user-facing strings in the six i18n catalogs and Spanish documentation unchanged.
+- Removed stale `(v0.8)` and historical-fix prefixes that added no value to current readers. Seeded paste samples keep their original language because they are content, not comments.
+
+#### 🐛 Paste view and history fixes
+- The reply editor starts with the parent paste text, so replying keeps the original content instead of opening an empty textarea.
+- The owner's delete button now opens a centred floating dialog with the current-password reauthentication field, the confirmation checkbox and Cancel/Delete actions. The confirmation always starts unchecked, the dialog closes on Escape or Cancel, closing clears the password and unchecks the confirmation again, and the server-side checks remain the only authority.
+- History also matches the thread root by primary key, so legacy or seeded roots with `root_id = NULL` no longer disappear from their own thread. The seeder now stores `root_id = id` and `depth = 0`, and the integration suite covers a `NULL`-rooted legacy entry.
+
+#### 🛠️ Admin panel
+- Entry deletion, role changes, user deletion, sample-data instructions, backup download, emptying the database and deleting the database now use compact action buttons that open centred native `<dialog>` modals. Passwords and confirmation checkboxes start empty and unchecked, and reopening a dialog never restores a previous confirmation.
+- The Manage Users form now has independent role-change and account-deletion forms, so each POST carries only its own password, confirmation and paste-handling option.
+- Database actions are arranged as a responsive 2×2 card grid. The audit log is a collapsible `<details>` card, so the page no longer ends with a permanently expanded table.
+- Global paste storage moved into Metrics as an accessible `<progress>` bar with used/total bytes, percentage and the near-quota warning. It sits below the language and user charts and is no longer repeated as plain text above the database actions.
+- Emptying the database now requires both the current password and a server-enforced `confirm_empty` checkbox, before reauthentication and before any deletion.
+
 ## Version 1.0.0 (2026)
 
 ### Phase 3 — Feature Historial (F1)

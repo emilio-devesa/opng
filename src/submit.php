@@ -1,5 +1,5 @@
 <?php
-// (v0.8) Procesa el POST creación/respuesta. Refactor: session/csrf/rules centralizadas.
+// Handles the create/reply POST. Refactor: centralized session/CSRF/rules.
 require("includes/session.php");
 session_start_secured();
 require("includes/csrf.php");
@@ -71,7 +71,7 @@ if ($user_id === null) {
     }
 }
 
-// Conectar a la base de datos
+// Connect to the database
 $db = db_connect();
 if (!$db) {
     opng_error_redirect('error_database_unavailable');

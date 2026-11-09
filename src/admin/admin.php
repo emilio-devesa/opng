@@ -1,5 +1,5 @@
 <?php
-// (v0.8) Panel de administración.
+// Administration panel.
 require("../includes/session.php");
 session_start_secured();
 require("../includes/csrf.php");
@@ -313,6 +313,10 @@ $global_quota_percent = $global_quota_bytes > 0
     ? min(100.0, ($metrics_paste_bytes / $global_quota_bytes) * 100)
     : 0.0;
 $global_quota_near = $global_quota_percent >= 90;
+// Native <progress> requires a positive maximum; cap the value so the bar
+// never overflows if legacy data already exceeds the configured quota.
+$global_quota_max = max(1, $global_quota_bytes);
+$global_quota_value = min($global_quota_max, $metrics_paste_bytes);
 
 $audit_entries = [];
 $audit_error = false;
@@ -514,6 +518,25 @@ require(__DIR__ . "/../includes/layout_header.php");
                         </ul>
                     <?php endif; ?>
                 </figure>
+                <figure class="admin-metric-chart admin-storage-chart">
+                    <figcaption id="admin-storage-caption" data-i18n="admin_storage_quota">Global paste storage</figcaption>
+                    <progress
+                        class="admin-storage-progress<?php echo $global_quota_near ? ' admin-storage-progress-warning' : ''; ?>"
+                        value="<?php echo $global_quota_value; ?>"
+                        max="<?php echo $global_quota_max; ?>"
+                        aria-labelledby="admin-storage-caption"
+                        aria-describedby="admin-storage-meta"
+                    ><?php echo number_format($global_quota_percent, 1); ?>%</progress>
+                    <p class="admin-storage-meta" id="admin-storage-meta">
+                        <span><?php echo number_format($metrics_paste_bytes); ?> <span data-i18n="admin_metrics_bytes">bytes</span></span>
+                        <span aria-hidden="true">/</span>
+                        <span><?php echo number_format($global_quota_bytes); ?> <span data-i18n="admin_metrics_bytes">bytes</span></span>
+                        <strong><?php echo number_format($global_quota_percent, 1); ?>%</strong>
+                    </p>
+                    <?php if ($global_quota_near): ?>
+                        <p class="admin-search-error" role="alert" data-i18n="admin_storage_quota_warning">The global paste storage quota is almost full. New pastes will be rejected when it is reached.</p>
+                    <?php endif; ?>
+                </figure>
             </div>
         <?php endif; ?>
     </fieldset>
@@ -577,20 +600,30 @@ require(__DIR__ . "/../includes/layout_header.php");
             <?php endif; ?>
         <?php endif; ?>
         <hr class="admin-actions-divider">
-        <form method="post" action="drop_id.php" class="admin-entry-delete-form">
-            <label for="input_ID" data-i18n="id_to_remove">ID to remove:</label>
-            <div class="admin-input-wrap">
-                <input type="text" id="input_ID" name="input_ID" maxlength="255" required>
-                <button class="admin-field-clear" type="button" aria-label="Clear field" title="Clear field" data-i18n-aria-label="admin_clear_field" data-i18n-title="admin_clear_field" hidden>×</button>
-            </div>
+        <form method="post" action="drop_id.php" class="admin-entry-delete-form" autocomplete="off">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
-            <label for="drop_current_password" data-i18n="reauth_password">Current password:</label>
-            <input id="drop_current_password" type="password" name="current_password" maxlength="72" autocomplete="current-password" required>
-            <label class="confirm-check">
-                <input id="drop_confirm" type="checkbox" name="confirm_delete" value="yes" required>
-                <span data-i18n="drop_confirm">Are you sure you want to drop this entry? This action cannot be undone.</span>
-            </label>
-            <button type="submit" data-i18n="drop_entry" title="Drop">Drop Entry</button>
+            <button type="button" class="admin-action-trigger danger" data-admin-dialog-open aria-haspopup="dialog" aria-controls="admin-entry-delete-dialog" data-i18n="drop_entry">Drop Entry</button>
+            <p class="form-help" data-i18n="admin_entry_delete_help">Delete a paste by ID. You will need your current password.</p>
+            <dialog id="admin-entry-delete-dialog" class="admin-action-dialog" aria-labelledby="admin-entry-delete-title">
+                <h2 id="admin-entry-delete-title" data-i18n="drop_entry">Drop Entry</h2>
+                <label for="input_ID" data-i18n="id_to_remove">ID to remove:</label>
+                <div class="admin-input-wrap">
+                    <input type="text" id="input_ID" name="input_ID" maxlength="255" required>
+                    <button class="admin-field-clear" type="button" aria-label="Clear field" title="Clear field" data-i18n-aria-label="admin_clear_field" data-i18n-title="admin_clear_field" hidden>×</button>
+                </div>
+                <div class="admin-dialog-field">
+                    <label for="drop_current_password" data-i18n="reauth_password">Current password:</label>
+                    <input id="drop_current_password" type="password" name="current_password" maxlength="72" autocomplete="current-password" required>
+                </div>
+                <label class="confirm-check">
+                    <input id="drop_confirm" type="checkbox" name="confirm_delete" value="yes" required>
+                    <span data-i18n="drop_confirm">Are you sure you want to drop this entry? This action cannot be undone.</span>
+                </label>
+                <div class="admin-dialog-actions">
+                    <button type="button" data-admin-dialog-close data-i18n="cancel">Cancel</button>
+                    <button type="submit" class="danger" data-i18n="drop_entry">Drop Entry</button>
+                </div>
+            </dialog>
         </form>
     </fieldset>
 
@@ -650,17 +683,9 @@ require(__DIR__ . "/../includes/layout_header.php");
             <?php endif; ?>
         <?php endif; ?>
         <hr class="admin-actions-divider">
-        <form method="post" action="user_action.php" class="admin-user-actions">
+        <form method="post" action="user_action.php" class="admin-user-role-form" autocomplete="off">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
-            <p class="admin-reauth-field">
-                <label for="user_action_current_password" data-i18n="reauth_password">Current password:</label>
-                <input id="user_action_current_password" type="password" name="current_password" maxlength="72" autocomplete="current-password" required>
-            </p>
-            <label class="confirm-check">
-                <input id="user_action_confirm" type="checkbox" name="confirm_action" value="yes" required>
-                <span data-i18n="admin_user_confirm_action">Confirm this user-management action. Deleting a user and possibly their pastes is irreversible.</span>
-            </label>
-            <div class="admin-user-action-primary">
+            <div class="admin-user-role-fields">
                 <label for="admin_record_number" data-i18n="admin_user_id">User ID:</label>
                 <div class="admin-input-wrap">
                     <input id="admin_record_number" name="admin_record_number" type="text" inputmode="numeric" pattern="[0-9]+" maxlength="10" autocomplete="new-password" spellcheck="false" required>
@@ -671,53 +696,152 @@ require(__DIR__ . "/../includes/layout_header.php");
                     <label><input type="radio" name="role" value="user" checked required> <span data-i18n="role_user">User</span></label>
                     <label><input type="radio" name="role" value="admin" required> <span data-i18n="role_admin">Administrator</span></label>
                 </fieldset>
-                <button type="submit" name="action" value="role" data-i18n="admin_change_role">Change role</button>
+                <button type="button" class="admin-action-trigger" data-admin-dialog-open aria-haspopup="dialog" aria-controls="admin-role-dialog" data-i18n="admin_change_role">Change role</button>
             </div>
-            <fieldset class="admin-choice-group">
-                <legend data-i18n="admin_user_pastes">User's pastes</legend>
-                <div class="admin-choice-actions">
-                    <div class="admin-choice-options">
-                        <label><input type="radio" name="delete_mode" value="preserve" checked> <span data-i18n="admin_preserve_pastes">Keep pastes and make them anonymous</span></label>
-                        <label><input type="radio" name="delete_mode" value="delete_entries"> <span data-i18n="admin_delete_pastes">Delete pastes with account</span></label>
+            <dialog id="admin-role-dialog" class="admin-action-dialog" aria-labelledby="admin-role-dialog-title">
+                <h2 id="admin-role-dialog-title" data-i18n="admin_change_role">Change role</h2>
+                <p data-i18n="admin_role_change_confirm">Change this user's role?</p>
+                <div class="admin-dialog-field">
+                    <label for="user_action_current_password" data-i18n="reauth_password">Current password:</label>
+                    <input id="user_action_current_password" type="password" name="current_password" maxlength="72" autocomplete="current-password" required>
+                </div>
+                <label class="confirm-check">
+                    <input id="role_confirm" type="checkbox" name="confirm_action" value="yes" required>
+                    <span data-i18n="admin_role_confirm_action">I understand this changes the user's permissions.</span>
+                </label>
+                <div class="admin-dialog-actions">
+                    <button type="button" data-admin-dialog-close data-i18n="cancel">Cancel</button>
+                    <button type="submit" name="action" value="role" data-i18n="admin_change_role">Change role</button>
+                </div>
+            </dialog>
+        </form>
+        <form method="post" action="user_action.php" class="admin-user-delete-form" autocomplete="off">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
+            <div class="admin-user-delete-fields">
+                <label for="delete_user_id" data-i18n="admin_user_id">User ID:</label>
+                <div class="admin-input-wrap">
+                    <input id="delete_user_id" name="admin_record_number" type="text" inputmode="numeric" pattern="[0-9]+" maxlength="10" autocomplete="new-password" spellcheck="false" required>
+                    <button class="admin-field-clear" type="button" aria-label="Clear field" title="Clear field" data-i18n-aria-label="admin_clear_field" data-i18n-title="admin_clear_field" hidden>×</button>
+                </div>
+                <button type="button" class="admin-action-trigger danger" data-admin-dialog-open aria-haspopup="dialog" aria-controls="admin-delete-user-dialog" data-i18n="admin_delete_user">Delete user</button>
+            </div>
+            <dialog id="admin-delete-user-dialog" class="admin-action-dialog" aria-labelledby="admin-delete-user-dialog-title">
+                <h2 id="admin-delete-user-dialog-title" data-i18n="admin_delete_user">Delete user</h2>
+                <p data-i18n="admin_delete_user_confirm">Delete this account? The selected option determines whether its pastes are kept anonymously or deleted.</p>
+                <fieldset class="admin-choice-group">
+                    <legend data-i18n="admin_user_pastes">User's pastes</legend>
+                    <div class="admin-choice-actions">
+                        <div class="admin-choice-options">
+                            <label><input type="radio" name="delete_mode" value="preserve" checked> <span data-i18n="admin_preserve_pastes">Keep pastes and make them anonymous</span></label>
+                            <label><input type="radio" name="delete_mode" value="delete_entries"> <span data-i18n="admin_delete_pastes">Delete pastes with account</span></label>
+                        </div>
                     </div>
+                </fieldset>
+                <div class="admin-dialog-field">
+                    <label for="delete_user_current_password" data-i18n="reauth_password">Current password:</label>
+                    <input id="delete_user_current_password" type="password" name="current_password" maxlength="72" autocomplete="current-password" required>
+                </div>
+                <label class="confirm-check">
+                    <input id="delete_user_confirm" type="checkbox" name="confirm_action" value="yes" required>
+                    <span data-i18n="admin_confirm_delete_user">I understand this account deletion cannot be undone.</span>
+                </label>
+                <div class="admin-dialog-actions">
+                    <button type="button" data-admin-dialog-close data-i18n="cancel">Cancel</button>
                     <button type="submit" name="action" value="delete" class="danger" data-i18n="admin_delete_user">Delete user</button>
                 </div>
-            </fieldset>
+            </dialog>
         </form>
     </fieldset>
 
-    <fieldset>
+    <fieldset class="admin-db-section">
         <legend data-i18n="admin_db_actions">Database Actions</legend>
-        <p class="form-help admin-storage-quota<?php echo $global_quota_near ? ' admin-storage-quota-warning' : ''; ?>"<?php echo $global_quota_near ? ' role="alert"' : ''; ?>>
-            <span data-i18n="admin_storage_quota">Global paste storage</span>:
-            <?php echo number_format($metrics_paste_bytes); ?> / <?php echo number_format($global_quota_bytes); ?> bytes
-            (<?php echo number_format($global_quota_percent, 1); ?>%)
-        </p>
-        <?php if ($global_quota_near): ?>
-            <p class="admin-search-error" role="alert" data-i18n="admin_storage_quota_warning">The global paste storage quota is almost full. New pastes will be rejected when it is reached.</p>
-        <?php endif; ?>
-        <p class="form-help admin-backup-warning" data-i18n="admin_backup_warning">The backup contains password hashes and password-reset tokens. Store it securely. Importing it replaces tables in the selected database.</p>
-        <div class="admin-db-controls">
-        <form action="seed_instructions.php" method="get">
-            <button type="submit" data-i18n="admin_seed_button">Load sample data</button>
-        </form>
-        <form action="backup.php" method="post">
-            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
-            <label for="backup_current_password" data-i18n="reauth_password">Current password:</label>
-            <input id="backup_current_password" type="password" name="current_password" maxlength="72" autocomplete="current-password" required>
-            <button type="submit" data-i18n="admin_download_backup">Download backup</button>
-        </form>
-        <form action="empty.php" method="get">
-            <button type="submit" data-i18n="empty_pastes" title="Empty">Empty Pastes</button>
-        </form>
-        <form action="delete_database.php" method="get">
-            <button type="submit" class="danger" data-i18n="admin_delete_database">Delete database completely</button>
-        </form>
+        <div class="admin-db-cards">
+            <article class="admin-db-card">
+                <h2 data-i18n="admin_seed_button">Load sample data</h2>
+                <p class="form-help" data-i18n="admin_seed_warning">Sample data is loaded manually from the command line.</p>
+                <form action="seed_instructions.php" method="get">
+                    <button type="button" class="admin-action-trigger" data-admin-dialog-open aria-haspopup="dialog" aria-controls="admin-seed-dialog" data-i18n="admin_seed_button">Load sample data</button>
+                    <dialog id="admin-seed-dialog" class="admin-action-dialog" aria-labelledby="admin-seed-dialog-title">
+                        <h2 id="admin-seed-dialog-title" data-i18n="admin_seed_title">Load sample data</h2>
+                        <p data-i18n="admin_seed_cli_only">For security, the website does not execute the seeder. Run the command below from the repository root in a terminal.</p>
+                        <pre><code>php tools/seed.php</code></pre>
+                        <p data-i18n="admin_seed_cleanup_warning">The script first removes the existing sample data before inserting it again.</p>
+                        <div class="admin-dialog-actions">
+                            <button type="button" data-admin-dialog-close data-i18n="cancel">Cancel</button>
+                            <button type="submit" data-i18n="admin_view_instructions">View instructions</button>
+                        </div>
+                    </dialog>
+                </form>
+            </article>
+
+            <article class="admin-db-card">
+                <h2 data-i18n="admin_download_backup">Download backup</h2>
+                <p class="form-help" data-i18n="admin_backup_warning">The backup contains password hashes and password-reset tokens. Store it securely. Importing it replaces tables in the selected database.</p>
+                <form action="backup.php" method="post" autocomplete="off">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
+                    <button type="button" class="admin-action-trigger" data-admin-dialog-open aria-haspopup="dialog" aria-controls="admin-backup-dialog" data-i18n="admin_download_backup">Download backup</button>
+                    <dialog id="admin-backup-dialog" class="admin-action-dialog" aria-labelledby="admin-backup-dialog-title">
+                        <h2 id="admin-backup-dialog-title" data-i18n="admin_download_backup">Download backup</h2>
+                        <p data-i18n="admin_backup_warning">The backup contains password hashes and password-reset tokens. Store it securely. Importing it replaces tables in the selected database.</p>
+                        <div class="admin-dialog-field">
+                            <label for="backup_current_password" data-i18n="reauth_password">Current password:</label>
+                            <input id="backup_current_password" type="password" name="current_password" maxlength="72" autocomplete="current-password" required>
+                        </div>
+                        <div class="admin-dialog-actions">
+                            <button type="button" data-admin-dialog-close data-i18n="cancel">Cancel</button>
+                            <button type="submit" data-i18n="admin_download_backup">Download backup</button>
+                        </div>
+                    </dialog>
+                </form>
+            </article>
+
+            <article class="admin-db-card">
+                <h2 data-i18n="empty_pastes">Empty Pastes</h2>
+                <p class="form-help" data-i18n="empty_warning">This action will permanently delete all stored pastes.</p>
+                <form action="empty.php" method="post" autocomplete="off">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
+                    <button type="button" class="admin-action-trigger danger" data-admin-dialog-open aria-haspopup="dialog" aria-controls="admin-empty-dialog" data-i18n="empty_pastes">Empty Pastes</button>
+                    <dialog id="admin-empty-dialog" class="admin-action-dialog" aria-labelledby="admin-empty-dialog-title">
+                        <h2 id="admin-empty-dialog-title" data-i18n="empty_pastes">Empty Pastes</h2>
+                        <p><strong data-i18n="empty_warning">This action will permanently delete all stored pastes.</strong></p>
+                        <p data-i18n="empty_confirm">Are you sure you want to continue?</p>
+                        <div class="admin-dialog-field">
+                            <label for="empty_current_password" data-i18n="reauth_password">Current password:</label>
+                            <input id="empty_current_password" type="password" name="current_password" maxlength="72" autocomplete="current-password" required>
+                        </div>
+                        <label class="confirm-check">
+                            <input id="empty_confirm" type="checkbox" name="confirm_empty" value="yes" required>
+                            <span data-i18n="empty_confirm_check">I understand every paste will be deleted.</span>
+                        </label>
+                        <div class="admin-dialog-actions">
+                            <button type="button" data-admin-dialog-close data-i18n="cancel">Cancel</button>
+                            <button type="submit" class="danger" data-i18n="empty_yes">Yes, empty it</button>
+                        </div>
+                    </dialog>
+                </form>
+            </article>
+
+            <article class="admin-db-card">
+                <h2 data-i18n="admin_delete_database">Delete database completely</h2>
+                <p class="form-help" data-i18n="admin_delete_database_warning">This operation is manual and irreversible.</p>
+                <form action="delete_database.php" method="get">
+                    <button type="button" class="admin-action-trigger danger" data-admin-dialog-open aria-haspopup="dialog" aria-controls="admin-delete-database-dialog" data-i18n="admin_delete_database">Delete database completely</button>
+                    <dialog id="admin-delete-database-dialog" class="admin-action-dialog" aria-labelledby="admin-delete-database-dialog-title">
+                        <h2 id="admin-delete-database-dialog-title" data-i18n="admin_delete_database">Delete database completely</h2>
+                        <p data-i18n="admin_delete_database_warning">This operation is manual and irreversible.</p>
+                        <p data-i18n="admin_delete_database_reason">The web application deliberately has no permission to drop its database. Use MAMP's database administration tool instead; do not grant DROP privileges to the runtime account.</p>
+                        <div class="admin-dialog-actions">
+                            <button type="button" data-admin-dialog-close data-i18n="cancel">Cancel</button>
+                            <button type="submit" data-i18n="admin_view_instructions">View instructions</button>
+                        </div>
+                    </dialog>
+                </form>
+            </article>
         </div>
     </fieldset>
 
-    <fieldset>
-        <legend data-i18n="admin_audit_log">Audit log</legend>
+    <details class="admin-audit-log">
+        <summary data-i18n="admin_audit_log">Audit log</summary>
         <?php if ($audit_error): ?>
             <p class="admin-search-error" role="alert" data-i18n="admin_audit_unavailable">The audit log is unavailable until the database is upgraded.</p>
         <?php elseif ($audit_entries === []): ?>
@@ -783,7 +907,7 @@ require(__DIR__ . "/../includes/layout_header.php");
                 </table>
             </div>
         <?php endif; ?>
-    </fieldset>
+    </details>
 
     <script src="../assets/js/admin-tools.js?v=<?php echo $asset_version; ?>" defer></script>
 <?php require(__DIR__ . "/../includes/layout_footer.php"); ?>

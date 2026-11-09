@@ -1,5 +1,5 @@
 <?php
-// (v0.8) Listado con paginación por cursor y búsqueda FULLTEXT por tema.
+// Listing with cursor pagination and FULLTEXT topic search.
 require("includes/session.php");
 session_start_secured();
 require("includes/db.php");
@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     exit;
 }
 
-// ------------------ Búsqueda ------------------
+// ------------------ Search ------------------
 if (array_key_exists('q', $_GET) && http_string_parameter($_GET, 'q', OPNG_MAX_SEARCH_QUERY_BYTES) === null) {
     opng_error_redirect('error_invalid_search');
 }
@@ -141,7 +141,7 @@ foreach (['topic', 'author', 'language', 'date'] as $sortable_column) {
     $sort_links[$sortable_column] = '?' . http_build_query($sort_query, '', '&', PHP_QUERY_RFC3986);
 }
 
-// Mensajes de éxito/información que llegan vía ?msg= (p. ej. tras vaciar/borrar)
+// Success/informational messages arriving through ?msg= (for example after emptying/deleting)
 $flash_message = http_string_parameter($_GET, 'msg', 128) ?? '';
 $flash_key = match ($flash_message) {
     'Paste created successfully' => 'paste_created',

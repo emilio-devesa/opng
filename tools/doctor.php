@@ -2,14 +2,14 @@
 /**
  * Startup configuration doctor for Open Pastebin NG (SEC-17).
  *
- * Uso (desde la raíz del repo):
+ * Usage (from the repository root):
  *   php tools/doctor.php [--json] [--strict]
  *
- * - Solo funciona por CLI.
- * - Comprueba config.php, credenciales, conexión, versión del esquema,
- *   display_errors, OPNG_DEV_RESET, credenciales del instalador y HTTPS.
- * - Sale con código 1 si hay fallos (o avisos con --strict). No modifica nada.
- * - `--json` produce una salida apta para el entrypoint de un contenedor.
+ * - CLI only.
+ * - Checks config.php, credentials, connection, schema version,
+ *   display_errors, OPNG_DEV_RESET, installer credentials and HTTPS.
+ * - Exits with code 1 on failures (or warnings with --strict). It changes nothing.
+ * - `--json` produces output suitable for a container entrypoint.
  */
 
 if (PHP_SAPI !== 'cli') {

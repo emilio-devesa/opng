@@ -1,10 +1,14 @@
 <?php
+
+declare(strict_types=1);
+
 // includes/csrf.php
-// Gestión centralizada del token CSRF (evita la generación repetida en cada página).
+// Centralized CSRF token handling (avoids regenerating it on every page).
 
 require_once(__DIR__ . '/session.php');
 
-function csrf_token() {
+function csrf_token()
+{
     if (session_status() === PHP_SESSION_NONE) {
         session_start_secured();
     }
@@ -14,8 +18,9 @@ function csrf_token() {
     return $_SESSION['csrf_token'];
 }
 
-// Campo oculto listo para incrustar en formularios POST
-function csrf_input() {
+// Hidden field ready to embed in POST forms
+function csrf_input()
+{
     return '<input type="hidden" name="csrf_token" value="' . csrf_token() . '">';
 }
 
@@ -33,8 +38,9 @@ function csrf_rotate(): void
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
-// Verifica el token enviado por POST; no ataca el flujo, devuelve bool
-function csrf_valid($token): bool {
+// Validates the token sent by POST and returns a boolean.
+function csrf_valid($token): bool
+{
     if (session_status() === PHP_SESSION_NONE) {
         session_start_secured();
     }

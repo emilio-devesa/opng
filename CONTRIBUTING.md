@@ -58,8 +58,11 @@ Requirements are PHP on a supported patch level, Composer, MySQL or MariaDB, and
 
    ```bash
    composer lint
+   composer phpcs
    composer phpstan
    ```
+
+   `phpcs` currently enforces the adapted PSR-12 ruleset in `phpcs.xml` for `src/includes`; new includes must pass it. The rest of the tree will be added to the ruleset as it is cleaned up.
 
 5. Run local regression tests that do not modify the database:
 

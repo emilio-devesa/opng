@@ -2,15 +2,15 @@
 /**
  * Create a portable SQL backup for Open Pastebin NG (ROB-07).
  *
- * Uso (desde la raíz del repo):
+ * Usage (from the repository root):
  *   php tools/backup.php [output.sql]
  *   php tools/backup.php - > backup.sql
  *
- * - Solo funciona por CLI.
- * - Usa las credenciales de src/config.php (cuenta de solo lectura/DML).
- * - El dump no contiene CREATE DATABASE ni USE: el destino se elige al
- *   importar, por ejemplo `mysql opng_restore < backup.sql`.
- * - Respeta OPNG_BACKUP_MAX_SECONDS y OPNG_BACKUP_MAX_BYTES.
+ * - CLI only.
+ * - Uses the credentials from src/config.php (read-only/DML account).
+ * - The dump contains no CREATE DATABASE or USE: the destination is chosen
+ *   when importing, for example `mysql opng_restore < backup.sql`.
+ * - Honors OPNG_BACKUP_MAX_SECONDS and OPNG_BACKUP_MAX_BYTES.
  */
 
 if (PHP_SAPI !== 'cli') {

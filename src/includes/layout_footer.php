@@ -1,10 +1,15 @@
 <?php
+
+declare(strict_types=1);
+
 // includes/layout_footer.php
-// Pie de pagina comun: cierra #Content y renderiza acciones globales y copyright.
-// El tema/idioma y las acciones de auth viven ahora en el #SiteHeader
+// Shared page footer: closes #Content and renders global actions and copyright.
+// The theme/language and auth actions now live in the #SiteHeader
 // (includes/layout_header.php).
-// Variables: $base (prefijo de rutas, por defecto '').
-if (!isset($base)) { $base = ''; }
+// Variables: $base (path prefix, defaults to '').
+if (!isset($base)) {
+    $base = '';
+}
 require_once __DIR__ . '/version.php';
 require_once __DIR__ . '/i18n.php';
 $logged_in = isset($_SESSION['user_id']);

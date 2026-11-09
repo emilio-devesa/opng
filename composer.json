@@ -11,10 +11,12 @@
         "ext-mysqli": "*"
     },
     "require-dev": {
-        "phpstan/phpstan": "^2.1"
+        "phpstan/phpstan": "^2.1",
+        "squizlabs/php_codesniffer": "^3.13"
     },
     "scripts": {
         "lint": "find src tools -name '*.php' -print0 | xargs -0 -n1 php -l",
+        "phpcs": "phpcs",
         "phpstan": "phpstan analyse --no-progress"
     },
     "config": {

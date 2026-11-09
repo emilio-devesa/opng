@@ -1,7 +1,7 @@
 <?php
-// (v0.8) Vista de un paste.
-//   - "Edit" (UPDATE real): solo visible para el autor o un admin → update.php (U1)
-//   - "Reply" (crea un paste nuevo tipo RE): siempre disponible → submit.php
+// Paste view.
+//   - "Edit" (real UPDATE): only visible to the author or an admin → update.php (U1)
+//   - "Reply" (creates a new RE: paste): always available → submit.php
 require("includes/session.php");
 session_start_secured();
 require("includes/db.php");
@@ -24,25 +24,25 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     exit;
 }
 
-// Obtener el rol y el ID del usuario (si está autenticado)
+// Get the user role and ID (when authenticated)
 $role = $_SESSION['role'] ?? 'guest';
 $user_id = $_SESSION['user_id'] ?? null;
 $role = is_string($role) ? $role : 'guest';
 $user_id = http_positive_integer($user_id);
 
-// Verificar y obtener el ID
+// Validate and fetch the ID
 $id = http_string_parameter($_GET, 'id', 255, false);
 if ($id === null || !http_valid_entry_id($id)) {
     opng_error_redirect('error_invalid_id');
 }
 
-// Conectar a la base de datos
+// Connect to the database
 $db = db_connect();
 if (!$db) {
     opng_error_redirect('error_database_unavailable');
 }
 
-// Obtener la entrada desde la base de datos
+// Fetch the entry from the database
 $array = null;
 try {
     $stmt = $db->prepare(
@@ -77,7 +77,7 @@ if (!$array) {
     opng_error_redirect('error_entry_not_found');
 }
 
-// Obtener y normalizar el lenguaje
+// Fetch and normalize the language
 $language = trim($array['language']);
 
 // Keep line counting constant-memory for large, newline-heavy pastes.
@@ -91,7 +91,7 @@ $show_line_numbers = $line_count <= OPNG_MAX_RENDERED_LINE_NUMBERS;
 // legacy combined "Java/C/C++" value.
 $selected_language = $language === 'Java/C/C++' ? 'C++' : $language;
 
-// Permisos, separando edición (autor/admin) de borrado (admin o autor)
+// Permissions, separating edit (author/admin) from delete (admin or author)
 $current_user_id = $user_id;
 $owner_id = $array['user_id'] !== null ? (int) $array['user_id'] : null;
 $can_edit = paste_owner_can_manage($current_user_id, (string) $role, $owner_id);
@@ -101,13 +101,13 @@ $csrf_token = csrf_token();
 $lang_attr = 'en';
 $page_title = $array['topic'];
 $base = '';
-// Mensajes que llegan vía ?msg= (p. ej. tras editar el paste en update.php)
+// Messages arriving through ?msg= (for example after editing the paste in update.php)
 $flash_message = http_string_parameter($_GET, 'msg', 128) ?? '';
 
-// Relación real: la entrada es una respuesta o tiene al menos una respuesta.
-// Los pastes legacy con "RE: " en el tema no cuentan hasta vincularse. depth
-// conserva la pertenencia al hilo aunque el padre directo haya sido borrado
-// (ON DELETE SET NULL deja parent_id a NULL).
+// Real relationship: the entry is a reply or has at least one reply.
+// Legacy pastes with "RE: " in the topic do not count until they are linked.
+// depth keeps thread membership even when the direct parent has been deleted
+// (ON DELETE SET NULL leaves parent_id as NULL).
 $has_relation = is_string($array['parent_id'] ?? null)
     || (int) ($array['has_children'] ?? 0) > 0
     || (int) ($array['depth'] ?? 0) > 0
@@ -125,7 +125,7 @@ $thread_ancestors = [];
 $thread_cursor_value = null;
 $thread_root_topic = null;
 
-// Pestañas de la vista: Ver / Editar / Responder / Historial
+// View tabs: View / Edit / Reply / History
 $tab = http_string_parameter($_GET, 'tab', 8, false);
 if (array_key_exists('tab', $_GET) && $tab === null) {
     opng_error_redirect('error_invalid_paste');
@@ -273,22 +273,36 @@ require(__DIR__ . "/includes/layout_header.php");
                     <span id="copy-error-message" data-i18n="copy_error" hidden>Could not copy the code. Check clipboard permissions and try again.</span>
                 </div>
                 <?php if ($can_delete): ?>
-                <form method="post" action="admin/drop_id.php" class="delete-paste-form">
+                <button type="button" class="danger delete-paste-open" data-delete-paste-open aria-haspopup="dialog" aria-controls="delete-paste-dialog">
+                    <span aria-hidden="true">🗑️</span>
+                    <span data-i18n="delete_paste">Delete Paste</span>
+                </button>
+                <?php endif; ?>
+            </div>
+            <?php if ($can_delete): ?>
+            <dialog id="delete-paste-dialog" class="delete-paste-dialog" aria-labelledby="delete-paste-title">
+                <form method="post" action="admin/drop_id.php" class="delete-paste-form" autocomplete="off">
+                    <h2 id="delete-paste-title" data-i18n="delete_paste">Delete Paste</h2>
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
                     <input type="hidden" name="input_ID" value="<?php echo htmlspecialchars($array['id'], ENT_QUOTES, 'UTF-8'); ?>">
-                    <label class="visually-hidden" for="delete_current_password" data-i18n="reauth_password">Current password:</label>
-                    <input id="delete_current_password" type="password" name="current_password" maxlength="72" autocomplete="current-password" required>
+                    <div class="delete-paste-reauth">
+                        <label for="delete_current_password" data-i18n="reauth_password">Current password:</label>
+                        <input id="delete_current_password" type="password" name="current_password" maxlength="72" autocomplete="current-password" required>
+                    </div>
                     <label class="confirm-check">
                         <input id="delete_confirm" type="checkbox" name="confirm_delete" value="yes" required>
                         <span data-i18n="delete_confirm">Are you sure you want to delete this paste? This action cannot be undone.</span>
                     </label>
-                    <button type="submit" class="danger" aria-label="Delete Paste" title="Delete Paste" data-i18n-aria-label="delete_paste" data-i18n-title="delete_paste">
-                        <span aria-hidden="true">🗑️</span>
-                        <span class="visually-hidden" data-i18n="delete_paste">Delete Paste</span>
-                    </button>
+                    <div class="delete-paste-dialog-actions">
+                        <button type="button" class="delete-paste-cancel" data-delete-paste-close data-i18n="cancel">Cancel</button>
+                        <button type="submit" class="danger">
+                            <span aria-hidden="true">🗑️</span>
+                            <span data-i18n="delete_paste">Delete Paste</span>
+                        </button>
+                    </div>
                 </form>
-                <?php endif; ?>
-            </div>
+            </dialog>
+            <?php endif; ?>
         </section>
         <?php endif; ?>
         <?php if ($tab === 'edit' && $can_edit): ?>
@@ -334,7 +348,7 @@ require(__DIR__ . "/includes/layout_header.php");
                     <?php endforeach; ?>
                 </select>
                 <label for="reply_text" data-i18n="text">Enter your text here</label>
-                <textarea id="reply_text" name="input_text" maxlength="1048576" rows="<?php echo $textarea_rows; ?>" cols="80" required></textarea>
+                <textarea id="reply_text" name="input_text" maxlength="1048576" rows="<?php echo $textarea_rows; ?>" cols="80" required><?php echo htmlspecialchars($array['text'], ENT_QUOTES, 'UTF-8'); ?></textarea>
                 <div class="length-meter" data-length-meter-for="reply_text" data-max-bytes="1048576">
                     <progress class="length-meter-bar" max="1048576" value="0" aria-label="Paste length" data-i18n-aria-label="length_meter_label"></progress>
                     <span class="length-meter-text"><span class="length-meter-value">1.00</span> <span data-i18n="length_mb_remaining">MB remaining</span></span>
@@ -488,6 +502,9 @@ require(__DIR__ . "/includes/layout_header.php");
     <script src="assets/vendor/highlight.min.js?v=<?php echo $asset_version; ?>" defer></script>
     <?php endif; ?>
     <script src="assets/js/copy.js?v=<?php echo $asset_version; ?>" defer></script>
+    <?php if ($can_delete): ?>
+    <script src="assets/js/delete-paste-dialog.js?v=<?php echo $asset_version; ?>" defer></script>
+    <?php endif; ?>
     <?php endif; ?>
     <script src="assets/js/length-meter.js?v=<?php echo $asset_version; ?>" defer></script>
 

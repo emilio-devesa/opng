@@ -305,6 +305,7 @@ foreach ([
     '/src/assets/js/search-help.js',
     '/src/assets/js/admin-tools.js',
     '/src/assets/js/length-meter.js',
+    '/src/assets/js/delete-paste-dialog.js',
 ] as $script_path) {
     if (!is_file($root . $script_path)) {
         $failures[] = "Frontend resource is missing: {$script_path}";
@@ -396,7 +397,28 @@ if (!is_string($admin_page)) {
     ) {
         $failures[] = 'Administration cards are not ordered metrics, entries, users, then database actions';
     }
-    $database_controls_start = strpos($admin_page, 'class="admin-db-controls"');
+    $storage_progress_position = strpos($admin_page, 'class="admin-storage-progress');
+    $language_chart_position = strpos($admin_page, 'data-i18n="admin_metrics_by_language"');
+    $user_chart_position = strpos($admin_page, 'data-i18n="admin_metrics_by_user"');
+    $storage_follows_charts = $storage_progress_position !== false
+        && $language_chart_position !== false
+        && $user_chart_position !== false
+        && $storage_progress_position > $language_chart_position
+        && $storage_progress_position > $user_chart_position;
+    if (
+        $storage_progress_position === false
+        || $storage_progress_position < $metrics_position
+        || $storage_progress_position > $entries_position
+        || !$storage_follows_charts
+        || !str_contains($admin_page, '<progress')
+        || !str_contains($admin_page, 'value="<?php echo $global_quota_value; ?>"')
+        || !str_contains($admin_page, 'max="<?php echo $global_quota_max; ?>"')
+        || !str_contains($admin_page, 'aria-labelledby="admin-storage-caption"')
+        || str_contains($admin_page, 'class="form-help admin-storage-quota')
+    ) {
+        $failures[] = 'Global paste storage is not rendered as an accessible progress bar inside the metrics card';
+    }
+    $database_controls_start = strpos($admin_page, 'class="admin-db-cards"');
     $seed_button_position = strpos($admin_page, 'action="seed_instructions.php"');
     $backup_button_position = strpos($admin_page, 'action="backup.php"');
     $empty_button_position = strpos($admin_page, 'action="empty.php"');
@@ -414,14 +436,17 @@ if (!is_string($admin_page)) {
     ) {
         $failures[] = 'Sample-data instructions are not the first database action';
     }
-    if (preg_match('/<form action="backup\.php" method="post">/', $admin_page) !== 1) {
-        $failures[] = 'The backup form must use POST';
+    if (
+        preg_match('/<form action="backup\.php" method="post"/', $admin_page) !== 1
+        || preg_match('/<form action="empty\.php" method="post"/', $admin_page) !== 1
+    ) {
+        $failures[] = 'The backup and empty-pastes forms must use POST';
     }
     if (str_contains($admin_page, 'data-i18n="return"')) {
         $failures[] = 'Administration page still contains a redundant return-home link';
     }
     if (
-        substr_count($admin_page, 'class="admin-field-clear"') !== 7
+        substr_count($admin_page, 'class="admin-field-clear"') !== 8
         || !str_contains($admin_page, 'data-i18n-aria-label="admin_clear_field"')
     ) {
         $failures[] = 'Administration inputs are missing localized clear controls';
@@ -435,20 +460,20 @@ if (!is_string($admin_page)) {
     ) {
         $failures[] = 'User role radios, non-login ID field, or search/action separators are missing';
     }
-    $paste_choice_start = strpos($admin_page, 'class="admin-choice-group"');
-    $paste_choice_end = $paste_choice_start === false
+    $delete_dialog_start = strpos($admin_page, 'id="admin-delete-user-dialog"');
+    $delete_dialog_end = $delete_dialog_start === false
         ? false
-        : strpos($admin_page, '</fieldset>', $paste_choice_start);
+        : strpos($admin_page, '</dialog>', $delete_dialog_start);
     $delete_user_button = strpos(
         $admin_page,
         'name="action" value="delete" class="danger" data-i18n="admin_delete_user"',
-        $paste_choice_start === false ? 0 : $paste_choice_start
+        $delete_dialog_start === false ? 0 : $delete_dialog_start
     );
     if (
-        $paste_choice_start === false
-        || $paste_choice_end === false
+        $delete_dialog_start === false
+        || $delete_dialog_end === false
         || $delete_user_button === false
-        || $delete_user_button > $paste_choice_end
+        || $delete_user_button > $delete_dialog_end
         || !str_contains($admin_page, 'class="admin-choice-actions"')
         || !str_contains($admin_page, 'class="admin-entry-delete-form"')
         || !str_contains(
@@ -457,6 +482,31 @@ if (!is_string($admin_page)) {
         )
     ) {
         $failures[] = 'Entry and user deletion controls are not positioned beside their related fields/options';
+    }
+    $admin_dialog_ids = [
+        'admin-entry-delete-dialog',
+        'admin-role-dialog',
+        'admin-delete-user-dialog',
+        'admin-seed-dialog',
+        'admin-backup-dialog',
+        'admin-empty-dialog',
+        'admin-delete-database-dialog',
+    ];
+    foreach ($admin_dialog_ids as $dialog_id) {
+        if (
+            !str_contains($admin_page, 'id="' . $dialog_id . '"')
+            || !str_contains($admin_page, 'aria-controls="' . $dialog_id . '"')
+        ) {
+            $failures[] = 'Administration action dialog is missing its trigger: ' . $dialog_id;
+        }
+    }
+    if (
+        substr_count($admin_page, 'class="admin-action-dialog"') !== count($admin_dialog_ids)
+        || substr_count($admin_page, 'data-admin-dialog-open') !== count($admin_dialog_ids)
+        || !str_contains($admin_page, '<details class="admin-audit-log">')
+        || !str_contains($admin_page, '<summary data-i18n="admin_audit_log">')
+    ) {
+        $failures[] = 'Administration actions or the audit log are not presented as dialogs/collapsible card';
     }
 }
 

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 function password_validation_error(string $password): ?string
 {
     $length = strlen($password);

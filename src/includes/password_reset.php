@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 function password_reset_simulation_enabled(): bool
 {
     if (getenv('OPNG_DEV_RESET') !== '1') {

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 const OPNG_MAX_SEARCH_QUERY_BYTES = 255;
 
 function topic_search_expression(string $query): ?string

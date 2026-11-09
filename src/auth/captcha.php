@@ -1,17 +1,17 @@
 <?php
 // auth/captcha.php
-// CAPTCHA local generado con GD (fix S7).
+// Local CAPTCHA generated with GD (S7).
 //
-// Mejoras frente a la versión anterior (texto plano sobre fondo gris):
-//   - Imagen 160x60 en color real.
-//   - Ruido de fondo (puntos y líneas) y ruido delante del texto.
-//   - Cada carácter usa color, tamaño, desplazamiento y rotación propios.
-//   - Distorsión horizontal suave por filas.
-//   - Cabeceras no-store: el navegador nunca reutiliza un código viejo.
+// Improvements over the previous version (plain text on a gray background):
+//   - 160x60 true-color image.
+//   - Background noise (dots and lines) and noise over the text.
+//   - Each character gets its own color, size, offset and rotation.
+//   - Gentle horizontal row distortion.
+//   - no-store headers: the browser never reuses an old code.
 //
-// No requiere servicios externos ni claves. Si hay una fuente TTF disponible
-// (DejaVu en Linux, Arial en macOS) se usa para rotar los caracteres; si no,
-// se recurre a la fuente bitmap de GD ampliada.
+// Requires no external services or keys. When a TTF font is available
+// (DejaVu on Linux, Arial on macOS) it is used to rotate the characters;
+// otherwise the scaled GD bitmap font is used instead.
 
 require(__DIR__ . '/../includes/session.php');
 session_start_secured();
@@ -45,8 +45,8 @@ if ($limit === RateLimitResult::Limited) {
     exit;
 }
 
-// --- Código aleatorio -------------------------------------------------------
-// Sin caracteres ambiguos (I, O, 0, 1) para reducir errores humanos.
+// --- Random code ------------------------------------------------------------
+// No ambiguous characters (I, O, 0, 1) to reduce human errors.
 $alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 $code = '';
 for ($i = 0; $i < 5; $i++) {
@@ -54,7 +54,7 @@ for ($i = 0; $i < 5; $i++) {
 }
 captcha_issue_image($code);
 
-// --- Cabeceras --------------------------------------------------------------
+// --- Headers ----------------------------------------------------------------
 header('Content-Type: image/png');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
@@ -65,7 +65,7 @@ $width = 160;
 $height = 60;
 $image = imagecreatetruecolor($width, $height);
 
-// --- Fondo ------------------------------------------------------------------
+// --- Background -------------------------------------------------------------
 $bg = imagecolorallocate(
     $image,
     random_int(238, 252),
@@ -74,7 +74,7 @@ $bg = imagecolorallocate(
 );
 imagefilledrectangle($image, 0, 0, $width, $height, $bg);
 
-// --- Ruido de fondo: puntos y líneas ---------------------------------------
+// --- Background noise: dots and lines --------------------------------------
 for ($i = 0; $i < 120; $i++) {
     $noise = imagecolorallocate(
         $image,
@@ -110,7 +110,7 @@ for ($i = 0; $i < 6; $i++) {
 }
 
 /**
- * Primera fuente TTF legible encontrada, o null si no hay ninguna.
+ * First readable TTF font found, or null when none is available.
  */
 function captcha_font(): ?string
 {
@@ -134,7 +134,7 @@ function captcha_font(): ?string
     return null;
 }
 
-// --- Caracteres -------------------------------------------------------------
+// --- Characters -------------------------------------------------------------
 $font = captcha_font();
 $x = 10;
 
@@ -150,18 +150,18 @@ for ($i = 0; $i < strlen($code); $i++) {
         );
         imagettftext(
             $image,
-            random_int(24, 29),          // tamaño
-            random_int(-20, 20),          // rotación
+            random_int(24, 29),          // size
+            random_int(-20, 20),          // rotation
             $x,
-            random_int(38, 50),           // línea base
+            random_int(38, 50),           // baseline
             $color,
             $font,
             $char
         );
         $x += random_int(26, 30);
     } else {
-        // Fallback sin TTF: dibuja el carácter en una ficha transparente y la
-        // amplía 2x sobre la imagen principal.
+        // TTF fallback: draw the character on a transparent tile and scale it
+        // 2x onto the main image.
         $tile = imagecreate(12, 22);
         $transparent = imagecolorallocate($tile, 255, 0, 255);
         imagecolortransparent($tile, $transparent);
@@ -190,7 +190,7 @@ for ($i = 0; $i < strlen($code); $i++) {
     }
 }
 
-// --- Ruido delante del texto ------------------------------------------------
+// --- Noise over the text ----------------------------------------------------
 for ($i = 0; $i < 40; $i++) {
     $noise = imagecolorallocate(
         $image,
@@ -201,7 +201,7 @@ for ($i = 0; $i < 40; $i++) {
     imagefilledellipse($image, random_int(0, $width), random_int(0, $height), 2, 2, $noise);
 }
 
-// --- Distorsión horizontal suave -------------------------------------------
+// --- Gentle horizontal distortion -------------------------------------------
 $source = imagecreatetruecolor($width, $height);
 imagecopy($source, $image, 0, 0, 0, 0, $width, $height);
 for ($y = 0; $y < $height; $y++) {
@@ -214,6 +214,6 @@ for ($y = 0; $y < $height; $y++) {
 }
 imagedestroy($source);
 
-// --- Salida -----------------------------------------------------------------
+// --- Output -----------------------------------------------------------------
 imagepng($image);
 imagedestroy($image);

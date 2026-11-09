@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<ruleset name="Open Pastebin NG">
+    <description>Adapted PSR-12 for the shared includes (HYG-07).</description>
+
+    <file>src/includes</file>
+
+    <arg name="basepath" value="."/>
+    <arg name="colors"/>
+    <arg name="extensions" value="php"/>
+    <!-- Warnings (mostly long HTML/template lines) never fail the build. -->
+    <arg name="warning-severity" value="0"/>
+
+    <rule ref="PSR12">
+        <!-- Includes are procedural by design and are required from entry points. -->
+        <exclude name="PSR1.Files.SideEffects"/>
+        <exclude name="PSR1.Classes.ClassDeclaration.MissingNamespace"/>
+        <exclude name="PSR2.Files.ClosingTag"/>
+        <!-- Templates contain long labels and markup on purpose. -->
+        <exclude name="Generic.Files.LineLength"/>
+    </rule>
+</ruleset>

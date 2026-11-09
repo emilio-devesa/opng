@@ -1,4 +1,7 @@
 <?php
+
+declare(strict_types=1);
+
 // includes/doctor.php
 // Startup configuration checklist (SEC-17).
 //

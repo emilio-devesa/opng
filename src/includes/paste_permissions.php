@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 function paste_owner_can_manage(?int $currentUserId, string $role, ?int $ownerId): bool
 {
     if ($role === 'admin') {

@@ -2,12 +2,12 @@
 /**
  * Apply pending database migrations for Open Pastebin NG (v1.0).
  *
- * Uso (desde la raíz del repo):
+ * Usage (from the repository root):
  *   php tools/migrate.php
  *
- * - Solo funciona por CLI.
- * - Usa las credenciales de src/config.php.
- * - Aplica database/migrations/NNNN_*.sql en orden y registra cada versión en
+ * - CLI only.
+ * - Uses the credentials from src/config.php.
+ * - Applies database/migrations/NNNN_*.sql in order and records each version in
  *   schema_migrations.
  */
 

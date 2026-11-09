@@ -2,13 +2,13 @@
 /**
  * Prune old audit-log rows for Open Pastebin NG (SEC-14).
  *
- * Uso (desde la raíz del repo):
+ * Usage (from the repository root):
  *   php tools/audit_prune.php [days]
  *
- * - Solo funciona por CLI.
- * - Sin argumento usa OPNG_AUDIT_RETENTION_DAYS (90 por defecto).
- * - El panel de administración también elimina filas antiguas de forma
- *   oportunista (1 de cada 100 eventos), así que este comando es opcional.
+ * - CLI only.
+ * - Without an argument it uses OPNG_AUDIT_RETENTION_DAYS (90 by default).
+ * - The admin panel also removes old rows opportunistically (1 in 100 events),
+ *   so this command is optional.
  */
 
 if (PHP_SAPI !== 'cli') {

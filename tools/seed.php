@@ -1,17 +1,17 @@
 <?php
 /**
- * Seed de desarrollo para Open Pastebin NG (v0.8).
+ * Development seed for Open Pastebin NG.
  *
- * Crea usuarios normales, administradores, 60 pastes y 12 respuestas para
- * probar la paginacion, la busqueda y los permisos por rol.
+ * Creates regular users, administrators, 60 pastes and 12 replies to test
+ * pagination, search and role permissions.
  *
- * Uso (desde la raiz del repo):
+ * Usage (from the repository root):
  *   php tools/seed.php
  *
- * - Solo funciona por CLI (no accesible por HTTP).
- * - Es re-ejecutable: antes de insertar borra unicamente sus propios datos
- *   (entries con id LIKE 'seed%' y usuarios @example.test).
- * - Los usuarios creados usan la contrasena: Password123!
+ * - CLI only (not reachable over HTTP).
+ * - Re-runnable: before inserting it deletes only its own data
+ *   (entries with ids LIKE 'seed%' and @example.test users).
+ * - The created users use the password: Password123!
  */
 
 if (PHP_SAPI !== 'cli') {
@@ -30,7 +30,7 @@ if ($db->connect_error) {
 $db->set_charset('utf8mb4');
 
 // ---------------------------------------------------------------------------
-// Limpieza de seeds anteriores (solo datos con prefijo seed / @example.test)
+// Clean up previous seed data (only entries prefixed seed / @example.test)
 // ---------------------------------------------------------------------------
 $db->query("DELETE FROM entries WHERE id LIKE 'seed%'");
 $db->query("DELETE FROM users WHERE email LIKE '%@example.test'");
@@ -38,7 +38,7 @@ $db->query("DELETE FROM users WHERE email LIKE '%@example.test'");
 $db->query("DELETE FROM admin_metrics_cache");
 
 // ---------------------------------------------------------------------------
-// Usuarios
+// Users
 // ---------------------------------------------------------------------------
 $password_hash = password_hash('Password123!', PASSWORD_DEFAULT);
 
@@ -73,7 +73,7 @@ foreach ($users as [$name, $email, $role]) {
 $stmt->close();
 
 // ---------------------------------------------------------------------------
-// Snippets por lenguaje (nowdoc: sin interpolacion de $)
+// Snippets per language (nowdoc: no $ interpolation)
 // ---------------------------------------------------------------------------
 $snippets = [
     'Plaintext' => [
@@ -504,7 +504,7 @@ $topics = [
 $languages = ['Plaintext', 'Bash', 'C', 'C++', 'Java', 'Pascal', 'PHP', 'Python', 'Ruby'];
 
 /**
- * Elige un lenguaje coherente con el tema del paste.
+ * Pick a language consistent with the paste topic.
  */
 function pick_language(string $topic): string
 {
@@ -588,7 +588,7 @@ $entries = $base_entries;
 foreach ($reply_texts as $k => $reply_text) {
     $parent = $base_entries[$reply_parents[$k] - 1];
 
-    // La respuesta la escribe otro usuario (o un invitado si el padre era de invitado)
+    // The reply is written by another user (or a guest when the parent was a guest)
     $user_id = $parent['user_id'];
     if ($user_id === null) {
         $user_id = $normal_ids[($k + 3) % count($normal_ids)];
@@ -614,10 +614,12 @@ foreach ($reply_texts as $k => $reply_text) {
 // ---------------------------------------------------------------------------
 // Insercion
 // ---------------------------------------------------------------------------
-$stmt = $db->prepare("INSERT INTO entries (id, user_id, language, text, topic, date) VALUES (?, ?, ?, ?, ?, ?)");
+// Seed rows are roots: set root_id = id and depth = 0 so history does not rely
+// on the migration backfill and a freshly seeded database has no NULL roots.
+$stmt = $db->prepare("INSERT INTO entries (id, root_id, depth, user_id, language, text, topic, date) VALUES (?, ?, 0, ?, ?, ?, ?, ?)");
 $inserted = 0;
 foreach ($entries as $e) {
-    $stmt->bind_param('sissss', $e['id'], $e['user_id'], $e['language'], $e['text'], $e['topic'], $e['date']);
+    $stmt->bind_param('ssissss', $e['id'], $e['id'], $e['user_id'], $e['language'], $e['text'], $e['topic'], $e['date']);
     if (!$stmt->execute()) {
         fwrite(STDERR, "ERROR insert {$e['id']}: " . $stmt->error . "\n");
         continue;

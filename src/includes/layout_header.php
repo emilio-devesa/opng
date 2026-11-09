@@ -1,11 +1,16 @@
 <?php
+
+declare(strict_types=1);
+
 // includes/layout_header.php
-// Cabecera HTML comun. Variables opcionales antes del include:
-//   $page_title (string, texto sin escapar — el include NO escapa el título)
-//   $base       (string, prefijo de rutas; '' en paginas de src/, '../' en admin/ y auth/)
-//   $show_search (bool, true en index.php para mostrar el formulario de busqueda)
-//   $logged_in   (bool, derivado de la sesion; se recomputa aqui por comodidad)
-if (!isset($base)) { $base = ''; }
+// Shared HTML header. Optional variables before the include:
+//   $page_title (string, unescaped text — the include does NOT escape the title)
+//   $base       (string, path prefix; '' under src/, '../' under admin/ and auth/)
+//   $show_search (bool, true in index.php to render the search form)
+//   $logged_in   (bool, derived from the session; recomputed here for convenience)
+if (!isset($base)) {
+    $base = '';
+}
 $page_title = $page_title ?? 'Open Pastebin NG';
 $logged_in = isset($_SESSION['user_id']);
 $show_search = isset($show_search) && $show_search;
@@ -32,7 +37,7 @@ ob_start();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <?php if (!empty($no_referrer)): ?>
+    <?php if (!empty($no_referrer)) : ?>
     <meta name="referrer" content="no-referrer">
     <?php endif; ?>
     <title<?php echo $page_title_i18n_attribute; ?>><?php echo htmlspecialchars($page_title, ENT_QUOTES, 'UTF-8'); ?></title>
@@ -59,7 +64,7 @@ ob_start();
                         </select>
                     </span>
                 </div>
-                <?php if ($logged_in && ($_SESSION['role'] ?? '') === 'admin'): ?>
+                <?php if ($logged_in && ($_SESSION['role'] ?? '') === 'admin') : ?>
                 <nav class="header-nav" aria-label="Account navigation" data-i18n-aria-label="account_navigation">
                     <a href="<?php echo $base; ?>admin/admin.php" aria-label="Admin" title="Admin" data-i18n-aria-label="admin" data-i18n-title="admin">🛠️</a>
                     <a href="<?php echo $base; ?>auth/change_password.php" aria-label="Change password" title="Change password" data-i18n-aria-label="change_password" data-i18n-title="change_password">🔑</a>
@@ -68,7 +73,7 @@ ob_start();
                         <button type="submit" aria-label="Logout" title="Logout" data-i18n-aria-label="logout" data-i18n-title="logout">🚪</button>
                     </form>
                 </nav>
-                <?php elseif ($logged_in): ?>
+                <?php elseif ($logged_in) : ?>
                 <nav class="header-nav" aria-label="Account navigation" data-i18n-aria-label="account_navigation">
                     <a href="<?php echo $base; ?>auth/change_password.php" aria-label="Change password" title="Change password" data-i18n-aria-label="change_password" data-i18n-title="change_password">🔑</a>
                     <form method="post" action="<?php echo $base; ?>auth/logout.php" class="logout-form">
@@ -76,7 +81,7 @@ ob_start();
                         <button type="submit" aria-label="Logout" title="Logout" data-i18n-aria-label="logout" data-i18n-title="logout">🚪</button>
                     </form>
                 </nav>
-                <?php else: ?>
+                <?php else : ?>
                 <nav class="header-nav" aria-label="Account navigation" data-i18n-aria-label="account_navigation">
                     <a href="<?php echo $base; ?>auth/login.php" aria-label="Login" title="Login" data-i18n-aria-label="login" data-i18n-title="login">🔐</a>
                     <a href="<?php echo $base; ?>auth/register.php" aria-label="Register" title="Register" data-i18n-aria-label="register" data-i18n-title="register">📝</a>
@@ -84,7 +89,7 @@ ob_start();
                 <?php endif; ?>
             </div>
         </div>
-        <?php if ($show_search): ?>
+        <?php if ($show_search) : ?>
         <form method="get" action="index.php" class="search-form header-search">
             <label class="visually-hidden" for="header-search" data-i18n="search_by_topic">Search by topic</label>
             <div class="search-input-wrap">
@@ -99,7 +104,7 @@ ob_start();
     </header>
     <script src="<?php echo $base; ?>assets/js/dark-mode.js?v=<?php echo $asset_version; ?>" data-base="<?php echo $base; ?>"></script>
     <script src="<?php echo $base; ?>assets/js/language.js?v=<?php echo $asset_version; ?>" data-base="<?php echo $base; ?>" data-language-version="<?php echo $asset_version; ?>"></script>
-    <?php if ($show_search): ?>
+    <?php if ($show_search) : ?>
     <script src="<?php echo $base; ?>assets/js/search-clear.js?v=<?php echo $asset_version; ?>" defer></script>
     <script src="<?php echo $base; ?>assets/js/search-help.js?v=<?php echo $asset_version; ?>" defer></script>
     <?php endif; ?>
