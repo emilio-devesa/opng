@@ -460,25 +460,6 @@ require(__DIR__ . "/../includes/layout_header.php");
                 </article>
             </div>
             <div class="admin-metrics-charts">
-                <figure class="admin-metric-chart admin-storage-chart">
-                    <figcaption id="admin-storage-caption" data-i18n="admin_storage_quota">Global paste storage</figcaption>
-                    <progress
-                        class="admin-storage-progress<?php echo $global_quota_near ? ' admin-storage-progress-warning' : ''; ?>"
-                        value="<?php echo $global_quota_value; ?>"
-                        max="<?php echo $global_quota_max; ?>"
-                        aria-labelledby="admin-storage-caption"
-                        aria-describedby="admin-storage-meta"
-                    ><?php echo number_format($global_quota_percent, 1); ?>%</progress>
-                    <p class="admin-storage-meta" id="admin-storage-meta">
-                        <span><?php echo number_format($metrics_paste_bytes); ?> <span data-i18n="admin_metrics_bytes">bytes</span></span>
-                        <span aria-hidden="true">/</span>
-                        <span><?php echo number_format($global_quota_bytes); ?> <span data-i18n="admin_metrics_bytes">bytes</span></span>
-                        <strong><?php echo number_format($global_quota_percent, 1); ?>%</strong>
-                    </p>
-                    <?php if ($global_quota_near): ?>
-                        <p class="admin-search-error" role="alert" data-i18n="admin_storage_quota_warning">The global paste storage quota is almost full. New pastes will be rejected when it is reached.</p>
-                    <?php endif; ?>
-                </figure>
                 <figure class="admin-metric-chart">
                     <figcaption data-i18n="admin_metrics_by_language">Pastes by language</figcaption>
                     <?php if ($metrics_languages === []): ?>
@@ -535,6 +516,25 @@ require(__DIR__ . "/../includes/layout_header.php");
                                 </li>
                             <?php endforeach; ?>
                         </ul>
+                    <?php endif; ?>
+                </figure>
+                <figure class="admin-metric-chart admin-storage-chart">
+                    <figcaption id="admin-storage-caption" data-i18n="admin_storage_quota">Global paste storage</figcaption>
+                    <progress
+                        class="admin-storage-progress<?php echo $global_quota_near ? ' admin-storage-progress-warning' : ''; ?>"
+                        value="<?php echo $global_quota_value; ?>"
+                        max="<?php echo $global_quota_max; ?>"
+                        aria-labelledby="admin-storage-caption"
+                        aria-describedby="admin-storage-meta"
+                    ><?php echo number_format($global_quota_percent, 1); ?>%</progress>
+                    <p class="admin-storage-meta" id="admin-storage-meta">
+                        <span><?php echo number_format($metrics_paste_bytes); ?> <span data-i18n="admin_metrics_bytes">bytes</span></span>
+                        <span aria-hidden="true">/</span>
+                        <span><?php echo number_format($global_quota_bytes); ?> <span data-i18n="admin_metrics_bytes">bytes</span></span>
+                        <strong><?php echo number_format($global_quota_percent, 1); ?>%</strong>
+                    </p>
+                    <?php if ($global_quota_near): ?>
+                        <p class="admin-search-error" role="alert" data-i18n="admin_storage_quota_warning">The global paste storage quota is almost full. New pastes will be rejected when it is reached.</p>
                     <?php endif; ?>
                 </figure>
             </div>

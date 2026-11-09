@@ -22,7 +22,7 @@
 - Entry deletion, role changes, user deletion, sample-data instructions, backup download, emptying the database and deleting the database now use compact action buttons that open centred native `<dialog>` modals. Passwords and confirmation checkboxes start empty and unchecked, and reopening a dialog never restores a previous confirmation.
 - The Manage Users form now has independent role-change and account-deletion forms, so each POST carries only its own password, confirmation and paste-handling option.
 - Database actions are arranged as a responsive 2×2 card grid. The audit log is a collapsible `<details>` card, so the page no longer ends with a permanently expanded table.
-- Global paste storage moved into Metrics as an accessible `<progress>` bar with used/total bytes, percentage and the near-quota warning. It is no longer repeated as plain text above the database actions.
+- Global paste storage moved into Metrics as an accessible `<progress>` bar with used/total bytes, percentage and the near-quota warning. It sits below the language and user charts and is no longer repeated as plain text above the database actions.
 - Emptying the database now requires both the current password and a server-enforced `confirm_empty` checkbox, before reauthentication and before any deletion.
 
 ## Version 1.0.0 (2026)

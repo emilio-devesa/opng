@@ -398,10 +398,18 @@ if (!is_string($admin_page)) {
         $failures[] = 'Administration cards are not ordered metrics, entries, users, then database actions';
     }
     $storage_progress_position = strpos($admin_page, 'class="admin-storage-progress');
+    $language_chart_position = strpos($admin_page, 'data-i18n="admin_metrics_by_language"');
+    $user_chart_position = strpos($admin_page, 'data-i18n="admin_metrics_by_user"');
+    $storage_follows_charts = $storage_progress_position !== false
+        && $language_chart_position !== false
+        && $user_chart_position !== false
+        && $storage_progress_position > $language_chart_position
+        && $storage_progress_position > $user_chart_position;
     if (
         $storage_progress_position === false
         || $storage_progress_position < $metrics_position
         || $storage_progress_position > $entries_position
+        || !$storage_follows_charts
         || !str_contains($admin_page, '<progress')
         || !str_contains($admin_page, 'value="<?php echo $global_quota_value; ?>"')
         || !str_contains($admin_page, 'max="<?php echo $global_quota_max; ?>"')
