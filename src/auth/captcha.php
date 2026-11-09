@@ -15,10 +15,33 @@
 
 require(__DIR__ . '/../includes/session.php');
 session_start_secured();
+require_once(__DIR__ . '/../includes/captcha.php');
+require_once(__DIR__ . '/../includes/ratelimit.php');
+require_once(__DIR__ . '/../database.php');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     http_response_code(405);
     header('Allow: GET');
+    exit;
+}
+
+// Generating an image costs CPU and memory, so cap requests per client IP.
+$db = database_connect();
+if (!$db) {
+    http_response_code(503);
+    header('Retry-After: 30');
+    exit;
+}
+$limit = rate_limit_hit($db, 'captcha', client_ip(), 120, 300);
+$db->close();
+if ($limit === RateLimitResult::Unavailable) {
+    http_response_code(503);
+    header('Retry-After: 30');
+    exit;
+}
+if ($limit === RateLimitResult::Limited) {
+    http_response_code(429);
+    header('Retry-After: 300');
     exit;
 }
 
@@ -29,7 +52,7 @@ $code = '';
 for ($i = 0; $i < 5; $i++) {
     $code .= $alphabet[random_int(0, strlen($alphabet) - 1)];
 }
-$_SESSION['captcha'] = $code;
+captcha_issue_image($code);
 
 // --- Cabeceras --------------------------------------------------------------
 header('Content-Type: image/png');

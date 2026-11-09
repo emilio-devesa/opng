@@ -4,10 +4,12 @@ session_start_secured();
 require_once('../includes/csrf.php');
 require_once('../includes/http_input.php');
 require_once('../includes/admin_guard.php');
+require_once('../includes/reauth.php');
 require_once('../database.php');
 require_once("../includes/error_messages.php");
 require_once('../includes/admin_metrics.php');
 require_once('../includes/audit_log.php');
+require_once('../includes/user_quota.php');
 
 function redirect_admin(string $message): never
 {
@@ -23,6 +25,12 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 if (!csrf_valid($_POST['csrf_token'] ?? null)) {
     opng_error_redirect('error_csrf', '../error.php');
+}
+
+// Role changes and user deletion require an explicit server-side confirmation
+// so they cannot run when JavaScript is disabled (UX-06).
+if (($_POST['confirm_action'] ?? null) !== 'yes') {
+    opng_error_redirect('error_confirmation_required', '../error.php');
 }
 
 $target_user_id = http_positive_integer($_POST['admin_record_number'] ?? null);
@@ -46,6 +54,14 @@ if (!$db) {
     redirect_admin('user_operation_failed');
 }
 $current_user_id = require_admin($db, 'user_action.php');
+
+// Role changes and account deletion require an explicit password confirmation
+// in addition to CSRF (SEC-07).
+$current_password = http_string_parameter($_POST, 'current_password', 72, false);
+if (!reauthenticate_user($db, $current_user_id, $current_password, 'admin_reauth_user')) {
+    $db->close();
+    opng_error_redirect('error_reauth', '../error.php');
+}
 
 $transaction_started = false;
 try {
@@ -90,7 +106,7 @@ try {
     }
 
     if ($action === 'role') {
-        $stmt = $db->prepare('UPDATE users SET role = ? WHERE id = ?');
+        $stmt = $db->prepare('UPDATE users SET role = ?, session_version = session_version + 1 WHERE id = ?');
         $stmt->bind_param('si', $new_role, $target_user_id);
         if (!$stmt->execute()) {
             throw new RuntimeException('User role update failed.');
@@ -108,6 +124,24 @@ try {
             $stmt->close();
             $stmt = null;
         } else {
+            // Measure the account's pastes before deleting them. The target
+            // user row is locked above, so no concurrent paste can slip in.
+            $usage_stmt = $db->prepare(
+                'SELECT COALESCE(SUM(OCTET_LENGTH(text)), 0) AS used_bytes FROM entries WHERE user_id = ?'
+            );
+            $usage_stmt->bind_param('i', $target_user_id);
+            if (!$usage_stmt->execute()) {
+                $usage_stmt->close();
+                throw new RuntimeException('User entry size lookup failed.');
+            }
+            $usage_result = $usage_stmt->get_result();
+            $usage_row = $usage_result ? $usage_result->fetch_assoc() : null;
+            if ($usage_result instanceof mysqli_result) {
+                $usage_result->free();
+            }
+            $usage_stmt->close();
+            $deleted_bytes = is_array($usage_row) ? (int) ($usage_row['used_bytes'] ?? 0) : 0;
+
             $stmt = $db->prepare('DELETE FROM entries WHERE user_id = ?');
             $stmt->bind_param('i', $target_user_id);
             if (!$stmt->execute()) {
@@ -115,6 +149,10 @@ try {
             }
             $stmt->close();
             $stmt = null;
+
+            if (!global_quota_consume($db, -$deleted_bytes)) {
+                throw new RuntimeException('Global storage counter could not be updated.');
+            }
         }
 
         $stmt = $db->prepare('DELETE FROM users WHERE id = ?');

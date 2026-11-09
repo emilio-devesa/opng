@@ -8,6 +8,7 @@ require("includes/rules.php");
 require("includes/http_input.php");
 require("includes/error_messages.php");
 require("includes/assets.php");
+require_once("includes/captcha.php");
 
 $asset_version = opng_asset_version();
 
@@ -65,12 +66,7 @@ require(__DIR__ . "/includes/layout_header.php");
             <span class="length-meter-text"><span class="length-meter-value">1.00</span> <span data-i18n="length_mb_remaining">MB remaining</span></span>
         </div>
         <?php if ($is_guest): ?>
-        <p>
-            <label for="captcha_answer" data-i18n="captcha_label">Please enter the captcha text:</label>
-            <input id="captcha_answer" type="text" name="captcha_answer" maxlength="5" autocomplete="off" required>
-            <img src="auth/captcha.php" alt="CAPTCHA" class="captcha-image" data-i18n-alt="captcha_alt">
-            <button type="button" class="refresh-captcha" data-i18n="refresh_captcha">🔄 Refresh</button>
-        </p>
+        <?php captcha_render('auth/captcha.php'); ?>
         <?php endif; ?>
         <p class="form-help" data-i18n="storage_quota_notice">Normal accounts can store up to 100 MiB across all pastes. Administrators are exempt.</p>
         <button data-i18n="submit" id="submit" type="submit">Submit</button>

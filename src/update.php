@@ -9,6 +9,7 @@ require("includes/rules.php");
 require("includes/paste_validation.php");
 require("includes/paste_permissions.php");
 require("includes/user_quota.php");
+require("includes/admin_metrics.php");
 require("includes/http_input.php");
 require("includes/account_role.php");
 require("includes/error_messages.php");
@@ -111,6 +112,27 @@ try {
         opng_error_redirect('error_permission');
     }
 
+    $previous_bytes = (int) ($entry['text_bytes'] ?? 0);
+    $replacement_bytes = strlen($text);
+    $global_delta = $replacement_bytes - $previous_bytes;
+
+    // Same transactional counter as submit.php: an edit can grow a paste past
+    // the global cap even when the per-account quota allows it (SEC-04/ROB-03).
+    $global_used = global_quota_lock($db);
+    if ($global_used === null) {
+        error_log('OPNG update.php: global storage counter is unavailable');
+        $db->rollback();
+        $transaction_started = false;
+        $db->close();
+        opng_error_redirect('error_database_operation');
+    }
+    if ($global_delta > 0 && !global_quota_allows($global_used, $global_delta)) {
+        $db->rollback();
+        $transaction_started = false;
+        $db->close();
+        opng_error_redirect('error_global_storage_quota');
+    }
+
     if ($owner_id !== null) {
         $usage = lock_user_quota($db, (int) $owner_id);
         if ($usage === null) {
@@ -120,7 +142,7 @@ try {
             $db->close();
             opng_error_redirect('error_database_operation');
         }
-        if (!user_quota_allows($usage, (int) ($entry['text_bytes'] ?? 0), strlen($text))) {
+        if (!user_quota_allows($usage, $previous_bytes, $replacement_bytes)) {
             $db->rollback();
             $transaction_started = false;
             $db->close();
@@ -139,6 +161,14 @@ try {
         $db->close();
         opng_error_redirect('error_update_paste');
     }
+
+    if ($global_delta !== 0 && !global_quota_consume($db, $global_delta)) {
+        error_log('OPNG update.php: could not update the global storage counter');
+        $db->rollback();
+        $transaction_started = false;
+        $db->close();
+        opng_error_redirect('error_update_paste');
+    }
     if (!$db->commit()) {
         error_log("OPNG update.php: failed to commit the paste transaction");
         $db->rollback();
@@ -147,6 +177,8 @@ try {
         opng_error_redirect('error_update_paste');
     }
     $transaction_started = false;
+    // Text bytes, language and topic may have changed.
+    admin_metrics_invalidate($db);
 } catch (mysqli_sql_exception | RuntimeException $exception) {
     error_log("OPNG update.php: " . $exception->getMessage());
     if (isset($stmt) && $stmt instanceof mysqli_stmt) {

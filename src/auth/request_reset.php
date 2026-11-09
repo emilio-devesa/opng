@@ -7,6 +7,8 @@ require_once("../includes/password_reset.php");
 require("../includes/http_input.php");
 require("../includes/error_messages.php");
 require("../includes/assets.php");
+require_once("../includes/captcha.php");
+require_once("../includes/audit_log.php");
 require("../database.php");
 
 $asset_version = opng_asset_version();
@@ -22,6 +24,7 @@ $message = "";
 $reset_link = null;
 $response_status = 200;
 $simulation_enabled = password_reset_simulation_enabled();
+$posted_email = http_string_parameter($_POST, 'email', 100) ?? '';
 
 if (!$simulation_enabled) {
     $message = "Password resets are unavailable for this installation. Please contact the administrator.";
@@ -34,19 +37,11 @@ if (!$simulation_enabled) {
     ) {
         $message = "Please enter a valid email address and CAPTCHA.";
     } else {
-        $captcha_answer = strtoupper($captcha_answer);
-
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $message = "Please enter a valid email address.";
-        } elseif (
-            !isset($_SESSION['captcha'])
-            || !is_string($_SESSION['captcha'])
-            || !hash_equals($_SESSION['captcha'], $captcha_answer)
-        ) {
+        } elseif (!captcha_validate($captcha_answer)) {
             $message = "Incorrect CAPTCHA. Please try again.";
-            unset($_SESSION['captcha']);
         } else {
-            unset($_SESSION['captcha']);
             $message = "If an account exists for this address, a reset link has been generated.";
             $db = database_connect();
 
@@ -75,6 +70,7 @@ if (!$simulation_enabled) {
                 ) {
                     $message = "If an account exists for this address, a reset link has been generated.";
                 } else {
+                    audit_log_record($db, null, 'auth.reset_requested', audit_log_email_target($email));
                     $stmt = null;
                     $update = null;
                     try {
@@ -104,6 +100,11 @@ if (!$simulation_enabled) {
                             }
                             $update->close();
                             $update = null;
+                        } else {
+                            // Run the same statement shape for an unknown
+                            // address so timing does not confirm whether an
+                            // account exists (SEC-10).
+                            $db->query('UPDATE users SET reset_token = reset_token WHERE id = 0');
                         }
                         if ($result instanceof mysqli_result) {
                             $result->free();
@@ -133,6 +134,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         'message' => $message,
         'reset_link' => $reset_link,
         'status' => $response_status,
+        'email' => $posted_email,
     ];
     header("Location: request_reset.php", true, 303);
     exit;
@@ -150,6 +152,9 @@ if (isset($_SESSION['reset_request_flash'])) {
         }
         if (isset($request_flash['status']) && is_int($request_flash['status'])) {
             $response_status = $request_flash['status'];
+        }
+        if (isset($request_flash['email']) && is_string($request_flash['email'])) {
+            $posted_email = $request_flash['email'];
         }
     }
 }
@@ -169,6 +174,17 @@ $message_key = match ($message) {
     $service_unavailable_message => 'error_service_unavailable',
     default => '',
 };
+$message_is_error = in_array($message_key, [
+    'reset_unavailable',
+    'request_invalid',
+    'reset_email_captcha_required',
+    'email_invalid',
+    'captcha_incorrect',
+    'reset_service_unavailable',
+    'error_service_unavailable',
+], true);
+$email_invalid = in_array($message_key, ['reset_email_captcha_required', 'email_invalid'], true);
+$captcha_invalid = in_array($message_key, ['reset_email_captcha_required', 'captcha_incorrect'], true);
 ?>
 <?php
 $lang_attr = 'en';
@@ -185,7 +201,7 @@ require(__DIR__ . '/../includes/layout_header.php');
     <?php endif; ?>
 
     <?php if ($message !== ""): ?>
-        <p role="status"<?php echo $message_key !== '' ? ' data-i18n="' . htmlspecialchars($message_key, ENT_QUOTES, 'UTF-8') . '"' : ''; ?>>
+        <p role="<?php echo $message_is_error ? 'alert' : 'status'; ?>" id="form-error"<?php echo $message_key !== '' ? ' data-i18n="' . htmlspecialchars($message_key, ENT_QUOTES, 'UTF-8') . '"' : ''; ?>>
             <?php echo htmlspecialchars($message, ENT_QUOTES, 'UTF-8'); ?>
         </p>
     <?php endif; ?>
@@ -203,14 +219,9 @@ require(__DIR__ . '/../includes/layout_header.php');
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
             <p>
                 <label for="email" data-i18n="email">Email:</label>
-                <input id="email" type="email" name="email" maxlength="100" required>
+                <input id="email" type="email" name="email" maxlength="100" value="<?php echo htmlspecialchars($posted_email, ENT_QUOTES, 'UTF-8'); ?>"<?php echo $email_invalid ? ' aria-invalid="true" aria-describedby="form-error" autofocus' : ''; ?> required>
             </p>
-            <p>
-                <label for="captcha_answer" data-i18n="captcha_label">Please enter the captcha text:</label>
-                <input id="captcha_answer" type="text" name="captcha_answer" maxlength="5" required>
-                <img src="captcha.php" alt="CAPTCHA" class="captcha-image" data-i18n-alt="captcha_alt">
-                <button type="button" class="refresh-captcha" data-i18n="refresh_captcha">🔄 Refresh</button>
-            </p>
+            <?php captcha_render('captcha.php', $captcha_invalid ? 'form-error' : null); ?>
             <button type="submit" data-i18n="send_reset_link">Send Reset Link</button>
         </form>
         <script src="../assets/js/refresh-captcha.js?v=<?php echo $asset_version; ?>"></script>

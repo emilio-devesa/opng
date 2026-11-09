@@ -1,0 +1,75 @@
+# Deploy this file as src/.htaccess when the hosting panel does not let you replace it.
+# The authoritative copy lives in src/.htaccess; keep both in sync.
+
+# Open Pastebin NG — Apache hardening (v0.8, Fases 0 y 3)
+# ------------------------------------------------------------------
+# Bloquea el acceso HTTP directo a ficheros que solo deben cargarse
+# desde PHP (require/include) y nunca servirse a los visitantes.
+# Compatible con Apache 2.4 (mod_authz_host).
+# ------------------------------------------------------------------
+
+<FilesMatch "^(config\.php|config\.example\.php|database\.php|rules\.xml)$">
+    Require all denied
+</FilesMatch>
+
+# ------------------------------------------------------------------
+# Internal directories and development files must never be served.
+# The application expects the document root to be src/; these rules are a
+# second line of defence if a hosting panel points it one level higher.
+# ------------------------------------------------------------------
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^includes(?:/|$) - [R=404,L]
+    RewriteRule ^(?:tests|tools|database|deploy|docs)(?:/|$) - [R=404,L]
+    RewriteRule ^install\.php$ - [R=404,L]
+    RewriteRule ^\. - [R=404,L]
+</IfModule>
+
+<FilesMatch "^(?:composer\.(?:json|lock)|phpstan\.neon|.*\.md|.*\.dist)$">
+    Require all denied
+</FilesMatch>
+
+# ------------------------------------------------------------------
+# Sin listados de directorio (fix R7). Si un directorio no tiene
+# index, Apache devuelve 403 en lugar de mostrar su contenido.
+# ------------------------------------------------------------------
+Options -Indexes
+
+# ------------------------------------------------------------------
+# Cabeceras de seguridad (fix R7). Los recursos se sirven en local y los
+# estilos y scripts inline se han eliminado, por lo que no se necesitan
+# excepciones unsafe-inline.
+# ------------------------------------------------------------------
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "DENY"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+    # HSTS is only meaningful on TLS responses. Browsers ignore it over HTTP.
+    Header always set Strict-Transport-Security "max-age=15768000" env=HTTPS
+</IfModule>
+
+# Assets are queried with ?v=<version>, so a long immutable cache is safe.
+<IfModule mod_headers.c>
+    <FilesMatch "\.(css|js|json|png|jpe?g|gif|svg|ico|woff2?)$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+</IfModule>
+
+# ------------------------------------------------------------------
+# OPNG does not use file uploads or session upload progress, so this
+# optional hardening can be applied when running under mod_php.
+#
+# This directive only applies to mod_php. With PHP-FPM, configure the
+# pool administratively instead:
+#
+#     php_admin_flag[session.upload_progress.enabled] = off
+#
+# Restart PHP-FPM workers after changing the pool configuration.
+# ------------------------------------------------------------------
+<IfModule mod_php7.c>
+    php_flag session.upload_progress.enabled 0
+</IfModule>
+<IfModule mod_php.c>
+    php_flag session.upload_progress.enabled 0
+</IfModule>

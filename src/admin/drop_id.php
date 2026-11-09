@@ -6,9 +6,11 @@ require_once('../includes/csrf.php');
 require_once('../database.php');
 require_once('../includes/http_input.php');
 require_once('../includes/admin_guard.php');
+require_once('../includes/reauth.php');
 require_once("../includes/error_messages.php");
 require_once('../includes/admin_metrics.php');
 require_once('../includes/audit_log.php');
+require_once('../includes/user_quota.php');
 
 // Verificar que la solicitud es POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -20,6 +22,13 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 // Verificar token CSRF
 if (!csrf_valid($_POST['csrf_token'] ?? null)) {
     opng_error_redirect('error_csrf', '../error.php');
+}
+
+// Deletion must be explicitly confirmed even when JavaScript is unavailable
+// (UX-06). The visible checkbox is a server-side requirement; client-side
+// `required` alone would not protect requests made without JavaScript.
+if (($_POST['confirm_delete'] ?? null) !== 'yes') {
+    opng_error_redirect('error_confirmation_required', '../error.php');
 }
 
 // Validar el ID proporcionado
@@ -35,6 +44,14 @@ if (!$db) {
     opng_error_redirect('error_database_unavailable', '../error.php');
 }
 
+// Deletion is irreversible; require the current password in addition to CSRF
+// and the JavaScript confirmation (SEC-07).
+$current_password = http_string_parameter($_POST, 'current_password', 72, false);
+if (!reauthenticate_user($db, $user_id, $current_password, 'entry_delete')) {
+    $db->close();
+    opng_error_redirect('error_reauth', '../error.php');
+}
+
 $transaction_started = false;
 try {
     $db->begin_transaction();
@@ -45,6 +62,27 @@ try {
         $transaction_started = false;
         $db->close();
         opng_error_redirect('error_permission', '../error.php');
+    }
+
+    // Measure the entry before deleting it so the global counter stays in
+    // sync without a full-table SUM().
+    $entry_bytes = 0;
+    $size_stmt = $db->prepare(
+        'SELECT OCTET_LENGTH(text) AS text_bytes FROM entries WHERE id = ? FOR UPDATE'
+    );
+    $size_stmt->bind_param('s', $input_ID);
+    if (!$size_stmt->execute()) {
+        $size_stmt->close();
+        throw new RuntimeException('Entry size lookup failed.');
+    }
+    $size_result = $size_stmt->get_result();
+    $size_row = $size_result ? $size_result->fetch_assoc() : null;
+    if ($size_result instanceof mysqli_result) {
+        $size_result->free();
+    }
+    $size_stmt->close();
+    if (is_array($size_row)) {
+        $entry_bytes = (int) ($size_row['text_bytes'] ?? 0);
     }
 
     // Si el usuario es administrador, puede eliminar cualquier paste.
@@ -61,7 +99,11 @@ try {
     }
     $deleted = $stmt->affected_rows === 1;
     $stmt->close();
+    $stmt = null;
     if ($deleted) {
+        if (!global_quota_consume($db, -$entry_bytes)) {
+            throw new RuntimeException('Global storage counter could not be updated.');
+        }
         audit_log_record($db, $user_id, 'entry.delete', $input_ID);
     }
     if (!$db->commit()) {

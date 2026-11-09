@@ -8,8 +8,11 @@ require("includes/db.php");
 require("includes/ratelimit.php");
 require("includes/paste_validation.php");
 require("includes/user_quota.php");
+require("includes/admin_metrics.php");
 require("includes/http_input.php");
 require("includes/error_messages.php");
+require("includes/thread.php");
+require_once("includes/captcha.php");
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -45,6 +48,13 @@ if (!isset($rules[$language])) {
     opng_error_redirect('error_invalid_language');
 }
 
+// Replies carry the parent entry ID in a hidden field. The relationship is
+// validated inside the transaction so a deleted parent cannot be referenced.
+$parent_id = http_string_parameter($_POST, 'parent_id', 255, false);
+if ($parent_id !== null && !http_valid_entry_id($parent_id)) {
+    opng_error_redirect('error_invalid_paste');
+}
+
 $user_id = $_SESSION['user_id'] ?? null;
 if ($user_id !== null) {
     $user_id = http_positive_integer($user_id);
@@ -56,16 +66,9 @@ if ($user_id !== null) {
 // Guests must solve the local CAPTCHA before creating an anonymous paste.
 if ($user_id === null) {
     $captcha_answer = http_string_parameter($_POST, 'captcha_answer', 5);
-    $captcha_code = $_SESSION['captcha'] ?? null;
-    if (
-        $captcha_answer === null
-        || !is_string($captcha_code)
-        || !hash_equals($captcha_code, strtoupper($captcha_answer))
-    ) {
-        unset($_SESSION['captcha']);
+    if (!captcha_validate($captcha_answer)) {
         opng_error_redirect('captcha_incorrect');
     }
-    unset($_SESSION['captcha']);
 }
 
 // Conectar a la base de datos
@@ -89,61 +92,137 @@ try {
     }
 
     // Global soft cap for all paste text, configurable with
-    // OPNG_STORAGE_QUOTA_BYTES (default 10 GiB).
-    $global_used = global_storage_usage($db);
+    // OPNG_STORAGE_QUOTA_BYTES (default 10 GiB). The counter row is locked
+    // inside the same transaction as the insert, so concurrent writes cannot
+    // overshoot the quota (SEC-04/ROB-03) and no full-table SUM() runs per
+    // request (PERF-01).
+    $id = bin2hex(random_bytes(8));
+    $text_bytes = strlen($text);
+    $transaction_started = false;
+    $db->begin_transaction();
+    $transaction_started = true;
+
+    $global_used = global_quota_lock($db);
     if ($global_used === null) {
+        error_log('OPNG submit.php: global storage counter is unavailable');
+        $db->rollback();
+        $transaction_started = false;
         $db->close();
         opng_error_redirect('error_database_operation');
     }
-    if (!global_quota_allows($global_used, strlen($text))) {
+    if (!global_quota_allows($global_used, $text_bytes)) {
+        $db->rollback();
+        $transaction_started = false;
         $db->close();
         opng_error_redirect('error_global_storage_quota');
     }
 
-    $id = bin2hex(random_bytes(8));
-    $transaction_started = false;
     if ($user_id !== null) {
-        $db->begin_transaction();
-        $transaction_started = true;
         $usage = lock_user_quota($db, (int) $user_id);
         if ($usage === null) {
             error_log('OPNG submit.php: authenticated account was not found while checking storage quota');
             $db->rollback();
+            $transaction_started = false;
             $db->close();
             opng_error_redirect('error_database_operation');
         }
-        if (!user_quota_allows($usage, 0, strlen($text))) {
+        if (!user_quota_allows($usage, 0, $text_bytes)) {
             $db->rollback();
+            $transaction_started = false;
             $db->close();
             opng_error_redirect('error_storage_quota');
         }
     }
 
+    $parent = null;
+    if ($parent_id !== null) {
+        // Lock the parent row until the insert commits: a concurrent delete
+        // either waits or makes this reply fail cleanly instead of leaving a
+        // dangling parent_id.
+        $parent = thread_parent_for_reply($db, $parent_id, true);
+        if ($parent === null) {
+            $db->rollback();
+            $transaction_started = false;
+            $db->close();
+            opng_error_redirect('error_entry_not_found');
+        }
+    }
+
+    try {
+        $position = thread_position($parent, $id);
+    } catch (ThreadDepthException $exception) {
+        $db->rollback();
+        $transaction_started = false;
+        $db->close();
+        opng_error_redirect('error_thread_too_deep');
+    }
+
+    $position_parent_id = $position['parent_id'];
+    $position_root_id = $position['root_id'];
+    $position_depth = $position['depth'];
+
     if ($user_id === null) {
-        $stmt = $db->prepare("INSERT INTO entries (id, user_id, language, text, topic) VALUES (?, NULL, ?, ?, ?)");
-        $stmt->bind_param("ssss", $id, $language, $text, $topic);
+        $stmt = $db->prepare(
+            "INSERT INTO entries (id, parent_id, root_id, depth, user_id, language, text, topic)
+             VALUES (?, ?, ?, ?, NULL, ?, ?, ?)"
+        );
+        $stmt->bind_param(
+            "sssisss",
+            $id,
+            $position_parent_id,
+            $position_root_id,
+            $position_depth,
+            $language,
+            $text,
+            $topic
+        );
     } else {
-        $stmt = $db->prepare("INSERT INTO entries (id, user_id, language, text, topic) VALUES (?, ?, ?, ?, ?)");
-        $stmt->bind_param("sisss", $id, $user_id, $language, $text, $topic);
+        $stmt = $db->prepare(
+            "INSERT INTO entries (id, parent_id, root_id, depth, user_id, language, text, topic)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        $stmt->bind_param(
+            "sssiisss",
+            $id,
+            $position_parent_id,
+            $position_root_id,
+            $position_depth,
+            $user_id,
+            $language,
+            $text,
+            $topic
+        );
     }
 
     if (!$stmt->execute()) {
         error_log("OPNG submit.php: " . $stmt->error);
         $stmt->close();
-        if ($transaction_started) {
-            $db->rollback();
-        }
+        $db->rollback();
+        $transaction_started = false;
         $db->close();
         opng_error_redirect('error_save_paste');
     }
     $stmt->close();
     $stmt = null;
-    if ($transaction_started && !$db->commit()) {
-        error_log("OPNG submit.php: failed to commit the paste transaction");
+
+    if (!global_quota_consume($db, $text_bytes)) {
+        error_log('OPNG submit.php: could not update the global storage counter');
         $db->rollback();
+        $transaction_started = false;
         $db->close();
         opng_error_redirect('error_save_paste');
     }
+
+    if (!$db->commit()) {
+        error_log("OPNG submit.php: failed to commit the paste transaction");
+        $db->rollback();
+        $transaction_started = false;
+        $db->close();
+        opng_error_redirect('error_save_paste');
+    }
+    $transaction_started = false;
+    // The dashboard aggregates changed; do not wait for the five-minute TTL.
+    admin_metrics_invalidate($db);
     $db->close();
 } catch (mysqli_sql_exception $exception) {
     error_log("OPNG submit.php: " . $exception->getMessage());
@@ -155,6 +234,11 @@ try {
     }
     $db->close();
     opng_error_redirect('error_save_paste');
+}
+
+if ($parent_id !== null) {
+    header("Location: view.php?id=" . urlencode($id));
+    exit;
 }
 
 header("Location: index.php?msg=" . urlencode("Paste created successfully"));

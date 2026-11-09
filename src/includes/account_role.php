@@ -1,40 +1,25 @@
 <?php
 
+require_once(__DIR__ . '/session.php');
+
 /**
- * Refresh the authenticated account's role from the database.
+ * Return the authenticated account's role from the session.
+ *
+ * db_connect() has already validated the session against users.session_version,
+ * so no extra query (and no locking read) is needed here. Public pages that use
+ * this helper therefore do not hit `users` just to read the role.
  */
 function refresh_account_role(mysqli $db): ?string
 {
-    $user_id = http_positive_integer($_SESSION['user_id'] ?? null);
-    if ($user_id === null) {
+    if (!isset($_SESSION['user_id'])) {
         unset($_SESSION['role']);
         return null;
     }
 
-    $stmt = $db->prepare('SELECT role FROM users WHERE id = ? FOR UPDATE');
-    $stmt->bind_param('i', $user_id);
-    if (!$stmt->execute()) {
-        $stmt->close();
-        throw new RuntimeException('Account role lookup failed.');
-    }
-
-    $result = $stmt->get_result();
-    if (!$result) {
-        $stmt->close();
-        throw new RuntimeException('Account role result is unavailable.');
-    }
-    $account = $result->fetch_assoc();
-    $result->free();
-    $stmt->close();
-
-    $role = is_array($account) && is_string($account['role'] ?? null)
-        ? $account['role']
-        : null;
-    if ($role !== 'admin' && $role !== 'user') {
-        unset($_SESSION['role']);
+    $role = $_SESSION['role'] ?? null;
+    if (!is_string($role) || ($role !== 'admin' && $role !== 'user')) {
         return null;
     }
 
-    $_SESSION['role'] = $role;
     return $role;
 }

@@ -131,7 +131,7 @@ foreach ($source as $file) {
     }
 }
 
-foreach ([$root . '/src/.htaccess', $root . '/deploy/nginx.example.conf'] as $policy_file) {
+foreach ([$root . '/src/.htaccess', $root . '/deploy/nginx/opng.conf'] as $policy_file) {
     $policy = file_get_contents($policy_file);
     if ($policy === false) {
         $failures[] = "Could not read CSP configuration: {$policy_file}";
@@ -181,10 +181,31 @@ if (
 }
 if (
     !is_string($layout)
-    || !str_contains($layout, '<h1 data-i18n="title_index">')
-    || !str_contains($layout, 'data-i18n="title_index"')
+    || str_contains($layout, '<h1')
+    || !str_contains($layout, '<p class="site-name" data-i18n="title_index">')
 ) {
-    $failures[] = 'The header heading must render the site name instead of duplicating the page title';
+    $failures[] = 'The shared layout must not add a second h1; the site name is a brand paragraph';
+}
+$heading_pages = [
+    '/src/index.php',
+    '/src/view.php',
+    '/src/pastebin.php',
+    '/src/error.php',
+    '/src/auth/login.php',
+    '/src/auth/register.php',
+    '/src/auth/request_reset.php',
+    '/src/auth/reset_password.php',
+    '/src/auth/change_password.php',
+    '/src/admin/admin.php',
+    '/src/admin/empty.php',
+    '/src/admin/delete_database.php',
+    '/src/admin/seed_instructions.php',
+];
+foreach ($heading_pages as $heading_path) {
+    $heading_source = file_get_contents($root . $heading_path);
+    if (!is_string($heading_source) || substr_count($heading_source, '<h1') !== 1) {
+        $failures[] = "Page must render exactly one h1 heading: {$heading_path}";
+    }
 }
 if (
     !is_string($layout)
@@ -279,7 +300,6 @@ if (!is_string($license_contents) || !str_contains($license_contents, 'BSD 3-Cla
 foreach ([
     '/src/assets/js/dark-mode.js',
     '/src/assets/js/language.js',
-    '/src/assets/js/confirm.js',
     '/src/assets/js/copy.js',
     '/src/assets/js/search-clear.js',
     '/src/assets/js/search-help.js',
@@ -292,18 +312,24 @@ foreach ([
 }
 
 $backup_script = file_get_contents($root . '/src/admin/backup.php');
+$backup_library = file_get_contents($root . '/src/includes/sql_backup.php');
+$backup_source = is_string($backup_script) && is_string($backup_library)
+    ? $backup_script . "\n" . $backup_library
+    : '';
 if (
     !is_string($backup_script)
+    || !is_string($backup_library)
     || !str_contains($backup_script, 'Content-Disposition: attachment')
     || !str_contains($backup_script, 'no-store')
-    || !str_contains($backup_script, 'MYSQLI_TRANS_START_READ_ONLY')
+    || !str_contains($backup_library, 'MYSQLI_TRANS_START_READ_ONLY')
     || !str_contains($backup_script, "REQUEST_METHOD'] !== 'POST'")
     || !str_contains($backup_script, 'csrf_valid')
     || !str_contains($backup_script, 'audit_log_record')
-    || !str_contains($backup_script, 'OPNG_BACKUP_MAX_SECONDS')
-    || !str_contains($backup_script, 'OPNG_BACKUP_MAX_BYTES')
+    || !str_contains($backup_source, 'OPNG_BACKUP_MAX_SECONDS')
+    || !str_contains($backup_source, 'OPNG_BACKUP_MAX_BYTES')
     || !str_contains($backup_script, 'set_time_limit')
     || !str_contains($backup_script, 'error_backup_limit')
+    || !str_contains($backup_script, 'sql_backup_dump(')
 ) {
     $failures[] = 'Database backup is missing download headers, cache protection, a read-only snapshot, POST/CSRF, audit logging, or time/size limits';
 }

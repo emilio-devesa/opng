@@ -5,9 +5,9 @@
 This project is based on **[Open Pastebin](http://sourceforge.net/projects/openpastebin/)**. All you need is a **web server with PHP and MySQL**.
 Open Pastebin NG is **free software** released under the **[GNU GPL license](LICENSE)**.
 
-⚠️ **This software is in BETA stage**, wich means it is still under development. Use it at your own risk.
+⚠️ **Open Pastebin NG v1.0.0 is the first stable release.** Back up your database and review [`docs/UPGRADING.md`](docs/UPGRADING.md) before upgrading from 0.9.x.
 
-**Current version:** `0.9.0` (see [`src/includes/version.php`](src/includes/version.php) and [`CHANGELOG.md`](CHANGELOG.md)).
+**Current version:** `1.0.0` (see [`src/includes/version.php`](src/includes/version.php) and [`CHANGELOG.md`](CHANGELOG.md)).
 
 ---
 
@@ -24,6 +24,7 @@ Open Pastebin NG is **free software** released under the **[GNU GPL license](LIC
 - ♿ Skip-to-content link, single page headings, flag + language-name options and a touch-accessible search-help disclosure
 - 🛡️ CSRF protection for sensitive actions, adaptive login CAPTCHA, guest CAPTCHA and persisted rate limits
 - 🧾 Administrative audit log for destructive actions and backup downloads
+- 🧵 Threaded replies with a **History** tab: chronological related entries and an accessible branch graph, with a 32-level depth limit and preserved replies when a parent is deleted
 - 📂 Entries are stored in a **MySQL database**
 
 ### Local syntax-highlighting asset
@@ -77,6 +78,14 @@ php_admin_flag[session.upload_progress.enabled] = off
 ---
 
 ## 🚀 Installation
+
+There are two supported deployment paths:
+
+- **Classic shared hosting** — upload the `opng-<version>-classic.zip`/`.tar.gz` artifact and follow [`docs/INSTALL-CLASSIC.md`](docs/INSTALL-CLASSIC.md). It covers the CLI installer, a phpMyAdmin fallback, server configs, backups and upgrades without Composer, Node or containers.
+- **Apple Container (Apple silicon)** — use the single Nginx + PHP-FPM image and the MariaDB container scripts in [`docs/APPLE-CONTAINER.md`](docs/APPLE-CONTAINER.md).
+
+The manual repository installation follows. To build a release artifact locally, run `bash tools/build_release.sh`; it writes the zip, tarball and `SHA256SUMS` to `dist/`.
+
 Follow this steps to install Open Pastebin NG:
 
 1️⃣ **Clone the repository**
@@ -123,7 +132,16 @@ OPNG_INSTALL_DB_PASS='your-migration-secret' \
 php src/install.php
 ```
 
-The CLI installer creates lowercase `users`, `entries`, `rate_limits`, `admin_metrics_cache` and `audit_log` tables and the listing, cursor, owner, topic and language indexes plus the FULLTEXT topic index. It safely renames the legacy `Users`/`Entries` names only when the lowercase destination does not exist; ambiguous case variants stop the migration without deleting data. Existing `entries.text` is widened to `MEDIUMTEXT` for 1 MiB pastes, legacy `NULL` dates become `1970-01-01 00:00:00` so `date` can be `NOT NULL`, and `topic`/`language` become `NOT NULL` (`topic` as `VARCHAR(255)`) so the date, topic and language sorts can use their indexes. Re-run it with the migration account after schema upgrades; index creation is idempotent. Back up the database before schema migrations. Remove `install.php` from a public document root after installation even though it refuses web execution.
+The CLI installer creates lowercase `users`, `entries`, `rate_limits`, `admin_metrics_cache`, `storage_counters`, `schema_migrations` and `audit_log` tables and the listing, cursor, owner, topic, language and thread indexes plus the FULLTEXT topic index. Migration `0004_entry_threads` adds `entries.parent_id`, `entries.root_id` and `entries.depth`, backfills existing rows as roots (`root_id = id`, `depth = 0`) and links replies with `fk_entries_parent ... ON DELETE SET NULL`; a reply never needs the original parent row to keep its thread identity. It safely renames the legacy `Users`/`Entries` names only when the lowercase destination does not exist; ambiguous case variants stop the migration without deleting data. Existing `entries.text` is widened to `MEDIUMTEXT` for 1 MiB pastes, legacy `NULL` dates become `1970-01-01 00:00:00` so `date` can be `NOT NULL`, and `topic`/`language` become `NOT NULL` (`topic` as `VARCHAR(255)`) so the date, topic and language sorts can use their indexes. Re-run it with the migration account after schema upgrades; index creation is idempotent. Back up the database before schema migrations. Remove `install.php` from a public document root after installation even though it refuses web execution.
+
+Once the schema is ready, revoke the migration credentials and run the startup doctor from the repository root. It checks the configuration file permissions, the runtime database password, the schema version, `display_errors`, `OPNG_DEV_RESET`, leftover installer credentials and HTTPS:
+
+```bash
+OPNG_PUBLIC_URL=https://your-host \
+php tools/doctor.php
+```
+
+The doctor exits non-zero on failures; `--strict` also fails on warnings and `--json` prints a machine-readable checklist for container entrypoints. Set `OPNG_PUBLIC_URL` (or `OPNG_FORCE_HTTPS=1` behind a TLS-terminating proxy) so the HTTPS check can be definitive. Never expose the runtime password or the doctor's output to visitors.
 
 4️⃣ **Enforce input and request limits**
 
@@ -135,7 +153,7 @@ The topic search uses a MySQL/MariaDB FULLTEXT index and requires all entered wo
 
 5️⃣ **Run the application**
 - If using **Apache**, place the project in `htdocs` or configure a virtual host. The shipped `src/.htaccess` blocks direct access to `config.php`/`database.php`/`rules.xml` and the `includes/` directory, disables directory listings, adds security headers including a strict same-origin CSP with `frame-ancestors 'none'` and `X-Frame-Options: DENY`, and disables `session.upload_progress`.
-- If using **Nginx**, start from [`deploy/nginx.example.conf`](deploy/nginx.example.conf). It redirects HTTP to HTTPS, blocks the installer and internal files (including `rules.xml`), denies `includes/`, sets security headers including a strict same-origin CSP with `frame-ancestors 'none'` and `X-Frame-Options: DENY`, and disables CAPTCHA caching. Configure valid certificates before enabling the TLS server block.
+- If using **Nginx**, start from [`deploy/nginx/opng.conf`](deploy/nginx/opng.conf). It redirects HTTP to HTTPS, blocks the installer and internal files (including `rules.xml`), denies `includes/`, sets security headers including a strict same-origin CSP with `frame-ancestors 'none'` and `X-Frame-Options: DENY`, and disables CAPTCHA caching. Configure valid certificates before enabling the TLS server block.
 - The example Nginx configuration terminates TLS directly and sets PHP's HTTPS state explicitly. If a trusted reverse proxy terminates TLS, configure the backend so that only the proxy can set the HTTPS state; do not trust arbitrary client-supplied `X-Forwarded-Proto`. If the proxy does not expose HTTPS to PHP, set `OPNG_FORCE_HTTPS=1`; this marks the session cookie `Secure` without adding redirects.
 - Enable HSTS only after confirming HTTPS works across the entire hostname for the chosen max-age.
 - **Use `src/` as the document root**, not the repository root, so `tools/`, `README.md` and `.git/` are never reachable over HTTP.
@@ -148,8 +166,9 @@ The topic search uses a MySQL/MariaDB FULLTEXT index and requires all entered wo
 - [ ] Set the document root to `src/`; keep the repository root and `tools/` outside HTTP reach. Because `src/config.php` is inside the document root, verify the web server denies direct access to it and other internal files, as well as `install.php`.
 - [ ] Use a dedicated runtime database account with only `SELECT`, `INSERT`, `UPDATE` and `DELETE`. Run schema upgrades from the CLI with the separate migration account, back up first, then revoke or remove migration credentials.
 - [ ] Keep `src/config.php` and database credentials out of version control and HTTP access. Use a unique, non-empty runtime password and rotate it if it was ever committed or shared; do not reuse the example development credentials. Set `post_max_size` and proxy request limits to at least `4M`. Set `OPNG_STORAGE_QUOTA_BYTES` to a global paste-text limit that fits the database volume (default 10 GiB); the admin panel warns when it is nearly full.
+- [ ] Enable OPcache from [`deploy/php/opng.ini`](deploy/php/opng.ini) (or copy its values into the PHP-FPM pool). `opcache.validate_timestamps=0` is the fastest mode, but then every deployment must restart PHP-FPM or call `opcache_reset()`. For Nginx, include [`deploy/nginx/gzip.conf`](deploy/nginx/gzip.conf) to compress versioned CSS/JS/JSON. Measure response time and transfer size before/after; both changes are deployment-only.
 - [ ] Configure private server/application logs, confirm visitors receive generic errors, and ensure the log path is writable only by the service account and administrators.
-- [ ] After installation or upgrade, verify the expected schema/indexes, create and view a test paste, search and paginate, and confirm the HTTP error log has no database/configuration leaks.
+- [ ] After installation or upgrade, verify the expected schema/indexes, create and view a test paste, search and paginate, and confirm the HTTP error log has no database/configuration leaks. Run `php tools/doctor.php --strict` and fix every reported failure before serving traffic.
 - [ ] Test a database backup restore before relying on the deployment; a backup that has never been restored is not a verified recovery plan.
 
 ---
@@ -158,10 +177,14 @@ The topic search uses a MySQL/MariaDB FULLTEXT index and requires all entered wo
 From the homepage you can:
 
 - 📝 **Create a new paste**: Enter your text or code, select a language and submit. The create, edit and reply editors show a small remaining-length meter (MB and progress bar) below the textarea.
-- 🔍 **View, edit and reply to a paste**: Click on the topic you want to view. The view page uses tabs — **View** (code), **Edit** (author or admin only) and **Reply** (creates a new paste). Includes syntax highlighting, line numbers (hidden with a notice above 5,000 lines so huge pastes stay light) and one-click copy.
+- 🔍 **View, edit and reply to a paste**: Click on the topic you want to view. The view page uses tabs — **View** (code), **Edit** (author or admin only), **Reply** (creates a real threaded reply) and **History** (when the entry is part of a thread). Includes syntax highlighting, line numbers (hidden with a notice above 5,000 lines so huge pastes stay light) and one-click copy.
+
+  The **History** tab lists related entries in chronological order with topic, date, author and an *Ancestor*/*Current*/*Descendant* badge, followed by a semantic nested branch graph that works without JavaScript. Threads are capped at 32 levels and 500 rendered entries per page (`Load more` pages with `date, id` cursors); deleting a parent keeps its replies and shows a notice, and deleting a thread root keeps the subtree findable through `root_id`. Reply editors start empty instead of duplicating the parent's text, and the relationship is stored in the database rather than inferred from the `RE: ` prefix.
+
+  Legacy pastes that only look like replies are never linked heuristically. From the repository root, review candidates with `php tools/link_legacy_replies.php --dry-run` and apply a reviewed pair with `php tools/link_legacy_replies.php --apply --reply=REPLY_ID --parent=PARENT_ID`. The tool validates the `RE: <topic>` prefix, dates and depth, recalculates the subtree, refuses already-linked entries and writes each applied link to `audit_log`.
 - 🔑 **Change your password**: Signed-in accounts can open the key icon in the header (`auth/change_password.php`), enter the current password plus the new one twice, and rotate it without an administrator. The action is CSRF-protected and rate-limited, applies the 12–72 byte policy, invalidates pending reset tokens and regenerates the session ID.
-- 🛠️ **Manage the application (Admin panel)**: Log in to `admin/admin.php` to search entries and users, remove entries, change user roles, delete accounts, and review paste/user totals, language distribution, the five most active users, stored paste-text bytes, and the global storage quota. Dashboard aggregates are cached in MySQL for five minutes and invalidated by destructive admin actions. Entry and user result lists page with keyset cursors; entry topic search uses the FULLTEXT index, while author/username/email search keeps substring matching. The panel also shows the latest 20 audit-log entries for entry deletion, database emptying, role changes, account deletion and backup downloads. When deleting an account, choose whether to preserve its pastes as anonymous or delete them too.
-- 💾 **Download a database backup**: Administrators can download a SQL backup from the database actions panel. The button submits a CSRF-protected POST and records the download in the audit log. The dump is bounded to **300 seconds** and **512 MiB** by default; raise `OPNG_BACKUP_MAX_SECONDS` or `OPNG_BACKUP_MAX_BYTES` for larger databases. The file contains account password hashes and password-reset tokens, so store it securely. Importing the backup drops and recreates its listed tables; test restoration only against a disposable database.
+- 🛠️ **Manage the application (Admin panel)**: Log in to `admin/admin.php` to search entries and users, remove entries, change user roles, delete accounts, and review paste/user totals, language distribution, the five most active users, stored paste-text bytes, and the global storage quota. Dashboard aggregates are cached in MySQL for five minutes and invalidated by destructive admin actions. Entry and user result lists page with keyset cursors; entry topic search uses the FULLTEXT index, while author/username/email search keeps prefix matching. The panel also shows the latest 20 audit-log entries for entry deletion, database emptying, role changes, account deletion, backup downloads, sign-in successes/failures/rate limits, password-reset requests/completions and password changes. Emails in the audit target are stored as SHA-256 hashes, never in clear text. Old rows are pruned opportunistically, or with `php tools/audit_prune.php [days]` (`OPNG_AUDIT_RETENTION_DAYS`, default 90). When deleting an account, choose whether to preserve its pastes as anonymous or delete them too.
+- 💾 **Download a database backup**: Administrators can download a SQL backup from the database actions panel. The button submits a CSRF-protected POST and records the download in the audit log. The dump is bounded to **300 seconds** and **512 MiB** by default; raise `OPNG_BACKUP_MAX_SECONDS` or `OPNG_BACKUP_MAX_BYTES` for larger databases. The file contains account password hashes and password-reset tokens, so store it securely. Importing the backup drops and recreates the listed tables, but the dump deliberately does not hard-code a database name, so choose the target explicitly: `mysql opng_restore < backup.sql`. Test restoration only against a disposable database. For scheduled backups, use the same bounded dump from the CLI: `php tools/backup.php backup.sql` (or `-` for stdout).
 - ⚠️ **Delete the database**: This remains a manual operation in MAMP's database administration tool. The web runtime account intentionally has no `DROP` permission, and the admin panel only provides the guarded instructions.
 
 For security reasons, access to **admin features** is restricted to administrators.
@@ -208,7 +231,7 @@ For security reasons, access to **admin features** is restricted to administrato
 
   `src/config.php` is excluded from analysis. The PHPStan job needs no local configuration; the lint job creates a throwaway example config only for its isolated database-connection failure test.
 
-- **MySQL integration tests** — the installation and query-plan tests write temporary rows (the plan test inserts 5,000 fixtures) and require a disposable database. CI creates an isolated schema and explicitly opts in; do not run these tests against the live MAMP database.
+- **MySQL/MariaDB integration tests** — the installation and query-plan tests write temporary rows (the plan test inserts 5,000 listing fixtures plus a 500-node thread) and require a disposable database. CI runs the installer, backup/restore, thread and schema-drift suites against both MySQL 8.0 and MariaDB 11, creating an isolated schema and explicitly opting in; do not run these tests against the live MAMP database. `tests/performance_query_plan_test.php` is MySQL-only because its `EXPLAIN` assertions encode MySQL's optimizer choices; MariaDB receives the same indexes and is covered by the schema drift test instead. The backup/restore test (`tests/backup_restore_test.php`) additionally creates and drops two throwaway `opng_backup_*` databases; the thread integration test (`tests/thread_integration_test.php`) creates one `opng_thread_*` database; the schema drift test (`tests/schema_drift_test.php`) creates two `opng_drift_*` databases and compares `database/schema.sql` with `src/install.php` using `SHOW CREATE TABLE`. Opt in with `OPNG_TEST_ALLOW_DATABASE_FIXTURES=1` and provide `OPNG_TEST_DB_HOST`, `OPNG_TEST_DB_PORT`, `OPNG_TEST_DB_USER` and `OPNG_TEST_DB_PASS` for an account with `CREATE`/`DROP` privileges. The restore test verifies a portable dump restores every row, account hash, paste byte, threaded relation and foreign key into a differently named database; the thread test covers root/reply/nested creation, chronological history, depth 32, parent/root deletion, admin `delete_entries`/`preserve` and `empty.php`.
 
 - **Rate limiting** — persisted in the `rate_limits` table (created by `install.php`) and keyed by a SHA-256 hash of IP, account or both. Login uses three limits (IP+account 5/10 min, IP-wide 30/10 min, account-wide 10/10 min) and shows an adaptive CAPTCHA after three session failures. Paste creation allows 20/min for authenticated users and 5/min for guests, who must also solve the CAPTCHA. Registration and password-reset requests remain at 5/hour. A database failure while checking a limit returns HTTP 503 instead of pretending the limit was reached.
 
@@ -224,14 +247,18 @@ For security reasons, access to **admin features** is restricted to administrato
   php tests/session_security_test.php
   php tests/permissions_test.php
   php tests/sql_backup_test.php
+  php tests/thread_test.php
   php tests/frontend_contract_test.php
+  php tests/release_contract_test.php
+  php tests/container_contract_test.php
+  php tests/doctor_test.php
   ```
 
 - **Database connection failure test** — CI runs `tests/database_connection_test.php` against an isolated runner with intentionally invalid credentials. It requires `OPNG_TEST_ALLOW_CONNECTION_PROBE=1`; do not set that flag for tests against a shared or production environment.
 
 - **CAPTCHA** — generated locally with GD (160×60, noise, per-character rotation) and served with `Cache-Control: no-store`. No external service or API key is required.
 
-- **Design** — `src/main.css` uses CSS design tokens (`:root` / `body.dark-mode`) for both light and dark themes, a responsive layout and `prefers-reduced-motion` support. The shared layout lives in `includes/layout_header.php` / `includes/layout_footer.php` (header with title, theme toggle, language selector, auth chips and search; footer with copyright and links). The view page presents *View / Edit / Reply* as tabs.
+- **Design** — `src/main.css` uses CSS design tokens (`:root` / `body.dark-mode`) for both light and dark themes, a responsive layout and `prefers-reduced-motion` support. The shared layout lives in `includes/layout_header.php` / `includes/layout_footer.php` (header with title, theme toggle, language selector, auth chips and search; footer with copyright and links). The view page presents *View / Edit / Reply / History* as tabs.
 
 ---
 
@@ -277,7 +304,7 @@ You can:
 - **Share** your version with the community
 
 ### 🔷 I found a bug and I lost my work!
-I'm sorry to hear that! Please note that **OPNG is still in BETA stage and under development**. Please report the issue so we can fix it.
+I'm sorry to hear that! Please report the issue so we can fix it. Back up your database before upgrades and keep your own copy of important pastes.
 
 ### 🔷 How can I uninstall OPNG and/or delete all data stored?
 To completely remove Open Pastebin NG, follow these steps:
@@ -294,7 +321,7 @@ This will remove **all pastes and files permanently**.
 
 ## ✅ Known Issues
 - **Pastes created before v0.8** may show literal HTML entities (for example `&lt;` or `&amp;lt;`). Older versions escaped the text *before* storing it; v0.8 stores raw text and escapes at render time. Legacy content is intentionally left untouched — editing a paste and replacing the affected characters corrects it.
-- Otherwise, there are no known issues. However, as this is a **BETA release**, some unexpected bugs may still exist.
+- Otherwise, there are no known issues. Report anything unexpected with the version, deployment type and reproduction steps.
 
 ---
 

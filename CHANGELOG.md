@@ -1,6 +1,60 @@
 # Open Pastebin NG - Changelog
 ============================
 
+## Version 1.0.0 (2026)
+
+### Phase 3 — Feature Historial (F1)
+#### 🧵 Thread model and migration
+- Added migration `0004_entry_threads` and the canonical `database/schema.sql` columns `entries.parent_id`, `entries.root_id` and `entries.depth`. Existing rows are backfilled as roots (`root_id = id`, `depth = 0`); legacy `RE: ` topics are intentionally not linked heuristically.
+- `parent_id` references `entries.id` with `ON DELETE SET NULL`, so deleting a node detaches its replies without deleting them; `root_id` is preserved so the orphaned subtree remains reachable. Added `idx_entries_parent` and `idx_entries_root` for history queries and child checks.
+- Added `src/includes/thread.php`: parent lookup with optional row lock, position calculation (maximum depth 32), one-query chronological page fetch (maximum 500 nodes), ancestor derivation and tree grouping. Corrupt cycles are guarded without extra queries.
+- Added `tools/link_legacy_replies.php` for reviewed migrations of legacy `RE: ` pastes: `--dry-run` lists candidates, `--apply` requires explicit `--reply`/`--parent` IDs, validates topic/date/depth, recalculates the subtree and writes `entry.link_legacy` to `audit_log`. It does not use recursive CTEs, so MySQL 5.7 remains supported.
+
+#### ✍️ Replies and history UI
+- `view.php?tab=reply` now submits a hidden `parent_id`; `submit.php` validates the ID with the shared input helpers, locks the parent inside the quota transaction, rejects missing parents and depth 33, stores `parent_id`/`root_id`/`depth`, and redirects to the new reply. The reply textarea starts empty instead of copying the parent text.
+- Added the **History** tab for entries that are replies or have replies. It shows a chronological `<ol>` with topic, `<time>`, author (`Guest` when anonymous) and *Ancestor*/*Current*/*Descendant* badges, plus a semantic nested `<ul>` branch graph with connector CSS, `aria-current="page"` and no JavaScript dependency.
+- Large threads show the first 500 entries, a translated “very large thread” notice, a `<details>` branch toggle and a `date, id` “Load more” cursor. Deleted parents/roots show a preserved-replies notice; links and topics are escaped.
+- Added `error_thread_too_deep`, the history UI strings and both notice/toggle strings to all six catalogs (268 keys each).
+
+#### 🧪 Tests and docs
+- Added `tests/thread_test.php` (position, depth 32, grouping, cycle guard, migration/schema/UI/catalog contracts) and `tests/thread_integration_test.php` (disposable database: root → reply → nested reply, chronological history and authors, parent/root deletion, depth-32 chain, `delete_entries`/`preserve`, `DELETE FROM entries`).
+- Extended `tests/database_install_test.php` (migration/columns/indexes/SET NULL FK/backfill on an upgraded legacy schema), `tests/performance_query_plan_test.php` (`idx_entries_root` plan and 500-node page) and `tests/backup_restore_test.php` (threaded rows survive a portable restore).
+- Documented the feature, migration and integration tests in `README.md`; CI now runs both thread suites.
+
+### Phase 4 — Release clásica para hosting compartido (F2)
+#### 📦 Artefacto y herramientas
+- Added `tools/build_release.sh`, which validates PHP syntax and builds `dist/opng-<version>-classic.zip`, `.tar.gz` and `SHA256SUMS`. The package excludes `tests/`, `.github/`, Composer/PHPStan files, screenshots, `.git/`, `src/config.php`, `tools/seed.php` and the container deployment, and always ships `src/config.example.php`.
+- Added `tools/install.php` as the canonical CLI wrapper, `tools/create_admin.php` for the first administrator (`--if-empty`, `--force`, `--print-sql`, `OPNG_ADMIN_PASSWORD`) and `tools/restore.php` for checksum-verified restores. The restore tool rejects `CREATE DATABASE`/`USE` unless explicitly allowed, uses a temporary `0600` options file and supports `OPNG_MYSQL_CLIENT`.
+- `database/schema.sql` now records migrations `0001_baseline` through `0004_entry_threads`, so a phpMyAdmin import produces the same recorded end state as the CLI installer. Added `tests/schema_drift_test.php`, which compares every `SHOW CREATE TABLE` from the two installation paths.
+- Added `tests/release_contract_test.php`: it builds a real artifact, checks exclusions, required docs/configs and published checksums.
+
+#### 🌐 Servidores, documentación y CI
+- Added `deploy/apache/opng.conf`, `deploy/apache/htaccess` and moved the canonical Nginx example to `deploy/nginx/opng.conf`. All three deny the document root, internal PHP files and development directories, and set body-size, CSP, HSTS and cache headers.
+- Added `docs/INSTALL-CLASSIC.md`, `docs/UPGRADING.md`, `docs/BACKUP-RESTORE.md` and `docs/SECURITY.md`, covering the CLI and phpMyAdmin paths, 0.9→1.0 migrations, portable backups and the production checklist.
+- Added `.github/workflows/release.yml`: on `v*` tags it runs the contracts, builds the classic artifacts, installs them into MySQL 8.0, smoke-tests the health endpoint, login provisioning and backup, and publishes the zip/tarball with `SHA256SUMS`.
+
+### Phase 5 — Apple Container (F3)
+#### 🍎 Imagen y orquestación
+- Added one arm64 application image (`deploy/apple-container/Containerfile`) with Nginx on port 8080, PHP-FPM on loopback, supervisord, OPcache, GD and mysqli. It keeps the document root at `/var/www/opng/src`, never bakes secrets into the image and removes `src/config.php` at build time.
+- Added `entrypoint.sh` (tmpfs preparation, MariaDB wait, idempotent schema bootstrap/migrations via `OPNG_AUTO_MIGRATE`, first-admin provisioning and credential scrubbing before supervisord), `healthcheck.sh`, and host scripts `start.sh`/`stop.sh`/`backup.sh`/`restore.sh`.
+- `start.sh` creates the private `opng-net` network and persistent `opng-db-data`/`opng-backups` volumes, runs MariaDB 11 without publishing 3306, starts the app read-only with tmpfs mounts, publishes only `127.0.0.1:8080` and filters `OPNG_DB_ROOT_PASSWORD` out of the application environment.
+- Added `.containerignore`, `.dockerignore` and `deploy/apple-container/opng.env.example`. Real environment files and `src/config.php` are excluded from the build context.
+- Added `tests/container_contract_test.php` and `.github/workflows/container.yml` (Buildx `linux/arm64`, GHCR on tags, SBOM and provenance). Documented installation, upgrades, backups, security and troubleshooting in `docs/APPLE-CONTAINER.md`.
+
+### Phase 6 — CI y cierre de release
+#### ♿ Accesibilidad, i18n y confirmaciones (UX-04…UX-09, HYG-02)
+- Added `src/includes/i18n.php`: the `opng_lang` cookie (then `Accept-Language`, then English) selects the locale, sets `<html lang>` and translates the buffered layout with `DOMDocument` before the first paint. `language.js` keeps the cookie and `localStorage` in sync, prefers the server-rendered `lang`, and never overwrites elements with nested markup.
+- Added a dependency-free `<time datetime>` renderer with locale-aware date formats and the raw stored value in `title`; the public listing now has an explicit empty state with a “create the first entry” link.
+- Auth forms keep their inline errors, preserve safe posted values and now expose `id="form-error"`, `aria-invalid`, `aria-describedby` and `autofocus` on the first invalid field. The shared CAPTCHA accepts an error association for the same purpose.
+- Paste deletion, admin entry deletion and admin user actions now require a visible, server-enforced `confirm_delete`/`confirm_action` checkbox. The JavaScript-only confirmation (`confirm.js`) was removed, so the destructive actions remain confirmed with JavaScript disabled.
+- Added the `accessibility` CI job (`MySQL 8.0` + seeded data + PHP server + Playwright): `tools/a11y_check.mjs` validates rendered HTML with `html-validate` and runs axe WCAG 2.x rules on index, view, login, register and admin in English and Spanish. Serious/critical violations and HTML errors fail the job. Added `tests/i18n_test.php`, `tests/form_accessibility_test.php` and `tests/destructive_confirmation_test.php`; the classic artifact excludes the Node-based a11y tooling.
+- Fixed the History tab query-string limit (`tab=history` exceeded the previous five-byte limit) and added a regression assertion.
+
+#### 🧪 Matriz de bases de datos (HYG-03)
+- Added a `database-mariadb` CI job alongside the existing MySQL 8.0 job. Both run the same legacy-schema migration, CLI installer, `database_install_test`, `backup_restore_test`, `thread_integration_test`, `schema_drift_test` and ambiguous-case guard, so `lower_case_table_names`, collation and FULLTEXT differences are exercised on both engines.
+- `performance_query_plan_test.php` stays MySQL-only: its `EXPLAIN` assertions encode MySQL optimizer choices, while MariaDB legitimately chooses a full scan for the small single-user fixture. MariaDB still receives the same indexes and is checked by the schema drift test.
+- Fixed `tests/backup_restore_test.php` to insert a unique `9999_backup_fixture` migration version instead of a duplicate recorded version, so the test works with the new `database/schema.sql` migration history on both engines.
+
 ## Version 0.9.0 (2026)
 
 ### Phase 1 — Integrity and error reporting

@@ -11,8 +11,36 @@
     const languageVersion = (document.currentScript && document.currentScript.dataset.languageVersion) || "";
     const validLanguages = ["en", "es", "de", "fr", "pt", "zh"];
     const translationCache = new Map();
-    let savedLang = localStorage.getItem("lang") || "en";
+
+    function readLanguageCookie() {
+        const match = document.cookie.match(/(?:^|;\s*)opng_lang=([^;]*)/);
+        if (!match) return "";
+        try {
+            return decodeURIComponent(match[1]);
+        } catch (error) {
+            return "";
+        }
+    }
+
+    function writeLanguageCookie(language) {
+        const secure = window.location.protocol === "https:" ? "; Secure" : "";
+        document.cookie = `opng_lang=${encodeURIComponent(language)}; Path=/; Max-Age=31536000; SameSite=Lax${secure}`;
+    }
+
+    // The server sets <html lang> from the opng_lang cookie (then
+    // Accept-Language). Prefer that value so the first paint and the
+    // JavaScript state cannot disagree; fall back to localStorage for
+    // visitors upgrading from versions that only stored the language there.
+    let savedLang = readLanguageCookie();
+    if (!validLanguages.includes(savedLang)) {
+        savedLang = document.documentElement.lang || "";
+    }
+    if (!validLanguages.includes(savedLang)) {
+        savedLang = localStorage.getItem("lang") || "en";
+    }
     if (!validLanguages.includes(savedLang)) savedLang = "en";
+    writeLanguageCookie(savedLang);
+    localStorage.setItem("lang", savedLang);
     document.documentElement.lang = savedLang;
 
     document.addEventListener("DOMContentLoaded", function () {
@@ -47,9 +75,11 @@
             // textContent (no innerHTML): las traducciones son texto plano.
             document.querySelectorAll("[data-i18n]").forEach(el => {
                 const key = el.getAttribute("data-i18n");
-                if (Object.prototype.hasOwnProperty.call(data, key)) {
-                    el.textContent = data[key];
-                }
+                if (!Object.prototype.hasOwnProperty.call(data, key)) return;
+                // Do not destroy nested markup (for example an emoji plus a
+                // visually-hidden label inside the same control).
+                if (el.querySelector("*")) return;
+                el.textContent = data[key];
             });
             ["aria-label", "placeholder", "title", "alt"].forEach(attribute => {
                 document.querySelectorAll(`[data-i18n-${attribute}]`).forEach(el => {
@@ -70,8 +100,10 @@
             const selectedLang = this.value;
             if (!validLanguages.includes(selectedLang)) return;
 
-            // Guardar en localStorage
+            // Guardar en localStorage y en la cookie que usa el servidor para
+            // renderizar el idioma antes del primer pintado (UX-04).
             localStorage.setItem("lang", selectedLang);
+            writeLanguageCookie(selectedLang);
             savedLang = selectedLang;
 
             // Cambiar atributo lang de HTML

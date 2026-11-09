@@ -128,8 +128,12 @@ if ($entry_search_submitted && $entry_search_error === '') {
         }
     }
     if ($entry_author !== '') {
-        $filters[] = "COALESCE(users.username, 'Guest') LIKE ?";
-        $params[] = '%' . $entry_author . '%';
+        // Prefix matching lets MySQL use the users.username unique index;
+        // anonymous pastes are matched explicitly when the admin types
+        // "guest".
+        $filters[] = "(users.username LIKE ? OR (entries.user_id IS NULL AND ? = 'guest'))";
+        $params[] = $entry_author . '%';
+        $params[] = strtolower($entry_author);
     }
     if ($entry_date !== '') {
         $range = $date_range($entry_date);
@@ -205,8 +209,10 @@ if ($user_search_submitted && $user_search_error === '') {
     $filters = [];
     $params = [];
     if ($user_query !== '') {
+        // Prefix search uses the unique username/email indexes. Substring
+        // search (%term%) would force a full scan of every account.
         $filters[] = '(users.username LIKE ? OR users.email LIKE ?)';
-        $search_pattern = '%' . $user_query . '%';
+        $search_pattern = $user_query . '%';
         $params[] = $search_pattern;
         $params[] = $search_pattern;
     }
@@ -560,7 +566,7 @@ require(__DIR__ . "/../includes/layout_header.php");
                 </div>
             <?php endif; ?>
             <?php if ($entry_has_newer || $entry_has_older): ?>
-                <nav class="pagination admin-pagination" aria-label="Pagination" data-i18n-aria-label="pagination">
+                <nav class="pagination admin-pagination" aria-label="Entries pagination" data-i18n-aria-label="pagination_entries">
                     <?php if ($entry_has_newer): ?>
                         <a href="<?php echo htmlspecialchars($entry_previous_href, ENT_QUOTES, 'UTF-8'); ?>" data-i18n="previous">« Previous</a>
                     <?php endif; ?>
@@ -571,14 +577,19 @@ require(__DIR__ . "/../includes/layout_header.php");
             <?php endif; ?>
         <?php endif; ?>
         <hr class="admin-actions-divider">
-        <form method="post" action="drop_id.php" class="admin-entry-delete-form" data-confirm-target="drop_confirm">
-            <span id="drop_confirm" data-i18n="drop_confirm" hidden>Are you sure you want to drop this entry? This action cannot be undone.</span>
+        <form method="post" action="drop_id.php" class="admin-entry-delete-form">
             <label for="input_ID" data-i18n="id_to_remove">ID to remove:</label>
             <div class="admin-input-wrap">
                 <input type="text" id="input_ID" name="input_ID" maxlength="255" required>
                 <button class="admin-field-clear" type="button" aria-label="Clear field" title="Clear field" data-i18n-aria-label="admin_clear_field" data-i18n-title="admin_clear_field" hidden>×</button>
             </div>
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
+            <label for="drop_current_password" data-i18n="reauth_password">Current password:</label>
+            <input id="drop_current_password" type="password" name="current_password" maxlength="72" autocomplete="current-password" required>
+            <label class="confirm-check">
+                <input id="drop_confirm" type="checkbox" name="confirm_delete" value="yes" required>
+                <span data-i18n="drop_confirm">Are you sure you want to drop this entry? This action cannot be undone.</span>
+            </label>
             <button type="submit" data-i18n="drop_entry" title="Drop">Drop Entry</button>
         </form>
     </fieldset>
@@ -628,7 +639,7 @@ require(__DIR__ . "/../includes/layout_header.php");
                 </div>
             <?php endif; ?>
             <?php if ($user_has_newer || $user_has_older): ?>
-                <nav class="pagination admin-pagination" aria-label="Pagination" data-i18n-aria-label="pagination">
+                <nav class="pagination admin-pagination" aria-label="User pagination" data-i18n-aria-label="pagination_users">
                     <?php if ($user_has_newer): ?>
                         <a href="<?php echo htmlspecialchars($user_previous_href, ENT_QUOTES, 'UTF-8'); ?>" data-i18n="previous">« Previous</a>
                     <?php endif; ?>
@@ -640,8 +651,15 @@ require(__DIR__ . "/../includes/layout_header.php");
         <?php endif; ?>
         <hr class="admin-actions-divider">
         <form method="post" action="user_action.php" class="admin-user-actions">
-            <span id="user_action_confirm" data-i18n="admin_user_confirm_action" hidden>Confirm this user-management action. Deleting a user and possibly their pastes is irreversible.</span>
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
+            <p class="admin-reauth-field">
+                <label for="user_action_current_password" data-i18n="reauth_password">Current password:</label>
+                <input id="user_action_current_password" type="password" name="current_password" maxlength="72" autocomplete="current-password" required>
+            </p>
+            <label class="confirm-check">
+                <input id="user_action_confirm" type="checkbox" name="confirm_action" value="yes" required>
+                <span data-i18n="admin_user_confirm_action">Confirm this user-management action. Deleting a user and possibly their pastes is irreversible.</span>
+            </label>
             <div class="admin-user-action-primary">
                 <label for="admin_record_number" data-i18n="admin_user_id">User ID:</label>
                 <div class="admin-input-wrap">
@@ -685,6 +703,8 @@ require(__DIR__ . "/../includes/layout_header.php");
         </form>
         <form action="backup.php" method="post">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
+            <label for="backup_current_password" data-i18n="reauth_password">Current password:</label>
+            <input id="backup_current_password" type="password" name="current_password" maxlength="72" autocomplete="current-password" required>
             <button type="submit" data-i18n="admin_download_backup">Download backup</button>
         </form>
         <form action="empty.php" method="get">
@@ -722,6 +742,12 @@ require(__DIR__ . "/../includes/layout_header.php");
                             'user.role' => 'audit_user_role',
                             'user.delete' => 'audit_user_delete',
                             'backup.download' => 'audit_backup_download',
+                            'auth.login' => 'audit_auth_login',
+                            'auth.login_failed' => 'audit_auth_login_failed',
+                            'auth.login_limited' => 'audit_auth_login_limited',
+                            'auth.reset_requested' => 'audit_auth_reset_requested',
+                            'auth.reset_completed' => 'audit_auth_reset_completed',
+                            'auth.password_changed' => 'audit_auth_password_changed',
                             default => '',
                         };
                         $audit_action_text = match ($audit_action_key) {
@@ -730,6 +756,12 @@ require(__DIR__ . "/../includes/layout_header.php");
                             'audit_user_role' => 'User role changed',
                             'audit_user_delete' => 'User deleted',
                             'audit_backup_download' => 'Backup downloaded',
+                            'audit_auth_login' => 'Sign-in succeeded',
+                            'audit_auth_login_failed' => 'Sign-in failed',
+                            'audit_auth_login_limited' => 'Sign-in rate limited',
+                            'audit_auth_reset_requested' => 'Password reset requested',
+                            'audit_auth_reset_completed' => 'Password reset completed',
+                            'audit_auth_password_changed' => 'Password changed',
                             default => $audit_action,
                         };
                         $audit_actor = (string) ($audit_entry['username'] ?? '');

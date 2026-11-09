@@ -6,6 +6,7 @@
 // Variables: $base (prefijo de rutas, por defecto '').
 if (!isset($base)) { $base = ''; }
 require_once __DIR__ . '/version.php';
+require_once __DIR__ . '/i18n.php';
 $logged_in = isset($_SESSION['user_id']);
 ?>
     </main>
@@ -17,3 +18,9 @@ $logged_in = isset($_SESSION['user_id']);
     </footer>
 </body>
 </html>
+<?php
+$opng_document = ob_get_clean();
+if (is_string($opng_document)) {
+    echo opng_i18n_apply($opng_document);
+}
+?>

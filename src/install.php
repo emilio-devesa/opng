@@ -7,6 +7,7 @@ if (PHP_SAPI !== 'cli') {
 }
 
 require __DIR__ . '/config.php';
+require __DIR__ . '/includes/schema.php';
 $database_name = getenv('OPNG_DB_NAME') ?: $mysql_dbname;
 
 function install_fail(string $message, ?string $detail = null): never
@@ -232,6 +233,7 @@ try {
             password_hash VARCHAR(255) NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             role ENUM('admin', 'user') NOT NULL DEFAULT 'user',
+            session_version INT UNSIGNED NOT NULL DEFAULT 0,
             reset_token VARCHAR(255) NULL,
             reset_token_expires DATETIME NULL
         ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
@@ -253,6 +255,7 @@ try {
     foreach ([
         'created_at' => 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
         'role' => "ENUM('admin', 'user') NOT NULL DEFAULT 'user'",
+        'session_version' => 'INT UNSIGNED NOT NULL DEFAULT 0',
         'reset_token' => 'VARCHAR(255) NULL',
         'reset_token_expires' => 'DATETIME NULL',
     ] as $column => $definition) {
@@ -281,6 +284,13 @@ try {
     if (!in_array($users_column_info['reset_token_expires']['DATA_TYPE'], ['datetime', 'timestamp'], true)) {
         install_fail("Unsupported type for 'users.reset_token_expires'; schema migration stopped.");
     }
+    if (!in_array(
+        $users_column_info['session_version']['DATA_TYPE'],
+        ['tinyint', 'smallint', 'mediumint', 'int', 'bigint'],
+        true
+    )) {
+        install_fail("Unsupported type for 'users.session_version'; schema migration stopped.");
+    }
 
     $password_hash_column = install_column_info($conn, 'users', 'password_hash');
     if ($password_hash_column === null || !in_array($password_hash_column['DATA_TYPE'], ['varchar', 'char'], true)) {
@@ -307,6 +317,18 @@ try {
         'uniq_users_email',
         $migration_report
     );
+
+    // Admin search and listing order by creation date; role filters are part of
+    // the dashboard feature set. Both indexes are created idempotently.
+    foreach ([
+        'idx_users_created' => 'CREATE INDEX `idx_users_created` ON users (`created_at`, `id`)',
+        'idx_users_role' => 'CREATE INDEX `idx_users_role` ON users (`role`, `created_at`)',
+    ] as $index_name => $create_sql) {
+        if (!install_index_exists($conn, 'users', $index_name)) {
+            $conn->query($create_sql);
+            echo "OK: index {$index_name}\n";
+        }
+    }
 
     $conn->query("
         CREATE TABLE IF NOT EXISTS entries (
@@ -485,11 +507,23 @@ try {
         CREATE TABLE IF NOT EXISTS admin_metrics_cache (
             cache_key VARCHAR(32) NOT NULL PRIMARY KEY,
             payload MEDIUMTEXT NOT NULL,
-            expires_at INT UNSIGNED NOT NULL,
+            expires_at BIGINT UNSIGNED NOT NULL,
             KEY idx_admin_metrics_expiry (expires_at)
         ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
     ");
     echo "OK: table admin_metrics_cache\n";
+
+    $conn->query("
+        CREATE TABLE IF NOT EXISTS storage_counters (
+            counter_key VARCHAR(32) NOT NULL PRIMARY KEY,
+            used_bytes BIGINT UNSIGNED NOT NULL DEFAULT 0
+        ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+    ");
+    $conn->query(
+        "INSERT IGNORE INTO storage_counters (counter_key, used_bytes)
+         SELECT 'global', COALESCE(SUM(OCTET_LENGTH(text)), 0) FROM entries"
+    );
+    echo "OK: table storage_counters\n";
 
     $conn->query("
         CREATE TABLE IF NOT EXISTS audit_log (
@@ -524,6 +558,15 @@ try {
         }
     }
 
+    // Apply versioned migrations after the idempotent bootstrap. Fresh
+    // installations and upgrades both end with the same recorded version.
+    $applied_migrations = schema_apply_migrations($conn, __DIR__ . '/../database/migrations');
+    foreach ($applied_migrations as $applied_version) {
+        $migration_report[] = "applied migration {$applied_version}";
+        echo "OK: applied migration {$applied_version}\n";
+    }
+    echo 'OK: schema version ' . (schema_current_version($conn) ?? 'none') . "\n";
+
     echo "\nMigration report:\n";
     if ($migration_report === []) {
         echo "- No schema changes were needed; required columns and indexes are present.\n";
@@ -536,6 +579,7 @@ try {
     echo "\nSchema installation complete.\n";
     echo "The target database was not created or dropped by this installer.\n";
     echo "Revoke the migration account when installation is complete.\n";
+    echo "Then run the startup doctor: php tools/doctor.php\n";
     $conn->close();
 } catch (mysqli_sql_exception $exception) {
     install_fail('Database operation failed; check the configured migration account and server log.', $exception->getMessage());

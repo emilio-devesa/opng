@@ -4,10 +4,12 @@ session_start_secured();
 require("../includes/csrf.php");
 require("../includes/ratelimit.php");
 require("../includes/http_input.php");
+require_once("../includes/captcha.php");
 
 require("../database.php");
 require("../includes/error_messages.php");
 require("../includes/assets.php");
+require_once("../includes/audit_log.php");
 
 $asset_version = opng_asset_version();
 
@@ -52,141 +54,164 @@ if ($_SESSION["login_attempts"] >= 5 && (time() - $_SESSION["last_attempt_time"]
 $captcha_required = $_SESSION["login_attempts"] >= 3;
 
 $csrf_token = csrf_token();
+$form_error_key = '';
+$form_error_field = '';
+$posted_email = http_string_parameter($_POST, 'email', 100) ?? '';
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     // Verificar si el token CSRF existe y es válido
     if (!csrf_valid($_POST['csrf_token'] ?? null)) {
         opng_error_redirect('error_csrf', '../error.php');
     }
-    
+
     $email = http_string_parameter($_POST, 'email', 100);
     $password = http_string_parameter($_POST, 'password', 72, false);
-    if ($email === null || $password === null) {
-        opng_error_redirect('error_invalid_credentials', '../error.php');
+    if (
+        $email === null
+        || $password === null
+        || !filter_var($email, FILTER_VALIDATE_EMAIL)
+    ) {
+        $form_error_key = 'error_invalid_credentials';
+        $form_error_field = 'credentials';
+    } elseif (
+        $captcha_required
+        && !captcha_validate(http_string_parameter($_POST, 'captcha_answer', 5))
+    ) {
+        $form_error_key = 'captcha_incorrect';
+        $form_error_field = 'captcha';
     }
 
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        opng_error_redirect('error_invalid_credentials', '../error.php');
-    }
-
-    if ($captcha_required) {
-        $captcha_answer = http_string_parameter($_POST, 'captcha_answer', 5);
-        $captcha_code = $_SESSION['captcha'] ?? null;
-        if (
-            $captcha_answer === null
-            || !is_string($captcha_code)
-            || !hash_equals($captcha_code, strtoupper($captcha_answer))
-        ) {
-            unset($_SESSION['captcha']);
-            opng_error_redirect('captcha_incorrect', '../error.php');
+    if ($form_error_key === '') {
+        // Conectar a la BD
+        $db = database_connect();
+        if (!$db) {
+            opng_error_redirect('error_auth_unavailable', '../error.php');
         }
-        unset($_SESSION['captcha']);
-    }
 
-    // Conectar a la BD
-    $db = database_connect();
-    if (!$db) {
-        opng_error_redirect('error_auth_unavailable', '../error.php');
-    }
+        // (S5/H2) Persistent limits: IP+account, IP-wide and account-wide. The
+        // session counter above can be bypassed by deleting the cookie; these
+        // rows cannot. They record FAILED attempts only: a successful login must
+        // not consume the legitimate user's budget (SEC-03).
+        $normalized_email = strtolower($email);
+        $login_limits = [
+            ['login', client_ip() . '|' . $normalized_email, 5],
+            ['login_ip', client_ip(), 30],
+            ['login_account', $normalized_email, 10],
+        ];
 
-    // (S5/H2) Persistent limits: IP+account, IP-wide and account-wide. The
-    // session counter above can be bypassed by deleting the cookie; these
-    // rows cannot, so credential stuffing is bounded even across cookies.
-    $normalized_email = strtolower($email);
+        foreach ($login_limits as [$limit_action, $limit_key, $limit_max]) {
+            $limit_result = rate_limit_status($db, $limit_action, $limit_key, $limit_max, 600);
+            if ($limit_result === RateLimitResult::Unavailable) {
+                $db->close();
+                opng_error_redirect('error_service_unavailable', '../error.php');
+            }
+            if ($limit_result === RateLimitResult::Limited) {
+                audit_log_record($db, null, 'auth.login_limited', audit_log_email_target($normalized_email));
+                $db->close();
+                opng_error_redirect('error_login_rate_limit', '../error.php');
+            }
+        }
 
-    $limit_result = rate_limit_hit($db, 'login', client_ip() . '|' . $normalized_email, 5, 600);
-    if ($limit_result === RateLimitResult::Unavailable) {
-        $db->close();
-        opng_error_redirect('error_service_unavailable', '../error.php');
-    }
-    if ($limit_result === RateLimitResult::Limited) {
-        $db->close();
-        opng_error_redirect('error_login_rate_limit', '../error.php');
-    }
-
-    $limit_result = rate_limit_hit($db, 'login_ip', client_ip(), 30, 600);
-    if ($limit_result === RateLimitResult::Unavailable) {
-        $db->close();
-        opng_error_redirect('error_service_unavailable', '../error.php');
-    }
-    if ($limit_result === RateLimitResult::Limited) {
-        $db->close();
-        opng_error_redirect('error_login_rate_limit', '../error.php');
-    }
-
-    $limit_result = rate_limit_hit($db, 'login_account', $normalized_email, 10, 600);
-    if ($limit_result === RateLimitResult::Unavailable) {
-        $db->close();
-        opng_error_redirect('error_service_unavailable', '../error.php');
-    }
-    if ($limit_result === RateLimitResult::Limited) {
-        $db->close();
-        opng_error_redirect('error_login_rate_limit', '../error.php');
-    }
-
-    // Buscar el usuario
-    $stmt = null;
-    try {
-        $stmt = $db->prepare("SELECT id, username, password_hash, role FROM users WHERE email = ?");
-        $stmt->bind_param("s", $email);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        if (!$result) {
-            error_log("OPNG login.php: could not read account lookup result");
+        // Buscar el usuario
+        $stmt = null;
+        try {
+            $stmt = $db->prepare("SELECT id, username, password_hash, role, session_version FROM users WHERE email = ?");
+            $stmt->bind_param("s", $email);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if (!$result) {
+                error_log("OPNG login.php: could not read account lookup result");
+                $stmt->close();
+                $db->close();
+                opng_error_redirect('error_auth_unavailable', '../error.php');
+            }
+            $user = $result->fetch_assoc();
+            $result->free();
             $stmt->close();
+            $stmt = null;
+        } catch (mysqli_sql_exception $exception) {
+            error_log("OPNG login.php: " . $exception->getMessage());
+            if ($stmt instanceof mysqli_stmt) {
+                $stmt->close();
+            }
             $db->close();
             opng_error_redirect('error_auth_unavailable', '../error.php');
         }
-        $user = $result->fetch_assoc();
-        $result->free();
-        $stmt->close();
-        $stmt = null;
-        $db->close();
-    } catch (mysqli_sql_exception $exception) {
-        error_log("OPNG login.php: " . $exception->getMessage());
-        if ($stmt instanceof mysqli_stmt) {
-            $stmt->close();
+
+        // Perform the same bcrypt work when no account exists to reduce enumeration timing.
+        // Generate the dummy hash lazily with the current PASSWORD_DEFAULT options so
+        // it keeps matching new hashes across PHP upgrades.
+        $password_hash = $user['password_hash'] ?? password_hash('opng-timing-equalizer', PASSWORD_DEFAULT);
+        $password_is_valid = password_verify($password, $password_hash);
+
+        if ($user !== null && $password_is_valid) {
+            // Autenticación exitosa, restablecer intentos fallidos
+            $_SESSION["login_attempts"] = 0;
+            captcha_clear();
+
+            // Upgrade legacy bcrypt hashes (different cost or algorithm) after a
+            // successful verification. A rehash failure must not block the login.
+            if (password_needs_rehash($user['password_hash'], PASSWORD_DEFAULT)) {
+                try {
+                    $rehash = password_hash($password, PASSWORD_DEFAULT);
+                    $rehash_stmt = $db->prepare('UPDATE users SET password_hash = ? WHERE id = ?');
+                    $rehash_stmt->bind_param('si', $rehash, $user['id']);
+                    if (!$rehash_stmt->execute()) {
+                        error_log('OPNG login.php: password rehash update failed');
+                    }
+                    $rehash_stmt->close();
+                } catch (mysqli_sql_exception $exception) {
+                    error_log('OPNG login.php: password rehash failed: ' . $exception->getMessage());
+                }
+            }
+
+            // A successful login clears the account-scoped buckets; the IP-wide
+            // bucket keeps counting failures from other accounts on that address.
+            rate_limit_clear($db, 'login', client_ip() . '|' . $normalized_email, 600);
+            rate_limit_clear($db, 'login_account', $normalized_email, 600);
+            audit_log_record($db, (int) $user['id'], 'auth.login', '');
+            $db->close();
+
+            // (S10) Regenerar el ID de sesión para evitar session fixation
+            session_regenerate_id(true);
+
+            $_SESSION["user_id"] = $user['id'];
+            $_SESSION["username"] = $user['username'];
+            $_SESSION["role"] = $user['role'];
+            $_SESSION["session_version"] = (int) ($user['session_version'] ?? 0);
+            $_SESSION["opng_authenticated_at"] = time();
+            // The pre-login page token must not remain valid after authentication.
+            csrf_rotate();
+
+            // Redirigir al usuario a la página de origen después del login
+            header("Location: " . $redirect_url);
+
+            unset($_SESSION['redirect_after_login']); // Eliminar variable de sesión
+            exit;
         }
+
+        // Cualquier camino que llegue aquí es un fallo de autenticación.
+        $_SESSION["login_attempts"]++;
+        $_SESSION["last_attempt_time"] = time();
+        foreach ($login_limits as [$limit_action, $limit_key, $limit_max]) {
+            rate_limit_hit($db, $limit_action, $limit_key, $limit_max, 600);
+        }
+        audit_log_record($db, null, 'auth.login_failed', audit_log_email_target($normalized_email));
         $db->close();
-        opng_error_redirect('error_auth_unavailable', '../error.php');
+
+        $form_error_key = 'error_invalid_credentials';
+        $form_error_field = 'credentials';
     }
 
-    // Perform the same bcrypt check when no account exists to reduce enumeration timing.
-    $dummy_password_hash = '$2y$10$ROoOfaJDwIVN2F857mUKXurQvjhmsoCwjxC8a8JO8.vTDLK7q7b5y';
-    $password_hash = $user['password_hash'] ?? $dummy_password_hash;
-    $password_is_valid = password_verify($password, $password_hash);
-
-    if ($user !== null && $password_is_valid) {
-        // Autenticación exitosa, restablecer intentos fallidos
-        $_SESSION["login_attempts"] = 0;
-        unset($_SESSION['captcha']);
-
-        // (S10) Regenerar el ID de sesión para evitar session fixation
-        session_regenerate_id(true);
-
-        $_SESSION["user_id"] = $user['id'];
-        $_SESSION["username"] = $user['username'];
-        $_SESSION["role"] = $user['role'];
-
-        // Redirigir al usuario a la página de origen después del login
-        header("Location: " . $redirect_url);
-
-        unset($_SESSION['redirect_after_login']); // Eliminar variable de sesión
-        exit;
-    }
-
-    // Cualquier camino que llegue aquí es un fallo de autenticación.
-    $_SESSION["login_attempts"]++;
-    $_SESSION["last_attempt_time"] = time();
-    // Redirigir ANTES de emitir cualquier salida
-    // (fix H3/U5: anteriormente el header() se llamaba dentro del <body>,
-    // lo que provocaba "headers already sent" y el error nunca se mostraba)
-    opng_error_redirect('error_invalid_credentials', '../error.php');
+    http_response_code(opng_error_status($form_error_key));
+    // After a failed attempt the adaptive CAPTCHA can become required for the
+    // re-rendered form (UX-05 keeps the user on the page with their email).
+    $captcha_required = $_SESSION["login_attempts"] >= 3;
 }
+
     $notice = http_string_parameter($_GET, 'msg', 128) ?? '';
     $notice_key = $notice === 'Registration successful. Please sign in.' ? 'registration_success' : '';
     $notice = $notice_key !== '' ? $notice : '';
-    $lang_attr = 'en';
     $page_title = 'Sign in';
     $page_title_i18n = 'login_title';
     $base = '../';
@@ -199,23 +224,23 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 <?php echo htmlspecialchars($notice, ENT_QUOTES, 'UTF-8'); ?>
             </p>
         <?php endif; ?>
+        <?php if ($form_error_key !== ''): ?>
+            <p class="form-error" id="form-error" role="alert" data-i18n="<?php echo htmlspecialchars($form_error_key, ENT_QUOTES, 'UTF-8'); ?>">
+                <?php echo htmlspecialchars(opng_error_text($form_error_key), ENT_QUOTES, 'UTF-8'); ?>
+            </p>
+        <?php endif; ?>
         <form method="post" class="auth-form">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
             <p>
                 <label for="email" data-i18n="email">Email:</label>
-                <input id="email" type="email" name="email" maxlength="100" autocomplete="username" value="<?php echo htmlspecialchars(http_string_parameter($_POST, 'email', 100) ?? '', ENT_QUOTES, 'UTF-8'); ?>" required>
+                <input id="email" type="email" name="email" maxlength="100" autocomplete="username" value="<?php echo htmlspecialchars($posted_email, ENT_QUOTES, 'UTF-8'); ?>"<?php echo $form_error_field === 'credentials' ? ' aria-invalid="true" aria-describedby="form-error" autofocus' : ''; ?> required>
             </p>
             <p>
                 <label for="password" data-i18n="password">Password:</label>
-                <input id="password" type="password" name="password" maxlength="72" autocomplete="current-password" required>
+                <input id="password" type="password" name="password" maxlength="72" autocomplete="current-password"<?php echo $form_error_field === 'credentials' ? ' aria-invalid="true" aria-describedby="form-error"' : ''; ?> required>
             </p>
             <?php if ($captcha_required): ?>
-            <p>
-                <label for="captcha_answer" data-i18n="captcha_label">Please enter the captcha text:</label>
-                <input id="captcha_answer" type="text" name="captcha_answer" autocomplete="off" required>
-                <img src="captcha.php" alt="CAPTCHA" class="captcha-image" data-i18n-alt="captcha_alt">
-                <button type="button" class="refresh-captcha" data-i18n="refresh_captcha">🔄 Refresh</button>
-            </p>
+            <?php captcha_render('captcha.php', $form_error_field === 'captcha' ? 'form-error' : null); ?>
             <?php endif; ?>
             <button type="submit" data-i18n="login">Sign in</button>
         </form>

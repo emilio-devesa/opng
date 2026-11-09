@@ -76,6 +76,8 @@ Requirements are PHP on a supported patch level, Composer, MySQL or MariaDB, and
 
    The database installation and query-plan integration tests create or modify fixtures, including a 5,000-row dataset. Run them only against a disposable database and only with the explicit opt-in environment variables documented in the test files and CI workflow. Never run them against a shared or production database.
 
+   For rendered HTML and axe checks, start a PHP server against a disposable seeded database and run `npm install && node tools/a11y_check.mjs`. `OPNG_A11Y_BASE` selects a different base URL; the script expects the development administrator created by `tools/seed.php`.
+
 6. `tools/seed.php` is a CLI-only development seeder. It deletes its own previous fixtures (`seed%` entry IDs and accounts in `@example.test`) and creates accounts with the known development password `Password123!`. Review the target database first; never run it in production or against data you need to keep.
 
 ### Repository structure
