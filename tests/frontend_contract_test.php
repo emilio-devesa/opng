@@ -397,6 +397,19 @@ if (!is_string($admin_page)) {
     ) {
         $failures[] = 'Administration cards are not ordered metrics, entries, users, then database actions';
     }
+    $storage_progress_position = strpos($admin_page, 'class="admin-storage-progress');
+    if (
+        $storage_progress_position === false
+        || $storage_progress_position < $metrics_position
+        || $storage_progress_position > $entries_position
+        || !str_contains($admin_page, '<progress')
+        || !str_contains($admin_page, 'value="<?php echo $global_quota_value; ?>"')
+        || !str_contains($admin_page, 'max="<?php echo $global_quota_max; ?>"')
+        || !str_contains($admin_page, 'aria-labelledby="admin-storage-caption"')
+        || str_contains($admin_page, 'class="form-help admin-storage-quota')
+    ) {
+        $failures[] = 'Global paste storage is not rendered as an accessible progress bar inside the metrics card';
+    }
     $database_controls_start = strpos($admin_page, 'class="admin-db-cards"');
     $seed_button_position = strpos($admin_page, 'action="seed_instructions.php"');
     $backup_button_position = strpos($admin_page, 'action="backup.php"');

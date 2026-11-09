@@ -1573,6 +1573,67 @@ legend {
     color: var(--muted);
 }
 
+.admin-storage-chart {
+    display: block;
+    grid-column: 1 / -1;
+}
+
+.admin-storage-chart > figcaption {
+    margin-bottom: 0.6rem;
+}
+
+.admin-storage-progress {
+    display: block;
+    width: 100%;
+    height: 1rem;
+    appearance: none;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface-2);
+    overflow: hidden;
+}
+
+.admin-storage-progress::-webkit-progress-bar {
+    background: var(--surface-2);
+    border-radius: 999px;
+}
+
+.admin-storage-progress::-webkit-progress-value {
+    background: var(--accent);
+    border-radius: 999px;
+    transition: width 0.3s ease;
+}
+
+.admin-storage-progress::-moz-progress-bar {
+    background: var(--accent);
+    border-radius: 999px;
+}
+
+.admin-storage-progress-warning::-webkit-progress-value {
+    background: var(--danger-fill);
+}
+
+.admin-storage-progress-warning::-moz-progress-bar {
+    background: var(--danger-fill);
+}
+
+.admin-storage-chart > .admin-storage-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.35rem 0.5rem;
+    margin: 0.5rem 0 0;
+}
+
+.admin-storage-meta strong {
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+}
+
+.admin-storage-chart > .admin-search-error {
+    margin: 0.75rem 0 0;
+}
+
 .admin-pie-chart {
     display: block;
     width: 100%;

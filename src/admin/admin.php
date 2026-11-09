@@ -313,6 +313,10 @@ $global_quota_percent = $global_quota_bytes > 0
     ? min(100.0, ($metrics_paste_bytes / $global_quota_bytes) * 100)
     : 0.0;
 $global_quota_near = $global_quota_percent >= 90;
+// Native <progress> requires a positive maximum; cap the value so the bar
+// never overflows if legacy data already exceeds the configured quota.
+$global_quota_max = max(1, $global_quota_bytes);
+$global_quota_value = min($global_quota_max, $metrics_paste_bytes);
 
 $audit_entries = [];
 $audit_error = false;
@@ -456,6 +460,25 @@ require(__DIR__ . "/../includes/layout_header.php");
                 </article>
             </div>
             <div class="admin-metrics-charts">
+                <figure class="admin-metric-chart admin-storage-chart">
+                    <figcaption id="admin-storage-caption" data-i18n="admin_storage_quota">Global paste storage</figcaption>
+                    <progress
+                        class="admin-storage-progress<?php echo $global_quota_near ? ' admin-storage-progress-warning' : ''; ?>"
+                        value="<?php echo $global_quota_value; ?>"
+                        max="<?php echo $global_quota_max; ?>"
+                        aria-labelledby="admin-storage-caption"
+                        aria-describedby="admin-storage-meta"
+                    ><?php echo number_format($global_quota_percent, 1); ?>%</progress>
+                    <p class="admin-storage-meta" id="admin-storage-meta">
+                        <span><?php echo number_format($metrics_paste_bytes); ?> <span data-i18n="admin_metrics_bytes">bytes</span></span>
+                        <span aria-hidden="true">/</span>
+                        <span><?php echo number_format($global_quota_bytes); ?> <span data-i18n="admin_metrics_bytes">bytes</span></span>
+                        <strong><?php echo number_format($global_quota_percent, 1); ?>%</strong>
+                    </p>
+                    <?php if ($global_quota_near): ?>
+                        <p class="admin-search-error" role="alert" data-i18n="admin_storage_quota_warning">The global paste storage quota is almost full. New pastes will be rejected when it is reached.</p>
+                    <?php endif; ?>
+                </figure>
                 <figure class="admin-metric-chart">
                     <figcaption data-i18n="admin_metrics_by_language">Pastes by language</figcaption>
                     <?php if ($metrics_languages === []): ?>
@@ -732,14 +755,6 @@ require(__DIR__ . "/../includes/layout_header.php");
 
     <fieldset class="admin-db-section">
         <legend data-i18n="admin_db_actions">Database Actions</legend>
-        <p class="form-help admin-storage-quota<?php echo $global_quota_near ? ' admin-storage-quota-warning' : ''; ?>"<?php echo $global_quota_near ? ' role="alert"' : ''; ?>>
-            <span data-i18n="admin_storage_quota">Global paste storage</span>:
-            <?php echo number_format($metrics_paste_bytes); ?> / <?php echo number_format($global_quota_bytes); ?> bytes
-            (<?php echo number_format($global_quota_percent, 1); ?>%)
-        </p>
-        <?php if ($global_quota_near): ?>
-            <p class="admin-search-error" role="alert" data-i18n="admin_storage_quota_warning">The global paste storage quota is almost full. New pastes will be rejected when it is reached.</p>
-        <?php endif; ?>
         <div class="admin-db-cards">
             <article class="admin-db-card">
                 <h2 data-i18n="admin_seed_button">Load sample data</h2>
