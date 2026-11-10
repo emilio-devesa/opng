@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Open Pastebin NG — self-hosted pastebin for text and code</title>
+<meta name="description" content="Open Pastebin NG is a fast, self-hosted pastebin for sharing text and code. Syntax highlighting, threaded replies, roles, audit log, backups and no external dependencies.">
+<meta name="theme-color" content="#0f172a">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Open Pastebin NG — self-hosted pastebin for text and code">
+<meta property="og:description" content="A fast, self-hosted pastebin with syntax highlighting, threaded replies, roles, audit log and backups. PHP + MySQL, no external CDN.">
+<meta property="og:url" content="https://emilio-devesa.github.io/opng/">
+<meta property="og:image" content="https://emilio-devesa.github.io/opng/assets/screenshots/opng-homepage.jpg">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/site.css">
+<script>
+(function () {
+  try {
+    var stored = localStorage.getItem("theme");
+    var theme = stored || (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+    document.documentElement.setAttribute("data-theme", theme);
+  } catch (error) {
+    document.documentElement.setAttribute("data-theme", "dark");
+  }
+})();
+</script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="site-header" id="top">
+  <div class="wrap header-inner">
+    <a class="brand" href="#top" aria-label="Open Pastebin NG home">
+      <span class="brand-mark" aria-hidden="true">&lt;/&gt;</span>
+      <span class="brand-text">Open Pastebin <strong>NG</strong></span>
+    </a>
+
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav">
+      <span class="nav-toggle-bars" aria-hidden="true"></span>
+      <span class="sr-only">Toggle navigation</span>
+    </button>
+
+    <nav class="site-nav" id="site-nav" aria-label="Main navigation">
+      <a href="#features">Features</a>
+      <a href="#screenshots">Screenshots</a>
+      <a href="#quick-start">Quick start</a>
+      <a href="#docs">Docs</a>
+      <a class="nav-github" href="https://github.com/emilio-devesa/opng">GitHub</a>
+      <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch to light theme" title="Switch theme">
+        <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div class="hero-copy">
+        <p class="badge"><span class="badge-dot" aria-hidden="true"></span> v1.1.0 · Stable release</p>
+        <h1>Share text and code.<br><span class="accent">Own the server.</span></h1>
+        <p class="lead">
+          Open Pastebin NG is a lightweight, self-hosted pastebin for teams and
+          individuals. Syntax highlighting, threaded replies, roles, an audit log
+          and backups — all in plain PHP and MySQL.
+        </p>
+        <div class="hero-actions">
+          <a class="button primary" href="https://github.com/emilio-devesa/opng">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2A10 10 0 0 0 8.84 21.5c.5.08.66-.23.66-.5v-1.69c-2.77.6-3.36-1.34-3.36-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.87 1.52 2.34 1.08 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.92 0-1.11.38-2 1.03-2.71-.1-.25-.45-1.29.1-2.64 0 0 .84-.27 2.75 1.02a9.6 9.6 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.35.2 2.39.1 2.64.65.71 1.03 1.6 1.03 2.71 0 3.82-2.34 4.66-4.57 4.91.36.31.68.92.68 1.85V21c0 .27.16.59.67.5A10 10 0 0 0 12 2z"/></svg>
+            View on GitHub
+          </a>
+          <a class="button ghost" href="#quick-start">Get started</a>
+        </div>
+        <dl class="hero-stats">
+          <div><dt>Runtime</dt><dd>PHP 8.2+</dd></div>
+          <div><dt>Database</dt><dd>MySQL 8 / MariaDB 11</dd></div>
+          <div><dt>License</dt><dd>GPL</dd></div>
+        </dl>
+      </div>
+
+      <figure class="hero-shot">
+        <img src="assets/screenshots/opng-homepage.jpg" width="1280" height="900" alt="Open Pastebin NG homepage listing pastes with language, author and date">
+        <figcaption>The paste list, dark theme.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="section" id="features">
+    <div class="wrap">
+      <header class="section-head">
+        <p class="eyebrow">Features</p>
+        <h2>Everything a pastebin needs. Nothing it doesn't.</h2>
+        <p>No frameworks, no external fonts, no CDN. Just a fast PHP application you can run on a small VPS or shared hosting.</p>
+      </header>
+
+      <div class="feature-grid">
+        <article class="feature">
+          <span class="feature-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="m8 6-6 6 6 6M16 6l6 6-6 6M14 4l-4 16"/></svg>
+          </span>
+          <h3>Local syntax highlighting</h3>
+          <p>PHP, Ruby, Bash, Python, Pascal, Java, C and C++ highlighted in the browser. Line numbers, one-click copy and accessible feedback.</p>
+        </article>
+
+        <article class="feature">
+          <span class="feature-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M4 4h16v12H8l-4 4z"/><path d="M8 9h8M8 12h5"/></svg>
+          </span>
+          <h3>Threaded replies</h3>
+          <p>Real reply threads with a History tab: chronological entries, an ancestor/current/descendant badge and a branch graph that works without JavaScript.</p>
+        </article>
+
+        <article class="feature">
+          <span class="feature-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 5 3.4 8.4 8 9 4.6-.6 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg>
+          </span>
+          <h3>Roles and permissions</h3>
+          <p>Admin, registered user and guest access. Self-service password changes, session invalidation, rate limits and CSRF protection.</p>
+        </article>
+
+        <article class="feature">
+          <span class="feature-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>
+          </span>
+          <h3>Auditable admin panel</h3>
+          <p>Compact action cards and centred confirmation dialogs for destructive actions. Metrics, storage progress and a collapsible audit log.</p>
+        </article>
+
+        <article class="feature">
+          <span class="feature-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 21h16"/></svg>
+          </span>
+          <h3>Portable backups</h3>
+          <p>Download a bounded SQL dump from the admin panel or CLI. Restore it explicitly into any database, with password reauthentication on every download.</p>
+        </article>
+
+        <article class="feature">
+          <span class="feature-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 4 5.8 4 9s-1.5 6.3-4 9c-2.5-2.7-4-5.8-4-9s1.5-6.3 4-9z"/></svg>
+          </span>
+          <h3>Six languages</h3>
+          <p>English, Spanish, German, French, Portuguese and Chinese catalogs, with server-rendered translations that work without JavaScript.</p>
+        </article>
+
+        <article class="feature">
+          <span class="feature-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/><circle cx="12" cy="12" r="4"/></svg>
+          </span>
+          <h3>Light and dark themes</h3>
+          <p>A persisted theme toggle, responsive tables and reduced-motion support. No web fonts and no layout shift.</p>
+        </article>
+
+        <article class="feature">
+          <span class="feature-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/><circle cx="18" cy="17" r="3"/></svg>
+          </span>
+          <h3>Storage quotas</h3>
+          <p>A global paste-text quota with a progress chart in Metrics, plus near-quota warnings before new pastes are rejected.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section alt" id="screenshots">
+    <div class="wrap">
+      <header class="section-head">
+        <p class="eyebrow">Screenshots</p>
+        <h2>A clean interface, from first paste to admin panel</h2>
+        <p>All screenshots show the current release with the bundled Spanish locale and dark theme.</p>
+      </header>
+
+      <div class="shot-grid">
+        <figure class="shot">
+          <img src="assets/screenshots/opng-create-paste.jpg" width="1280" height="900" loading="lazy" alt="Create paste form with topic, language selector and text area">
+          <figcaption><strong>Create a paste</strong> — topic, language selector and a plain-text editor.</figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="assets/screenshots/opng-view-paste.jpg" width="1280" height="900" loading="lazy" alt="Viewing a paste with syntax highlighting, line numbers and a copy button">
+          <figcaption><strong>Read highlighted code</strong> — line numbers, copy button and owner delete action.</figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="assets/screenshots/opng-edit-reply-paste.jpg" width="1280" height="900" loading="lazy" alt="Editing a paste with topic, language and remaining length indicator">
+          <figcaption><strong>Edit or reply</strong> — the editor stays out of the way and shows remaining space.</figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="assets/screenshots/opng-admin-panel.jpg" width="1280" height="900" loading="lazy" alt="Admin panel metrics with language and user charts and a global storage progress bar">
+          <figcaption><strong>Admin metrics</strong> — language and user charts with the global storage progress bar.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="quick-start">
+    <div class="wrap">
+      <header class="section-head">
+        <p class="eyebrow">Quick start</p>
+        <h2>Up and running in minutes</h2>
+        <p>Choose the classic shared-hosting package or the Apple Container deployment. Both use the same schema and configuration file.</p>
+      </header>
+
+      <div class="quick-grid">
+        <article class="code-card">
+          <header>
+            <h3>Classic hosting</h3>
+            <button class="copy-button" type="button" data-copy-target="snippet-classic">Copy</button>
+          </header>
+          <pre id="snippet-classic" tabindex="0" aria-label="Classic hosting commands"><code>git clone https://github.com/emilio-devesa/opng.git
+cd opng
+cp src/config.example.php src/config.php
+# Edit src/config.php with your database credentials
+php src/install.php
+php -S 127.0.0.1:8080 -t src</code></pre>
+        </article>
+
+        <article class="code-card">
+          <header>
+            <h3>Apple Container</h3>
+            <button class="copy-button" type="button" data-copy-target="snippet-container">Copy</button>
+          </header>
+          <pre id="snippet-container" tabindex="0" aria-label="Apple Container commands"><code>cp deploy/apple-container/.env.example deploy/apple-container/.env
+# Set the database password and application secrets
+bash deploy/apple-container/start.sh --build
+# Open http://127.0.0.1:8080</code></pre>
+        </article>
+      </div>
+
+      <div class="requirements">
+        <h3>Requirements</h3>
+        <ul>
+          <li>PHP <strong>8.2.35</strong>, <strong>8.3.36</strong>, <strong>8.4.27</strong> or <strong>8.5.12</strong> and later patch releases.</li>
+          <li>MySQL 8.0+ or MariaDB 11+ with a runtime account limited to DML privileges.</li>
+          <li>A web server such as Nginx, Apache or PHP's built-in server for local testing.</li>
+          <li>No Composer, Node or container runtime is required for the classic package.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="section alt" id="docs">
+    <div class="wrap">
+      <header class="section-head">
+        <p class="eyebrow">Documentation</p>
+        <h2>Read before you deploy</h2>
+        <p>The repository ships complete guides for installation, upgrades, backups and security hardening.</p>
+      </header>
+
+      <div class="doc-grid">
+        <a class="doc-card" href="https://github.com/emilio-devesa/opng/blob/main/docs/INSTALL-CLASSIC.md">
+          <h3>Classic installation</h3>
+          <p>CLI installer, phpMyAdmin fallback, web-server configuration and upgrades without Composer.</p>
+          <span aria-hidden="true">Read the guide →</span>
+        </a>
+        <a class="doc-card" href="https://github.com/emilio-devesa/opng/blob/main/docs/UPGRADING.md">
+          <h3>Upgrading</h3>
+          <p>Back up first, then migrate from 0.9.x or 1.0.x with the versioned schema migrations.</p>
+          <span aria-hidden="true">Read the guide →</span>
+        </a>
+        <a class="doc-card" href="https://github.com/emilio-devesa/opng/blob/main/docs/BACKUP-RESTORE.md">
+          <h3>Backup and restore</h3>
+          <p>Bounded SQL dumps from the admin panel or CLI, explicit restore targets and audit entries.</p>
+          <span aria-hidden="true">Read the guide →</span>
+        </a>
+        <a class="doc-card" href="https://github.com/emilio-devesa/opng/blob/main/docs/SECURITY.md">
+          <h3>Security</h3>
+          <p>Supported versions, deployment checklist, destructive-action safeguards and reporting.</p>
+          <span aria-hidden="true">Read the guide →</span>
+        </a>
+        <a class="doc-card" href="https://github.com/emilio-devesa/opng/blob/main/docs/APPLE-CONTAINER.md">
+          <h3>Apple Container</h3>
+          <p>Private network, read-only app container, MariaDB volume and backup volume.</p>
+          <span aria-hidden="true">Read the guide →</span>
+        </a>
+        <a class="doc-card" href="https://github.com/emilio-devesa/opng/blob/main/CHANGELOG.md">
+          <h3>Changelog</h3>
+          <p>Every release, including the v1.1.0 admin-panel workflow and documentation updates.</p>
+          <span aria-hidden="true">Read the changelog →</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta">
+    <div class="wrap cta-inner">
+      <div>
+        <h2>Run your own pastebin</h2>
+        <p>Clone the repository, read the installation guide and keep your data on infrastructure you control.</p>
+      </div>
+      <div class="cta-actions">
+        <a class="button primary" href="https://github.com/emilio-devesa/opng">Get the source</a>
+        <a class="button ghost" href="https://github.com/emilio-devesa/opng/blob/main/docs/INSTALL-CLASSIC.md">Installation guide</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <p>© 2026 Emilio Devesa · Open Pastebin NG v1.1.0</p>
+    <nav aria-label="Footer navigation">
+      <a href="https://github.com/emilio-devesa/opng">GitHub</a>
+      <a href="https://github.com/emilio-devesa/opng/blob/main/LICENSE">GPL license</a>
+      <a href="https://github.com/emilio-devesa/opng/issues">Issues</a>
+      <a href="#top">Back to top</a>
+    </nav>
+  </div>
+</footer>
+
+<script src="assets/site.js" defer></script>
+</body>
+</html>
