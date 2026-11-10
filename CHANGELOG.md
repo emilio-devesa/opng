@@ -1,7 +1,7 @@
 # Open Pastebin NG - Changelog
 ============================
 
-## Version 1.1.0 (unreleased)
+## Version 1.1.0 (2026-11-10)
 
 ### Phase 7 — Code hygiene
 #### 🧹 Strict types and coding standard (HYG-07)
@@ -24,6 +24,11 @@
 - Database actions are arranged as a responsive 2×2 card grid. The audit log is a collapsible `<details>` card, so the page no longer ends with a permanently expanded table.
 - Global paste storage moved into Metrics as an accessible `<progress>` bar with used/total bytes, percentage and the near-quota warning. It sits below the language and user charts and is no longer repeated as plain text above the database actions.
 - Emptying the database now requires both the current password and a server-enforced `confirm_empty` checkbox, before reauthentication and before any deletion.
+
+#### 📚 Documentation and project website
+- Updated the README, backup/restore guide and security guide to describe the admin confirmation dialogs, collapsible audit log and storage progress chart.
+- Added [`docs/WEBSITE.md`](docs/WEBSITE.md) and a static GitHub Pages site on the `gh-pages` branch, including refreshed screenshots.
+- Refreshed the project screenshots used by the README and website.
 
 ## Version 1.0.0 (2026)
 

@@ -2,7 +2,7 @@
 # Build the classic shared-hosting release artifact (F2).
 #
 # Usage (from any directory):
-#   bash tools/build_release.sh [--version 1.0.0] [--output dist]
+#   bash tools/build_release.sh [--version 1.1.0] [--output dist]
 #
 # Produces:
 #   dist/opng-<version>-classic.zip

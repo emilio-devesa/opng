@@ -5,9 +5,11 @@
 This project is based on **[Open Pastebin](http://sourceforge.net/projects/openpastebin/)**. All you need is a **web server with PHP and MySQL**.
 Open Pastebin NG is **free software** released under the **[GNU GPL license](LICENSE)**.
 
-⚠️ **Open Pastebin NG v1.0.0 is the first stable release.** Back up your database and review [`docs/UPGRADING.md`](docs/UPGRADING.md) before upgrading from 0.9.x.
+⚠️ **Open Pastebin NG v1.1.0 is the current stable release.** Back up your database and review [`docs/UPGRADING.md`](docs/UPGRADING.md) before upgrading from 1.0.x or 0.9.x.
 
-**Current version:** `1.0.0` (see [`src/includes/version.php`](src/includes/version.php) and [`CHANGELOG.md`](CHANGELOG.md)).
+**Current version:** `1.1.0` (see [`src/includes/version.php`](src/includes/version.php) and [`CHANGELOG.md`](CHANGELOG.md)).
+
+**Project website:** <https://emilio-devesa.github.io/opng/>
 
 ---
 
@@ -24,6 +26,7 @@ Open Pastebin NG is **free software** released under the **[GNU GPL license](LIC
 - ♿ Skip-to-content link, single page headings, flag + language-name options and a touch-accessible search-help disclosure
 - 🛡️ CSRF protection for sensitive actions, adaptive login CAPTCHA, guest CAPTCHA and persisted rate limits
 - 🧾 Administrative audit log for destructive actions and backup downloads
+- 🧭 Admin panel with compact action cards, centred confirmation dialogs, a storage progress chart and a collapsible audit log
 - 🧵 Threaded replies with a **History** tab: chronological related entries and an accessible branch graph, with a 32-level depth limit and preserved replies when a parent is deleted
 - 📂 Entries are stored in a **MySQL database**
 
@@ -179,7 +182,7 @@ From the homepage you can:
 - 📝 **Create a new paste**: Enter your text or code, select a language and submit. The create, edit and reply editors show a small remaining-length meter (MB and progress bar) below the textarea.
 - 🔍 **View, edit and reply to a paste**: Click on the topic you want to view. The view page uses tabs — **View** (code), **Edit** (author or admin only), **Reply** (creates a real threaded reply) and **History** (when the entry is part of a thread). Includes syntax highlighting, line numbers (hidden with a notice above 5,000 lines so huge pastes stay light) and one-click copy.
 
-  The **History** tab lists related entries in chronological order with topic, date, author and an *Ancestor*/*Current*/*Descendant* badge, followed by a semantic nested branch graph that works without JavaScript. Threads are capped at 32 levels and 500 rendered entries per page (`Load more` pages with `date, id` cursors); deleting a parent keeps its replies and shows a notice, and deleting a thread root keeps the subtree findable through `root_id`. Reply editors start empty instead of duplicating the parent's text, and the relationship is stored in the database rather than inferred from the `RE: ` prefix.
+  The **History** tab lists related entries in chronological order with topic, date, author and an *Ancestor*/*Current*/*Descendant* badge, followed by a semantic nested branch graph that works without JavaScript. Threads are capped at 32 levels and 500 rendered entries per page (`Load more` pages with `date, id` cursors); deleting a parent keeps its replies and shows a notice, and deleting a thread root keeps the subtree findable through `root_id`. Reply editors start with the parent paste text so you can quote or trim it, and the relationship is stored in the database rather than inferred from the `RE: ` prefix.
 
   Legacy pastes that only look like replies are never linked heuristically. From the repository root, review candidates with `php tools/link_legacy_replies.php --dry-run` and apply a reviewed pair with `php tools/link_legacy_replies.php --apply --reply=REPLY_ID --parent=PARENT_ID`. The tool validates the `RE: <topic>` prefix, dates and depth, recalculates the subtree, refuses already-linked entries and writes each applied link to `audit_log`.
 - 🔑 **Change your password**: Signed-in accounts can open the key icon in the header (`auth/change_password.php`), enter the current password plus the new one twice, and rotate it without an administrator. The action is CSRF-protected and rate-limited, applies the 12–72 byte policy, invalidates pending reset tokens and regenerates the session ID.

@@ -57,7 +57,7 @@ The script:
 2. Creates the `opng-db-data` and `opng-backups` volumes (20 GB each).
 3. Starts `mariadb:11` with the database/user from the environment file. Port
    3306 is **not** published to the host.
-4. Builds `opng-app:1.0.0` from `deploy/apple-container/Containerfile` when it
+4. Builds `opng-app:1.1.0` from `deploy/apple-container/Containerfile` when it
    is missing or `--build` is given.
 5. Starts the app with `--read-only` and tmpfs for `/tmp`, `/run`,
    `/var/lib/nginx` and `/var/lib/php/sessions`, publishing only
@@ -202,15 +202,15 @@ Rollback:
 CI builds `linux/arm64` with Buildx and publishes to GHCR on tags:
 
 ```bash
-container image pull ghcr.io/OWNER/opng:1.0.0
+container image pull ghcr.io/OWNER/opng:1.1.0
 ```
 
 Create a `container image save` archive on an Apple silicon Mac:
 
 ```bash
-container image save ghcr.io/OWNER/opng:1.0.0 opng-app-1.0.0-arm64.tar
-sha256sum opng-app-1.0.0-arm64.tar > opng-app-1.0.0-arm64.tar.sha256
-container image load < opng-app-1.0.0-arm64.tar
+container image save ghcr.io/OWNER/opng:1.1.0 opng-app-1.1.0-arm64.tar
+sha256sum opng-app-1.1.0-arm64.tar > opng-app-1.1.0-arm64.tar.sha256
+container image load < opng-app-1.1.0-arm64.tar
 ```
 
 The release notes attach the classic artifacts and checksums. The container

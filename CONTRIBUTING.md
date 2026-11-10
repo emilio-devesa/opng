@@ -96,8 +96,10 @@ Requirements are PHP on a supported patch level, Composer, MySQL or MariaDB, and
 | `tests/` | Regression tests and isolated MySQL integration tests. |
 | `tools/` | CLI development tools, including the sample-data seeder. |
 | `deploy/` | Example deployment configuration, including Nginx. |
+| `docs/` | Installation, upgrade, backup/restore, security and website guides. |
 | `.github/workflows/` | CI lint, static analysis, regression checks, and isolated database jobs. |
-| `screenshots/` | Project screenshots used by the README. |
+| `screenshots/` | Project screenshots used by the README and the GitHub Pages site. |
+| `gh-pages` branch | Static project website (no PHP application files). See [`docs/WEBSITE.md`](docs/WEBSITE.md). |
 
 ### Releasing a version
 
@@ -105,7 +107,8 @@ The application version has a single source of truth: `OPNG_VERSION` in `src/inc
 
 1. Bump `OPNG_VERSION` there.
 2. Update the current version in `README.md` and add the corresponding release section to `CHANGELOG.md`.
-3. Run `composer lint`, `composer phpstan` and the non-database tests listed above.
+3. Refresh the screenshots and the version/features on the `gh-pages` site if the interface or release changed.
+4. Run `composer lint`, `composer phpstan` and the non-database tests listed above.
 
 The footer reads the constant at runtime, so no template needs to be edited.
 

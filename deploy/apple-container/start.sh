@@ -12,7 +12,7 @@ set -eu
 script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 repo_root="$(CDPATH= cd -- "$script_dir/../.." && pwd)"
 env_file="$script_dir/opng.env"
-image="${OPNG_IMAGE:-opng-app:1.0.0}"
+image="${OPNG_IMAGE:-opng-app:1.1.0}"
 build=0
 
 usage() {
@@ -21,7 +21,7 @@ Usage: start.sh [--build] [--env FILE] [--image IMAGE]
 
   --build        Rebuild the application image before starting it
   --env FILE     Environment file (default: deploy/apple-container/opng.env)
-  --image IMAGE  Application image name (default: opng-app:1.0.0)
+  --image IMAGE  Application image name (default: opng-app:1.1.0)
 
 The script never deletes volumes or the database.
 EOT

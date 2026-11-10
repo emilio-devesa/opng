@@ -19,7 +19,7 @@ no bug bounty.
 
 ## Supported versions
 
-Security fixes target the latest `1.0.x` release. Older 0.x/0.9 deployments
+Security fixes target the latest `1.1.x` release. Older 0.x/0.9/1.0 deployments
 should upgrade using [UPGRADING.md](UPGRADING.md).
 
 ## Deployment checklist

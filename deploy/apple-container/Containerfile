@@ -5,7 +5,7 @@
 # separate official container on the private `opng-net` network.
 #
 # Build (Apple Container):
-#   container build -t opng-app:1.0.0 -f deploy/apple-container/Containerfile .
+#   container build -t opng-app:1.1.0 -f deploy/apple-container/Containerfile .
 #
 # The image never contains secrets or src/config.php: configuration arrives
 # through OPNG_* environment variables and config.example.php.
