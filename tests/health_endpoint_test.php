@@ -43,6 +43,13 @@ if (is_string($source)) {
         $failures
     );
     expect_health(
+        str_contains($source, 'Permissions-Policy')
+            && str_contains($source, 'Cross-Origin-Opener-Policy: same-origin')
+            && str_contains($source, 'Cross-Origin-Resource-Policy: same-origin'),
+        'health responses send the hardening headers used by the rest of the app',
+        $failures
+    );
+    expect_health(
         !str_contains($source, 'mysqli_get_server_info')
             && !str_contains($source, '$mysql_password')
             && !str_contains($source, 'display_errors'),

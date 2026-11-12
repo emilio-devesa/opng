@@ -30,7 +30,6 @@ if (array_key_exists('sort', $_GET) && ($sort_value === null || entry_sort_expre
     opng_error_redirect('error_invalid_sort');
 }
 $sort = $sort_value ?? 'date';
-$default_sort = !array_key_exists('sort', $_GET);
 $order_value = http_string_parameter($_GET, 'order', 4, false);
 if (
     (array_key_exists('order', $_GET) && $order_value === null)
@@ -38,7 +37,9 @@ if (
 ) {
     opng_error_redirect('error_invalid_sort');
 }
-$sort_order = $order_value ?? ($default_sort ? 'desc' : 'asc');
+// Date is the default sort and stays descending when specified explicitly
+// without ?order=; every other column defaults to ascending (UX-11).
+$sort_order = $order_value ?? ($sort === 'date' ? 'desc' : 'asc');
 
 $cursor = null;
 $direction = null;
@@ -168,7 +169,7 @@ $show_search = true;
     <h1 data-i18n="latest_entries">Latest entries</h1>
 
     <div class="list-toolbar">
-        <a href="pastebin.php" class="create-link" aria-label="Create new entry" title="Create new entry" data-i18n-aria-label="create_new" data-i18n-title="create_new">➕</a>
+        <a href="pastebin.php" class="create-link" aria-label="Create new entry" title="Create new entry" data-i18n-aria-label="create_new" data-i18n-title="create_new"><span aria-hidden="true">+</span></a>
 
         <?php if ($has_newer || $has_older): ?>
         <nav class="pagination" aria-label="Pagination (top)" data-i18n-aria-label="pagination_top">

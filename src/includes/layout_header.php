@@ -26,7 +26,10 @@ require_once(__DIR__ . '/i18n.php');
 // every page declares the language the server actually rendered.
 $lang_attr = opng_current_locale();
 $logout_csrf_token = $logged_in ? csrf_token() : '';
-header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
+header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'");
+header('Permissions-Policy: geolocation=(), camera=(), microphone=()');
+header('Cross-Origin-Opener-Policy: same-origin');
+header('Cross-Origin-Resource-Policy: same-origin');
 header('X-Frame-Options: DENY');
 // Buffer the document so layout_footer.php can translate data-i18n nodes once,
 // before anything reaches the client (UX-04).

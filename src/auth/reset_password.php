@@ -94,21 +94,17 @@ if ($_SERVER["REQUEST_METHOD"] === "GET" && !empty($_SESSION['reset_password_suc
     } elseif (($password = http_string_parameter($_POST, 'password', 72, false)) === null) {
         $error_message = "Invalid reset request.";
     } else {
-        // Prefer the session exchange; keep accepting a posted token only for
-        // forms rendered before an upgrade.
+        // Only the short-lived session exchanged by the GET route is accepted
+        // (ROB-17). A token posted by a legacy form is never stored: it would
+        // create reset state before the database validates it.
         $reset_session = password_reset_session_get();
-        $posted_token = http_string_parameter($_POST, 'token', 64, false);
-        $token_hash = $reset_session['token_hash']
-            ?? ($posted_token !== null ? password_reset_token_hash($posted_token) : null);
-        if ($reset_session === null && $token_hash !== null) {
-            password_reset_session_store($token_hash);
-        }
+        $token_hash = $reset_session['token_hash'] ?? null;
 
         if ($token_hash === null) {
             $error_message = "Invalid reset request.";
         } elseif (($password_error = password_validation_error($password)) !== null) {
             $error_message = $password_error;
-            $show_form = $reset_session !== null || $posted_token !== null;
+            $show_form = true;
         } else {
             $reset_completed = false;
             $db = database_connect();

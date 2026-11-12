@@ -68,6 +68,14 @@ try {
     $db->begin_transaction();
     $transaction_started = true;
 
+    // Global lock order (ROB-15): storage_counters -> users -> entries. The
+    // counter row doubles as the write mutex for administrative account
+    // actions, so two concurrent role changes cannot race the last-admin
+    // check or deadlock on the users table.
+    if (global_quota_lock($db) === null) {
+        throw new RuntimeException('Global storage counter is unavailable.');
+    }
+
     $stmt = $db->prepare('SELECT role FROM users WHERE id = ? FOR UPDATE');
     $stmt->bind_param('i', $target_user_id);
     if (!$stmt->execute()) {
@@ -91,7 +99,7 @@ try {
     $removes_admin = $target['role'] === 'admin'
         && ($action === 'delete' || $new_role === 'user');
     if ($removes_admin) {
-        $administrators = $db->query("SELECT id FROM users WHERE role = 'admin' FOR UPDATE");
+        $administrators = $db->query("SELECT id FROM users WHERE role = 'admin' ORDER BY id ASC FOR UPDATE");
         if (!$administrators) {
             throw new RuntimeException('Administrator list is unavailable.');
         }
@@ -167,6 +175,12 @@ try {
             : 'user_deleted_entries';
     }
 
+    $db->commit();
+    $transaction_started = false;
+
+    // Audit after commit: the audit log is best-effort, and this keeps the
+    // opportunistic retention DELETE outside the business transaction
+    // (ROB-20).
     audit_log_record(
         $db,
         $current_user_id,
@@ -176,8 +190,6 @@ try {
             : 'user:' . $target_user_id . ' pastes:' . $delete_mode
     );
 
-    $db->commit();
-    $transaction_started = false;
     admin_metrics_invalidate($db);
     $db->close();
 } catch (mysqli_sql_exception | RuntimeException $exception) {

@@ -173,6 +173,8 @@
     "email_invalid": "请输入有效的电子邮箱。",
     "captcha_incorrect": "CAPTCHA 不正确，请重试。",
     "captcha_alternative": "看不清图片？使用文字验证",
+    "captcha_image_help": "请输入图片中显示的字符。",
+    "captcha_use_image": "改用图片验证",
     "captcha_text_help": "请输入算式的答案。",
     "captcha_listen": "🔊 朗读问题",
     "captcha_refreshed": "新 CAPTCHA 已加载。",

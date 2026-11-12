@@ -483,6 +483,23 @@ if (!is_string($admin_page)) {
     ) {
         $failures[] = 'Entry and user deletion controls are not positioned beside their related fields/options';
     }
+    $entry_search_button = strpos($admin_page, 'name="search_entries"');
+    $entry_delete_trigger = strpos($admin_page, 'admin-entry-delete-trigger');
+    $entry_delete_help = strpos($admin_page, 'admin-entry-delete-help');
+    $entry_actions_divider = strpos($admin_page, 'admin-actions-divider');
+    if (
+        $entry_search_button === false
+        || $entry_delete_trigger === false
+        || $entry_delete_help === false
+        || $entry_actions_divider === false
+        || $entry_delete_trigger < $entry_search_button
+        || $entry_delete_trigger > $entry_actions_divider
+        || $entry_delete_help < $entry_search_button
+        || $entry_delete_help > $entry_actions_divider
+        || substr_count($admin_page, 'data-i18n="admin_entry_delete_help"') !== 1
+    ) {
+        $failures[] = 'The entry delete trigger and its help text must live in the entries search form';
+    }
     $admin_dialog_ids = [
         'admin-entry-delete-dialog',
         'admin-role-dialog',
@@ -688,6 +705,21 @@ if (
     || !str_contains($rate_limit_source, 'RateLimitResult::Unavailable')
 ) {
     $failures[] = 'Rate limiting must record a hit with a single upsert and distinguish DB failures from limits';
+}
+
+$index_source = file_get_contents($root . '/src/index.php');
+if (
+    !is_string($index_source)
+    || !str_contains($index_source, "\$sort === 'date' ? 'desc' : 'asc'")
+) {
+    $failures[] = 'An explicit ?sort=date must default to descending order without ?order=';
+}
+if (
+    !is_string($index_source)
+    || !str_contains($index_source, '<span aria-hidden="true">+</span>')
+    || str_contains($index_source, '➕')
+) {
+    $failures[] = 'The create link must use a color-inheriting plus glyph, not an emoji';
 }
 
 $version_source = file_get_contents($root . '/src/includes/version.php');

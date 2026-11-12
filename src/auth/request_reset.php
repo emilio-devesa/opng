@@ -39,8 +39,6 @@ if (!$simulation_enabled) {
     } else {
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $message = "Please enter a valid email address.";
-        } elseif (!captcha_validate($captcha_answer)) {
-            $message = "Incorrect CAPTCHA. Please try again.";
         } else {
             $message = "If an account exists for this address, a reset link has been generated.";
             $db = database_connect();
@@ -69,6 +67,10 @@ if (!$simulation_enabled) {
                     || $account_result === RateLimitResult::Limited
                 ) {
                     $message = "If an account exists for this address, a reset link has been generated.";
+                } elseif (!captcha_validate($captcha_answer)) {
+                    // Both rate limits are recorded before the CAPTCHA, so a
+                    // wrong answer consumes the request budget (SEC-19).
+                    $message = "Incorrect CAPTCHA. Please try again.";
                 } else {
                     audit_log_record($db, null, 'auth.reset_requested', audit_log_email_target($email));
                     $stmt = null;

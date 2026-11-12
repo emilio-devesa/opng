@@ -173,6 +173,8 @@
     "email_invalid": "Introduza um endereço de e-mail válido.",
     "captcha_incorrect": "O CAPTCHA está incorreto. Tente novamente.",
     "captcha_alternative": "Não consegue ver a imagem? Use um desafio de texto",
+    "captcha_image_help": "Escreva os caracteres apresentados na imagem.",
+    "captcha_use_image": "Usar o desafio de imagem",
     "captcha_text_help": "Introduza o resultado da operação.",
     "captcha_listen": "🔊 Ouvir a pergunta",
     "captcha_refreshed": "Novo CAPTCHA carregado.",

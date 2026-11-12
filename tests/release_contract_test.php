@@ -70,6 +70,9 @@ expect_release(
     && str_contains($create_admin, 'OPNG_ADMIN_PASSWORD')
     && str_contains($create_admin, 'An administrator already exists')
     && str_contains($create_admin, 'password_validation_error')
+    && str_contains($create_admin, '--allow-argv-password')
+    && str_contains($create_admin, 'is rejected because argv is visible')
+    && str_contains($create_admin, 'reusable password hash')
     && !str_contains($create_admin, 'shell_exec(\'stty echo\')'),
     'create_admin supports safe unattended provisioning and SQL fallback',
     $failures

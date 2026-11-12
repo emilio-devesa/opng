@@ -53,9 +53,17 @@ if (!reauthenticate_user($db, $user_id, $current_password, 'entry_delete')) {
 }
 
 $transaction_started = false;
+$deleted = false;
 try {
     $db->begin_transaction();
     $transaction_started = true;
+
+    // Global lock order (ROB-15): storage_counters -> users -> entries.
+    $global_used = global_quota_lock($db);
+    if ($global_used === null) {
+        throw new RuntimeException('Global storage counter is unavailable.');
+    }
+
     $user_role = refresh_account_role($db);
     if ($user_role === null) {
         $db->rollback();
@@ -64,53 +72,85 @@ try {
         opng_error_redirect('error_permission', '../error.php');
     }
 
-    // Measure the entry before deleting it so the global counter stays in
-    // sync without a full-table SUM().
+    // Discover the owner first, then lock the account before the entry. The
+    // row is re-read with FOR UPDATE below, so the measured bytes always come
+    // from the locked row.
+    $stmt = $db->prepare('SELECT user_id FROM entries WHERE id = ?');
+    $stmt->bind_param('s', $input_ID);
+    if (!$stmt->execute()) {
+        throw new RuntimeException('Entry owner lookup failed.');
+    }
+    $owner_result = $stmt->get_result();
+    $owner_row = $owner_result ? $owner_result->fetch_assoc() : null;
+    if ($owner_result instanceof mysqli_result) {
+        $owner_result->free();
+    }
+    $stmt->close();
+    $stmt = null;
+    $entry_owner_id = is_array($owner_row) && $owner_row['user_id'] !== null
+        ? (int) $owner_row['user_id']
+        : null;
+    if ($entry_owner_id !== null && lock_user_quota($db, $entry_owner_id) === null) {
+        throw new RuntimeException('Entry owner was not found while checking storage quota.');
+    }
+
+    // Measure and lock the entry before deleting it so the global counter
+    // stays in sync without a full-table SUM().
     $entry_bytes = 0;
-    $size_stmt = $db->prepare(
-        'SELECT OCTET_LENGTH(text) AS text_bytes FROM entries WHERE id = ? FOR UPDATE'
+    $stmt = $db->prepare(
+        'SELECT user_id, OCTET_LENGTH(text) AS text_bytes FROM entries WHERE id = ? FOR UPDATE'
     );
-    $size_stmt->bind_param('s', $input_ID);
-    if (!$size_stmt->execute()) {
-        $size_stmt->close();
+    $stmt->bind_param('s', $input_ID);
+    if (!$stmt->execute()) {
         throw new RuntimeException('Entry size lookup failed.');
     }
-    $size_result = $size_stmt->get_result();
+    $size_result = $stmt->get_result();
     $size_row = $size_result ? $size_result->fetch_assoc() : null;
     if ($size_result instanceof mysqli_result) {
         $size_result->free();
     }
-    $size_stmt->close();
-    if (is_array($size_row)) {
-        $entry_bytes = (int) ($size_row['text_bytes'] ?? 0);
-    }
-
-    // If the user is an administrator, they may delete any paste.
-    if ($user_role === "admin") {
-        $stmt = $db->prepare("DELETE FROM entries WHERE id = ?");
-        $stmt->bind_param("s", $input_ID);
-    } else {
-        $stmt = $db->prepare("DELETE FROM entries WHERE id = ? AND user_id = ?");
-        $stmt->bind_param("si", $input_ID, $user_id);
-    }
-
-    if (!$stmt->execute()) {
-        throw new RuntimeException('Entry deletion query failed.');
-    }
-    $deleted = $stmt->affected_rows === 1;
     $stmt->close();
     $stmt = null;
-    if ($deleted) {
-        if (!global_quota_consume($db, -$entry_bytes)) {
+
+    if (is_array($size_row)) {
+        $locked_owner_id = $size_row['user_id'] !== null ? (int) $size_row['user_id'] : null;
+        if ($locked_owner_id !== $entry_owner_id) {
+            throw new RuntimeException('Entry ownership changed while the deletion locked it.');
+        }
+        $entry_bytes = (int) ($size_row['text_bytes'] ?? 0);
+
+        // If the user is an administrator, they may delete any paste.
+        if ($user_role === "admin") {
+            $stmt = $db->prepare("DELETE FROM entries WHERE id = ?");
+            $stmt->bind_param("s", $input_ID);
+        } else {
+            $stmt = $db->prepare("DELETE FROM entries WHERE id = ? AND user_id = ?");
+            $stmt->bind_param("si", $input_ID, $user_id);
+        }
+
+        if (!$stmt->execute()) {
+            throw new RuntimeException('Entry deletion query failed.');
+        }
+        $deleted = $stmt->affected_rows === 1;
+        $stmt->close();
+        $stmt = null;
+        if ($deleted && !global_quota_consume($db, -$entry_bytes)) {
             throw new RuntimeException('Global storage counter could not be updated.');
         }
-        audit_log_record($db, $user_id, 'entry.delete', $input_ID);
     }
+
     if (!$db->commit()) {
         throw new RuntimeException('Entry deletion transaction could not be committed.');
     }
     $transaction_started = false;
-    admin_metrics_invalidate($db);
+
+    if ($deleted) {
+        // Audit after commit: the audit log is best-effort, and this keeps the
+        // opportunistic retention DELETE outside the business transaction
+        // (ROB-20).
+        audit_log_record($db, $user_id, 'entry.delete', $input_ID);
+        admin_metrics_invalidate($db);
+    }
 } catch (mysqli_sql_exception | RuntimeException $exception) {
     error_log("OPNG drop_id.php: " . $exception->getMessage());
     if (isset($stmt) && $stmt instanceof mysqli_stmt) {

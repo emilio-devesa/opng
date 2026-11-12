@@ -13,8 +13,10 @@
  *   --force is explicit. --if-empty is the idempotent container/entrypoint mode.
  * - --print-sql prints a prepared INSERT for phpMyAdmin/no-SSH fallback
  *   (generate it locally against a disposable/local database, then paste it).
- * - Passwords are never accepted through argv in documentation; prefer the
- *   OPNG_ADMIN_PASSWORD environment variable or the hidden prompt.
+ *   It includes a reusable password hash, so treat its output as a secret.
+ * - --password= is rejected unless --allow-argv-password is also present.
+ *   Prefer the OPNG_ADMIN_PASSWORD environment variable or the hidden prompt:
+ *   argv is visible in process listings and shell history (SEC-23).
  */
 
 if (PHP_SAPI !== 'cli') {
@@ -37,11 +39,14 @@ function create_admin_options(array $argv): array
         'print-sql' => false,
         'force' => false,
         'if-empty' => false,
+        'allow-argv-password' => false,
         'help' => false,
     ];
     foreach (array_slice($argv, 1) as $argument) {
         if ($argument === '--print-sql') {
             $options['print-sql'] = true;
+        } elseif ($argument === '--allow-argv-password') {
+            $options['allow-argv-password'] = true;
         } elseif ($argument === '--force') {
             $options['force'] = true;
         } elseif ($argument === '--if-empty') {
@@ -70,7 +75,9 @@ function create_admin_usage(): never
         . "  php tools/create_admin.php --username=NAME --email=EMAIL\n"
         . "  OPNG_ADMIN_PASSWORD='...' php tools/create_admin.php --if-empty\n"
         . "  php tools/create_admin.php --print-sql --username=NAME --email=EMAIL\n"
-        . "Options: --force, --if-empty, --print-sql, --help\n"
+        . "  php tools/create_admin.php --allow-argv-password --password='...' ...\n"
+        . "Options: --force, --if-empty, --print-sql, --allow-argv-password, --help\n"
+        . "--password=... is rejected unless --allow-argv-password is also set.\n"
     );
     exit(2);
 }
@@ -136,8 +143,15 @@ $password = (string) $options['password'];
 $print_sql = (bool) $options['print-sql'];
 $force = (bool) $options['force'];
 $if_empty = (bool) $options['if-empty'];
+$allow_argv_password = (bool) $options['allow-argv-password'];
 
 try {
+    if ($password !== '' && !$allow_argv_password) {
+        throw new RuntimeException(
+            '--password= is rejected because argv is visible in process listings and shell history. '
+            . 'Use OPNG_ADMIN_PASSWORD or the hidden prompt, or pass --allow-argv-password explicitly.'
+        );
+    }
     if ($username === '') {
         $username = create_admin_prompt('Username: ');
     }
@@ -207,6 +221,11 @@ try {
     $password_hash = password_hash($password, PASSWORD_DEFAULT);
 
     if ($print_sql) {
+        fwrite(
+            STDERR,
+            "WARNING: --print-sql includes a reusable password hash. "
+            . "Do not paste it into tickets, chat or logs; rotate the password if it is exposed.\n"
+        );
         $sql = 'INSERT INTO users (username, email, password_hash, role, session_version) VALUES ('
             . create_admin_sql_literal($db, $username) . ', '
             . create_admin_sql_literal($db, $email) . ', '

@@ -16,7 +16,9 @@ document.addEventListener("DOMContentLoaded", function () {
             if (status) {
                 status.textContent = "";
             }
-            captchaImage.src = base + "?" + Date.now();
+            // refresh=1 forces a new code; without it the endpoint reuses the
+            // current challenge so the per-challenge attempt budget applies.
+            captchaImage.src = base + "?refresh=1&t=" + Date.now();
         });
 
         captchaImage.addEventListener("load", function () {

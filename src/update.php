@@ -73,8 +73,27 @@ $transaction_started = false;
 try {
     $db->begin_transaction();
     $transaction_started = true;
-    $stmt = $db->prepare("SELECT id, user_id, OCTET_LENGTH(text) AS text_bytes FROM entries WHERE id = ? FOR UPDATE");
-    $stmt->bind_param("s", $id);
+
+    // Global lock order (ROB-15): storage_counters -> users -> entries.
+    // Taking the counter first serializes this edit with submit.php and the
+    // admin flows that consume the same counter.
+    //
+    // Same transactional counter as submit.php: an edit can grow a paste past
+    // the global cap even when the per-account quota allows it (SEC-04/ROB-03).
+    $global_used = global_quota_lock($db);
+    if ($global_used === null) {
+        error_log('OPNG update.php: global storage counter is unavailable');
+        $db->rollback();
+        $transaction_started = false;
+        $db->close();
+        opng_error_redirect('error_database_operation');
+    }
+
+    // Discover the owner before locking the account. The row is re-read with
+    // FOR UPDATE after the account lock, so quota values always come from the
+    // locked row.
+    $stmt = $db->prepare('SELECT id, user_id FROM entries WHERE id = ?');
+    $stmt->bind_param('s', $id);
     $stmt->execute();
     $result = $stmt->get_result();
     if (!$result) {
@@ -91,10 +110,48 @@ try {
         $db->close();
         opng_error_redirect('error_entry_not_found');
     }
+    $owner_id = $entry['user_id'] !== null ? (int) $entry['user_id'] : null;
+
+    $usage = null;
+    if ($owner_id !== null) {
+        $usage = lock_user_quota($db, $owner_id);
+        if ($usage === null) {
+            error_log('OPNG update.php: paste owner was not found while checking storage quota');
+            $db->rollback();
+            $transaction_started = false;
+            $db->close();
+            opng_error_redirect('error_database_operation');
+        }
+    }
+
+    // The entry is the last resource in the global lock order.
+    $stmt = $db->prepare(
+        'SELECT user_id, OCTET_LENGTH(text) AS text_bytes FROM entries WHERE id = ? FOR UPDATE'
+    );
+    $stmt->bind_param('s', $id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    if (!$result) {
+        throw new RuntimeException('Entry lock result is unavailable.');
+    }
+    $entry = $result->fetch_assoc();
+    $result->free();
+    $stmt->close();
+    $stmt = null;
+
+    if (!$entry) {
+        $db->rollback();
+        $transaction_started = false;
+        $db->close();
+        opng_error_redirect('error_entry_not_found');
+    }
+    $locked_owner_id = $entry['user_id'] !== null ? (int) $entry['user_id'] : null;
+    if ($locked_owner_id !== $owner_id) {
+        throw new RuntimeException('Entry ownership changed while the update locked it.');
+    }
 
     // Check permissions: admin or paste owner
     $user_role = refresh_account_role($db) ?? 'guest';
-    $owner_id   = $entry['user_id'];
     $current_id = $_SESSION['user_id'];
 
     $current_user_id = http_positive_integer($current_id);
@@ -104,8 +161,7 @@ try {
         $db->close();
         opng_error_redirect('error_sign_in_to_edit');
     }
-    $entry_owner_id = $owner_id !== null ? (int) $owner_id : null;
-    if (!paste_owner_can_manage($current_user_id, (string) $user_role, $entry_owner_id)) {
+    if (!paste_owner_can_manage($current_user_id, (string) $user_role, $owner_id)) {
         $db->rollback();
         $transaction_started = false;
         $db->close();
@@ -116,16 +172,6 @@ try {
     $replacement_bytes = strlen($text);
     $global_delta = $replacement_bytes - $previous_bytes;
 
-    // Same transactional counter as submit.php: an edit can grow a paste past
-    // the global cap even when the per-account quota allows it (SEC-04/ROB-03).
-    $global_used = global_quota_lock($db);
-    if ($global_used === null) {
-        error_log('OPNG update.php: global storage counter is unavailable');
-        $db->rollback();
-        $transaction_started = false;
-        $db->close();
-        opng_error_redirect('error_database_operation');
-    }
     if ($global_delta > 0 && !global_quota_allows($global_used, $global_delta)) {
         $db->rollback();
         $transaction_started = false;
@@ -133,21 +179,11 @@ try {
         opng_error_redirect('error_global_storage_quota');
     }
 
-    if ($owner_id !== null) {
-        $usage = lock_user_quota($db, (int) $owner_id);
-        if ($usage === null) {
-            error_log('OPNG update.php: paste owner was not found while checking storage quota');
-            $db->rollback();
-            $transaction_started = false;
-            $db->close();
-            opng_error_redirect('error_database_operation');
-        }
-        if (!user_quota_allows($usage, $previous_bytes, $replacement_bytes)) {
-            $db->rollback();
-            $transaction_started = false;
-            $db->close();
-            opng_error_redirect('error_storage_quota');
-        }
+    if ($owner_id !== null && !user_quota_allows($usage, $previous_bytes, $replacement_bytes)) {
+        $db->rollback();
+        $transaction_started = false;
+        $db->close();
+        opng_error_redirect('error_storage_quota');
     }
 
     $stmt = $db->prepare("UPDATE entries SET language = ?, text = ?, topic = ? WHERE id = ?");

@@ -323,15 +323,15 @@ try {
                     $pair['root_id'],
                     $pair['depth']
                 );
+                if (!$db->commit()) {
+                    throw new RuntimeException('The link transaction could not be committed.');
+                }
                 audit_log_record(
                     $db,
                     null,
                     'entry.link_legacy',
                     'reply:' . $reply_id . ' parent:' . $parent_id
                 );
-                if (!$db->commit()) {
-                    throw new RuntimeException('The link transaction could not be committed.');
-                }
                 echo "LINKED: reply {$reply_id} -> parent {$parent_id} "
                     . "(root {$position['root_id']}, depth {$position['depth']}, "
                     . "{$position['updated']} row(s) updated)\n";

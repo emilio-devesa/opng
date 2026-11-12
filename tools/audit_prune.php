@@ -7,8 +7,9 @@
  *
  * - CLI only.
  * - Without an argument it uses OPNG_AUDIT_RETENTION_DAYS (90 by default).
- * - The admin panel also removes old rows opportunistically (1 in 100 events),
- *   so this command is optional.
+ * - Deletes in bounded batches so a large backlog does not hold one long lock.
+ * - The admin panel also removes one bounded batch opportunistically (1 in 100
+ *   events), so this command is optional.
  */
 
 if (PHP_SAPI !== 'cli') {
@@ -33,7 +34,7 @@ mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 try {
     $db = new mysqli($mysql_server, $mysql_username, $mysql_password, $mysql_dbname);
     $db->set_charset('utf8mb4');
-    $deleted = audit_log_prune($db, $days);
+    $deleted = audit_log_prune_all($db, $days);
     $db->close();
     echo "Deleted {$deleted} audit-log row(s).\n";
     exit(0);

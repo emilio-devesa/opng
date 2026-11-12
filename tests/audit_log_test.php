@@ -8,7 +8,11 @@ $failures = [];
 if (!function_exists('audit_log_record') || !function_exists('audit_log_ip_hash')) {
     $failures[] = 'The audit log helpers are missing';
 }
-if (!function_exists('audit_log_prune') || !function_exists('audit_log_email_target')) {
+if (
+    !function_exists('audit_log_prune')
+    || !function_exists('audit_log_prune_all')
+    || !function_exists('audit_log_email_target')
+) {
     $failures[] = 'The audit retention and email-hash helpers are missing';
 }
 
@@ -34,6 +38,27 @@ if (
     $failures[] = 'The audit log IP hash must be a stable SHA-256 digest';
 }
 
+// SEC-22: the audit hash must honour the same trusted-proxy resolution as the
+// rate limiter instead of always hashing REMOTE_ADDR.
+putenv('OPNG_TRUSTED_PROXIES=203.0.113.0/24');
+$_SERVER['REMOTE_ADDR'] = '203.0.113.7';
+$_SERVER['HTTP_X_FORWARDED_FOR'] = '198.51.100.30';
+if (audit_log_ip_hash() !== hash('sha256', '198.51.100.30')) {
+    $failures[] = 'The audit log IP hash must use client_ip() behind a trusted proxy';
+}
+putenv('OPNG_TRUSTED_PROXIES');
+unset($_SERVER['HTTP_X_FORWARDED_FOR']);
+
+$audit_source = file_get_contents($root . '/src/includes/audit_log.php');
+if (
+    !is_string($audit_source)
+    || !str_contains($audit_source, 'client_ip()')
+    || !str_contains($audit_source, 'ORDER BY id ASC')
+    || !str_contains($audit_source, 'LIMIT {$limit}')
+) {
+    $failures[] = 'audit_log_ip_hash() or the bounded retention query is missing';
+}
+
 $install = file_get_contents($root . '/src/install.php');
 if (!is_string($install) || !str_contains($install, 'CREATE TABLE IF NOT EXISTS audit_log')) {
     $failures[] = 'The installer does not create the audit_log table';
@@ -55,6 +80,15 @@ foreach ([
     }
 }
 
+foreach (['src/admin/drop_id.php', 'src/admin/empty.php', 'src/admin/user_action.php'] as $path) {
+    $source = file_get_contents($root . '/' . $path);
+    $commit = is_string($source) ? strpos($source, '$db->commit()') : false;
+    $record = is_string($source) ? strpos($source, 'audit_log_record(') : false;
+    if ($commit === false || $record === false || $record < $commit) {
+        $failures[] = "{$path} must audit after its business transaction commits (ROB-20)";
+    }
+}
+
 $login = file_get_contents($root . '/src/auth/login.php');
 if (!is_string($login) || !str_contains($login, 'auth.login_limited') || !str_contains($login, 'auth.login')) {
     $failures[] = 'Login does not audit successes, failures and rate-limit blocks';
@@ -64,7 +98,7 @@ $prune = file_get_contents($root . '/tools/audit_prune.php');
 if (
     !is_string($prune)
     || !str_contains($prune, "PHP_SAPI !== 'cli'")
-    || !str_contains($prune, 'audit_log_prune($db')
+    || !str_contains($prune, 'audit_log_prune_all($db')
 ) {
     $failures[] = 'tools/audit_prune.php is missing or not CLI-only';
 }

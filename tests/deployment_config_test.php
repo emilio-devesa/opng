@@ -23,6 +23,24 @@ if (!is_string($htaccess)) {
         'Strict-Transport-Security',
         'Cache-Control "public, max-age=31536000, immutable"',
         'Options -Indexes',
+        "form-action 'self'",
+        'Permissions-Policy',
+        'Cross-Origin-Opener-Policy',
+        'Cross-Origin-Resource-Policy',
+    ], $failures);
+}
+
+$apache_path = $root . '/deploy/apache/htaccess';
+$apache_htaccess = is_file($apache_path) ? file_get_contents($apache_path) : false;
+if (!is_string($apache_htaccess)) {
+    $failures[] = 'deploy/apache/htaccess is missing';
+} else {
+    contains_all('deploy/apache/htaccess', $apache_htaccess, [
+        'Strict-Transport-Security',
+        "form-action 'self'",
+        'Permissions-Policy',
+        'Cross-Origin-Opener-Policy',
+        'Cross-Origin-Resource-Policy',
     ], $failures);
 }
 
@@ -46,6 +64,45 @@ if (!is_string($nginx)) {
         'location = /install.php',
         'tests|tools|database|deploy|docs',
         'Strict-Transport-Security',
+        "form-action 'self'",
+        'Permissions-Policy',
+        'Cross-Origin-Opener-Policy',
+        'Cross-Origin-Resource-Policy',
+    ], $failures);
+}
+
+$apple_nginx = file_get_contents($root . '/deploy/apple-container/nginx.conf');
+if (!is_string($apple_nginx)) {
+    $failures[] = 'deploy/apple-container/nginx.conf is missing';
+} else {
+    contains_all('deploy/apple-container/nginx.conf', $apple_nginx, [
+        "form-action 'self'",
+        'Permissions-Policy',
+        'Cross-Origin-Opener-Policy',
+        'Cross-Origin-Resource-Policy',
+    ], $failures);
+}
+
+$layout_header = file_get_contents($root . '/src/includes/layout_header.php');
+if (!is_string($layout_header)) {
+    $failures[] = 'src/includes/layout_header.php is missing';
+} else {
+    contains_all('src/includes/layout_header.php', $layout_header, [
+        "form-action 'self'",
+        'Permissions-Policy',
+        'Cross-Origin-Opener-Policy: same-origin',
+        'Cross-Origin-Resource-Policy: same-origin',
+    ], $failures);
+}
+
+$healthz = file_get_contents($root . '/src/healthz.php');
+if (!is_string($healthz)) {
+    $failures[] = 'src/healthz.php is missing';
+} else {
+    contains_all('src/healthz.php', $healthz, [
+        'Permissions-Policy',
+        'Cross-Origin-Opener-Policy: same-origin',
+        'Cross-Origin-Resource-Policy: same-origin',
     ], $failures);
 }
 

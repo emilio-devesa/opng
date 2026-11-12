@@ -94,6 +94,7 @@ $reset_source = file_get_contents(__DIR__ . '/../src/auth/reset_password.php');
 foreach ([
     'session.php defines session_validate_account' => is_string($session_source) && str_contains($session_source, 'function session_validate_account'),
     'db_connect validates the session version' => is_string($db_source) && str_contains($db_source, 'session_validate_account($conn)'),
+    'db_connect drops the identity when validation fails' => is_string($db_source) && str_contains($db_source, 'session_forget_account()'),
     'login stores the account session version' => is_string($login_source) && str_contains($login_source, 'session_version'),
     'password changes increment the session version' => is_string($change_source) && str_contains($change_source, 'session_version = session_version + 1'),
     'password resets increment the session version' => is_string($reset_source) && str_contains($reset_source, 'session_version = session_version + 1'),

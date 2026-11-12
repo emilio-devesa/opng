@@ -560,6 +560,8 @@ require(__DIR__ . "/../includes/layout_header.php");
                 <button class="admin-field-clear" type="button" aria-label="Clear field" title="Clear field" data-i18n-aria-label="admin_clear_field" data-i18n-title="admin_clear_field" hidden>×</button>
             </div>
             <button type="submit" name="search_entries" value="1" data-i18n="admin_search_entries">Search entries</button>
+            <button type="button" class="admin-action-trigger danger admin-entry-delete-trigger" data-admin-dialog-open aria-haspopup="dialog" aria-controls="admin-entry-delete-dialog" data-i18n="drop_entry">Drop Entry</button>
+            <p class="form-help admin-entry-delete-help" data-i18n="admin_entry_delete_help">Delete a paste by ID. You will need your current password.</p>
         </form>
         <?php if ($entry_search_error !== ''): ?>
             <p class="admin-search-error" role="alert" data-i18n="<?php echo htmlspecialchars($entry_search_error, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($search_error_text($entry_search_error), ENT_QUOTES, 'UTF-8'); ?></p>
@@ -602,8 +604,6 @@ require(__DIR__ . "/../includes/layout_header.php");
         <hr class="admin-actions-divider">
         <form method="post" action="drop_id.php" class="admin-entry-delete-form" autocomplete="off">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
-            <button type="button" class="admin-action-trigger danger" data-admin-dialog-open aria-haspopup="dialog" aria-controls="admin-entry-delete-dialog" data-i18n="drop_entry">Drop Entry</button>
-            <p class="form-help" data-i18n="admin_entry_delete_help">Delete a paste by ID. You will need your current password.</p>
             <dialog id="admin-entry-delete-dialog" class="admin-action-dialog" aria-labelledby="admin-entry-delete-title">
                 <h2 id="admin-entry-delete-title" data-i18n="drop_entry">Drop Entry</h2>
                 <label for="input_ID" data-i18n="id_to_remove">ID to remove:</label>

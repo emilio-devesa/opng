@@ -44,8 +44,11 @@ expect_migration(
         && str_contains($threads_migration, 'ADD COLUMN depth TINYINT UNSIGNED NOT NULL DEFAULT 0')
         && str_contains($threads_migration, 'idx_entries_root')
         && str_contains($threads_migration, 'ON DELETE SET NULL')
-        && str_contains($threads_migration, 'UPDATE entries SET root_id = id, depth = 0'),
-    'the entry-thread migration adds the relation, indexes, delete rule and backfill',
+        && str_contains($threads_migration, 'UPDATE entries SET root_id = id, depth = 0')
+        && str_contains($threads_migration, 'information_schema.COLUMNS')
+        && str_contains($threads_migration, 'information_schema.STATISTICS')
+        && str_contains($threads_migration, 'information_schema.TABLE_CONSTRAINTS'),
+    'the entry-thread migration adds the relation, indexes, delete rule, backfill and idempotence checks',
     $failures
 );
 $expires_migration = file_get_contents($migrations['0003_admin_metrics_expires_bigint'] ?? '');
@@ -85,6 +88,50 @@ $split = schema_split_sql(
 expect_migration(
     $split === ['CREATE TABLE a (id INT)', 'INSERT INTO a VALUES (1)'],
     'SQL files are split into executable statements and comments are removed',
+    $failures
+);
+
+$split_literal = schema_split_sql(
+    "INSERT INTO a VALUES ('semi;colon', 'it''s; fine');\nSELECT 1;\n"
+);
+expect_migration(
+    $split_literal === [
+        "INSERT INTO a VALUES ('semi;colon', 'it''s; fine')",
+        'SELECT 1',
+    ],
+    'semicolons inside string literals do not split a statement',
+    $failures
+);
+
+$split_quoted = schema_split_sql(
+    "CREATE TABLE `weird;name` (`col;umn` INT);\nINSERT INTO `weird;name` VALUES (1);\n"
+);
+expect_migration(
+    $split_quoted === [
+        'CREATE TABLE `weird;name` (`col;umn` INT)',
+        'INSERT INTO `weird;name` VALUES (1)',
+    ],
+    'semicolons inside backtick identifiers do not split a statement',
+    $failures
+);
+
+$split_escaped = schema_split_sql(
+    "INSERT INTO a VALUES ('backslash \\\\; escaped', \"double \\\"; quoted\");\n"
+);
+expect_migration(
+    $split_escaped === [
+        "INSERT INTO a VALUES ('backslash \\\\; escaped', \"double \\\"; quoted\")",
+    ],
+    'escaped quotes do not expose a semicolon to the statement splitter',
+    $failures
+);
+
+$split_comments = schema_split_sql(
+    "SELECT 1; -- trailing; comment\n# hash; comment\nSELECT 2 /* block; comment */;\n"
+);
+expect_migration(
+    $split_comments === ['SELECT 1', 'SELECT 2'],
+    'line and block comments are removed without breaking statements',
     $failures
 );
 

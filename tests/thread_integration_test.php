@@ -398,13 +398,31 @@ try {
     }
     thread_integration_pass('admin preserve keeps thread metadata after anonymisation');
 
-    // Same statement as admin/empty.php.
-    $db->query('DELETE FROM entries');
-    $remaining = (int) $db->query('SELECT COUNT(*) AS total FROM entries')->fetch_assoc()['total'];
-    if ($remaining !== 0) {
-        thread_integration_fail('DELETE FROM entries left rows behind with the self foreign key');
+    // Same batched statement as admin/empty.php (ROB-16): 1,000 rows per
+    // DELETE, repeated until the table is empty.
+    $bulk = $db->prepare(
+        "INSERT INTO entries (id, language, text, topic) VALUES (?, 'text', 'batch fixture', 'Batch fixture')"
+    );
+    for ($index = 0; $index < 1005; $index++) {
+        $bulk_id = 'thread-batch-' . $index;
+        $bulk->bind_param('s', $bulk_id);
+        $bulk->execute();
     }
-    thread_integration_pass('empty.php DELETE FROM entries works with the self-referencing foreign key');
+    $bulk->close();
+    $total_before = (int) $db->query('SELECT COUNT(*) AS total FROM entries')->fetch_assoc()['total'];
+    $deleted_total = 0;
+    $batches = 0;
+    do {
+        $db->query('DELETE FROM entries ORDER BY id LIMIT 1000');
+        $deleted_batch = max(0, $db->affected_rows);
+        $deleted_total += $deleted_batch;
+        $batches++;
+    } while ($deleted_batch === 1000);
+    $remaining = (int) $db->query('SELECT COUNT(*) AS total FROM entries')->fetch_assoc()['total'];
+    if ($remaining !== 0 || $deleted_total !== $total_before || $batches < 2) {
+        thread_integration_fail('batched DELETE FROM entries did not empty the self-referencing table');
+    }
+    thread_integration_pass('empty.php batched DELETE works with the self-referencing foreign key');
 
     $db->close();
     $admin->query("DROP DATABASE `{$name}`");

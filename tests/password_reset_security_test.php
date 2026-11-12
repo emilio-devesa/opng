@@ -132,6 +132,12 @@ assert_same(
     'a valid reset token is exchanged for a session and removed from the URL'
 );
 assert_same(
+    true,
+    !str_contains((string) $reset_source, "\$_POST, 'token'")
+        && substr_count((string) $reset_source, 'password_reset_session_store($token_hash)') === 1,
+    'posted reset tokens are rejected instead of being stored before validation (ROB-17)'
+);
+assert_same(
     false,
     str_contains((string) $reset_source, 'name="token"'),
     'the reset form no longer embeds the token in the page'
@@ -142,4 +148,22 @@ assert_same(
         && function_exists('password_reset_session_get')
         && function_exists('password_reset_session_clear'),
     'the reset session helpers are available'
+);
+
+// SEC-18: the login page must not advertise a reset flow that is unavailable.
+$login_source = (string) file_get_contents(__DIR__ . '/../src/auth/login.php');
+assert_same(
+    true,
+    str_contains($login_source, 'require_once("../includes/password_reset.php")')
+        && str_contains($login_source, 'password_reset_simulation_enabled()'),
+    'the login page checks whether password resets are available'
+);
+$reset_guard_position = strpos($login_source, 'if ($reset_available)');
+$forgot_link_position = strpos($login_source, 'href="request_reset.php"');
+assert_same(
+    true,
+    $reset_guard_position !== false
+        && $forgot_link_position !== false
+        && $reset_guard_position < $forgot_link_position,
+    'the forgot-password link is only rendered when resets are available'
 );

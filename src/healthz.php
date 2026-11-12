@@ -12,6 +12,11 @@ require(__DIR__ . '/includes/user_quota.php');
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('X-Content-Type-Options: nosniff');
+header("Content-Security-Policy: default-src 'none'; frame-ancestors 'none'");
+header('Permissions-Policy: geolocation=(), camera=(), microphone=()');
+header('Cross-Origin-Opener-Policy: same-origin');
+header('Cross-Origin-Resource-Policy: same-origin');
+header('Referrer-Policy: no-referrer');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     http_response_code(405);

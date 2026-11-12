@@ -941,7 +941,7 @@ textarea[name="input_text"] {
 }
 
 .captcha-field .refresh-captcha {
-    align-self: flex-start;
+    align-self: center;
 }
 
 .captcha-text-alternative {
@@ -969,6 +969,17 @@ textarea[name="input_text"] {
 
 .captcha-listen {
     margin-top: 0.25rem;
+}
+
+.captcha-mode-link {
+    align-self: flex-start;
+    font-size: 0.9rem;
+}
+
+.captcha-text-alternative .refresh-captcha {
+    display: block;
+    width: max-content;
+    margin: 0.5rem auto 0;
 }
 
 .field-help {
@@ -1127,13 +1138,13 @@ legend {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
     align-items: end;
-    gap: 0.35rem 0.75rem;
+    gap: 0.35rem 0.5rem;
     margin-bottom: 1.25rem !important;
 }
 
 .admin-search-form {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.5rem 1rem;
+    gap: 0.35rem 0.5rem;
 }
 
 .admin-search-form label {
@@ -1146,6 +1157,26 @@ legend {
 
 .admin-search-form > button[type="submit"] {
     grid-row: 3;
+    margin-top: 0.35rem;
+}
+
+.admin-search-form > .admin-entry-delete-trigger {
+    grid-row: 3;
+    justify-self: start;
+    margin-top: 0.35rem;
+}
+
+.admin-search-form > .admin-entry-delete-help {
+    grid-row: 4;
+    grid-column: 1 / -1;
+    align-self: start;
+    margin: 0 !important;
+}
+
+.admin-search-form > .admin-change-role-trigger,
+.admin-search-form > .admin-delete-user-trigger {
+    grid-row: 3;
+    justify-self: start;
     margin-top: 0.35rem;
 }
 
@@ -1715,8 +1746,13 @@ legend {
 
     .admin-search-form label,
     .admin-search-form > .admin-input-wrap,
-    .admin-search-form > button[type="submit"] {
+    .admin-search-form > button[type="submit"],
+    .admin-search-form > .admin-entry-delete-trigger,
+    .admin-search-form > .admin-entry-delete-help,
+    .admin-search-form > .admin-change-role-trigger,
+    .admin-search-form > .admin-delete-user-trigger {
         grid-row: auto;
+        grid-column: auto;
     }
 
     .admin-choice-actions {
@@ -1996,8 +2032,10 @@ legend {
     color: var(--action-text);
     border: 1px solid var(--action-border);
     border-radius: 10px;
+    font-family: var(--font-sans);
     font-weight: 600;
-    font-size: 1.25rem;
+    font-size: 1.6rem;
+    line-height: 1;
     text-decoration: none;
 }
 

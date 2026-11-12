@@ -78,7 +78,8 @@ $mysql_dbname   = 'opng';
 Use a non-empty password. Never reuse the development/MAMP example values.
 Optional settings are documented at the top of `src/config.example.php`:
 `OPNG_FORCE_HTTPS`, `OPNG_PUBLIC_URL`, `OPNG_TRUSTED_PROXIES`,
-`OPNG_STORAGE_QUOTA_BYTES`, `OPNG_BACKUP_MAX_SECONDS` and
+`OPNG_STORAGE_QUOTA_BYTES`, `OPNG_DB_CONNECT_TIMEOUT`,
+`OPNG_DB_READ_TIMEOUT`, `OPNG_BACKUP_MAX_SECONDS` and
 `OPNG_BACKUP_MAX_BYTES`.
 
 ## 4. Install the schema (CLI, recommended)
@@ -123,6 +124,10 @@ php tools/create_admin.php --username=admin --email=admin@example.com --if-empty
 makes it safe in provisioning scripts. The command refuses to create a second
 administrator unless `--force` is explicit. Remove or protect
 `tools/create_admin.php` after setup.
+
+Prefer the hidden prompt or `OPNG_ADMIN_PASSWORD` over passing the password on
+the command line. `--password=` is rejected unless `--allow-argv-password` is
+also present, because argv is visible in process listings and shell history.
 
 ## 6. Run the doctor
 

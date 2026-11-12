@@ -5,6 +5,7 @@ require("../includes/csrf.php");
 require("../includes/ratelimit.php");
 require("../includes/http_input.php");
 require_once("../includes/captcha.php");
+require_once("../includes/password_reset.php");
 
 require("../database.php");
 require("../includes/error_messages.php");
@@ -77,6 +78,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $captcha_required
         && !captcha_validate(http_string_parameter($_POST, 'captcha_answer', 5))
     ) {
+        // A failed CAPTCHA is a failed authentication attempt too: count it so
+        // it cannot be used to probe the form without consuming the adaptive
+        // threshold (SEC-19).
+        $_SESSION["login_attempts"]++;
+        $_SESSION["last_attempt_time"] = time();
         $form_error_key = 'captcha_incorrect';
         $form_error_field = 'captcha';
     }
@@ -209,6 +215,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $captcha_required = $_SESSION["login_attempts"] >= 3;
 }
 
+    // Password resets are only available in the local development simulation
+    // until a real mail transport exists. Do not advertise a flow that would
+    // end in an "unavailable" page (SEC-18).
+    $reset_available = password_reset_simulation_enabled();
     $notice = http_string_parameter($_GET, 'msg', 128) ?? '';
     $notice_key = $notice === 'Registration successful. Please sign in.' ? 'registration_success' : '';
     $notice = $notice_key !== '' ? $notice : '';
@@ -244,7 +254,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             <?php endif; ?>
             <button type="submit" data-i18n="login">Sign in</button>
         </form>
+        <?php if ($reset_available): ?>
         <p><a href="request_reset.php" data-i18n="forgot_password">Forgot your password?</a></p>
+        <?php endif; ?>
         <p><a href="register.php" data-i18n="no_account">No account? Register here</a></p>
     </section>
     <?php if ($captcha_required): ?>

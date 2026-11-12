@@ -11,21 +11,41 @@ mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 $db = new mysqli($mysql_server, $mysql_username, $mysql_password, $mysql_dbname);
 $db->set_charset('utf8mb4');
 
-$owner = $db->query("SELECT id FROM users WHERE role = 'user' ORDER BY id LIMIT 1")->fetch_assoc();
-if ($owner === null) {
-    throw new RuntimeException('The isolated performance database needs a normal user.');
-}
-$owner_id = (int) $owner['id'];
 $prefix = 'runtime-perf-' . bin2hex(random_bytes(6)) . '-';
-$stmt = $db->prepare(
-    'INSERT INTO entries (id, user_id, language, text, topic, date) VALUES (?, ?, ?, ?, ?, ?)'
-);
+$stmt = null;
+$thread_stmt = null;
+$user_stmt = null;
 $transaction_started = false;
 
 try {
     $db->begin_transaction();
     $transaction_started = true;
     $base_timestamp = 1577836800;
+
+    // The admin ordering plan is only meaningful once users is large enough
+    // for the optimizer to prefer idx_users_created over a table scan.
+    $fixture_hash = password_hash('runtime-perf-fixture', PASSWORD_DEFAULT);
+    $user_stmt = $db->prepare(
+        "INSERT INTO users (username, email, password_hash, role, created_at)
+         VALUES (?, ?, ?, 'user', ?)"
+    );
+    $owner_id = 0;
+    for ($index = 0; $index < 2000; $index++) {
+        $username = ($index % 10 === 0 ? 'a' : 'z') . $prefix . 'user-' . str_pad((string) $index, 3, '0', STR_PAD_LEFT);
+        $email = $username . '@example.test';
+        $created_at = gmdate('Y-m-d H:i:s', $base_timestamp + $index);
+        $user_stmt->bind_param('ssss', $username, $email, $fixture_hash, $created_at);
+        $user_stmt->execute();
+        if ($index === 0) {
+            $owner_id = (int) $db->insert_id;
+        }
+    }
+    $user_stmt->close();
+    $user_stmt = null;
+
+    $stmt = $db->prepare(
+        'INSERT INTO entries (id, user_id, language, text, topic, date) VALUES (?, ?, ?, ?, ?, ?)'
+    );
     for ($index = 0; $index < 5000; $index++) {
         $id = $prefix . str_pad((string) $index, 5, '0', STR_PAD_LEFT);
         $language = 'text';
@@ -176,7 +196,21 @@ try {
     $user_prefix_plan = $db->query(
         "EXPLAIN SELECT id FROM users WHERE username LIKE 'a%'"
     )->fetch_assoc();
-    if (($user_prefix_plan['key'] ?? null) !== 'uniq_users_username') {
+    $unique_username_indexes = [];
+    $unique_index_result = $db->query(
+        "SELECT DISTINCT INDEX_NAME
+         FROM information_schema.STATISTICS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'users'
+           AND NON_UNIQUE = 0
+           AND COLUMN_NAME = 'username'"
+    );
+    while ($unique_index_row = $unique_index_result->fetch_assoc()) {
+        $unique_username_indexes[] = $unique_index_row['INDEX_NAME'];
+    }
+    $unique_index_result->free();
+    $prefix_key = $user_prefix_plan['key'] ?? null;
+    if (!is_string($prefix_key) || !in_array($prefix_key, $unique_username_indexes, true)) {
         throw new RuntimeException('A username prefix search did not use the unique index.');
     }
 
@@ -188,13 +222,21 @@ try {
     if ($stmt instanceof mysqli_stmt) {
         $stmt->close();
     }
-    if (isset($thread_stmt) && $thread_stmt instanceof mysqli_stmt) {
+    if ($thread_stmt instanceof mysqli_stmt) {
         $thread_stmt->close();
     }
+    if ($user_stmt instanceof mysqli_stmt) {
+        $user_stmt->close();
+    }
     $pattern = $prefix . '%';
+    $user_pattern = '%' . $prefix . '%';
     $cleanup = $db->prepare('DELETE FROM entries WHERE id LIKE ?');
     $cleanup->bind_param('s', $pattern);
     $cleanup->execute();
     $cleanup->close();
+    $cleanup_users = $db->prepare('DELETE FROM users WHERE username LIKE ?');
+    $cleanup_users->bind_param('s', $user_pattern);
+    $cleanup_users->execute();
+    $cleanup_users->close();
     $db->close();
 }

@@ -33,6 +33,10 @@ should upgrade using [UPGRADING.md](UPGRADING.md).
   `phpstan.neon` are outside the document root and additionally denied by
   `src/.htaccess`/Nginx.
 - Directories are not listable (`Options -Indexes`).
+- Responses send a strict same-origin CSP (including `form-action 'self'`),
+  `Permissions-Policy`, `Cross-Origin-Opener-Policy`,
+  `Cross-Origin-Resource-Policy` and `X-Frame-Options: DENY` from PHP, Apache
+  and the Nginx examples. Keep the three deployment copies in sync.
 - Optional hardening: serve static assets with a long immutable cache and
   compression; both are already configured in `deploy/`.
 
@@ -74,9 +78,14 @@ should upgrade using [UPGRADING.md](UPGRADING.md).
 
 - Run the doctor (`php tools/doctor.php --strict`) after every deployment.
 - Create the first administrator with `tools/create_admin.php`; then delete or
-  protect the tool. There is no web installer.
+  protect the tool. There is no web installer. Prefer the hidden prompt or
+  `OPNG_ADMIN_PASSWORD`; `--password=` is rejected unless
+  `--allow-argv-password` is explicit because argv is visible in process
+  listings and shell history. `--print-sql` output contains a reusable password
+  hash, so treat it as a secret.
 - `OPNG_DEV_RESET` must never be set in production; it simulates password-reset
-  email delivery.
+  email delivery. While it is unset, the login page hides the password-reset
+  link instead of advertising a flow that cannot complete.
 - Rate limits, CAPTCHA, bcrypt hashing, session invalidation
   (`users.session_version`), CSRF rotation after privilege changes,
   reauthentication plus explicit confirmation checkboxes for destructive admin
@@ -84,7 +93,8 @@ should upgrade using [UPGRADING.md](UPGRADING.md).
 - The audit log records destructive admin actions, authentication events and
   backup downloads with hashed IPs and hashed email targets. Review it during
   incident response; prune it with `tools/audit_prune.php`
-  (`OPNG_AUDIT_RETENTION_DAYS`, default 90).
+  (`OPNG_AUDIT_RETENTION_DAYS`, default 90). Request-time pruning is limited to
+  one 1,000-row batch and runs after the business transaction commits.
 
 ### Backups
 
@@ -113,8 +123,11 @@ should upgrade using [UPGRADING.md](UPGRADING.md).
 
 - There is no multi-tenant isolation: all administrators are trusted.
 - There is no built-in WAF, IDS, malware scanning or email delivery.
-- The CAPTCHA is a local arithmetic/image/audio challenge, not a hosted
-  anti-bot service. It slows automation; it is not a substitute for rate limits.
+- The CAPTCHA is a local image challenge with an explicit, rate-limited
+  arithmetic/audio alternative, not a hosted anti-bot service. The text
+  alternative is inherently automatable; the controls that matter are the
+  rate limit recorded before validation and the three-attempt challenge budget.
+  It slows automation but is not a substitute for rate limits.
 - Legacy `RE: ` topics are not linked automatically. Only reviewed pairs are
   linked with `tools/link_legacy_replies.php`.
 - Apple Container networking and healthcheck orchestration are the

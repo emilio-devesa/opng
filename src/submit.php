@@ -63,14 +63,6 @@ if ($user_id !== null) {
     }
 }
 
-// Guests must solve the local CAPTCHA before creating an anonymous paste.
-if ($user_id === null) {
-    $captcha_answer = http_string_parameter($_POST, 'captcha_answer', 5);
-    if (!captcha_validate($captcha_answer)) {
-        opng_error_redirect('captcha_incorrect');
-    }
-}
-
 // Connect to the database
 $db = db_connect();
 if (!$db) {
@@ -91,6 +83,17 @@ try {
         opng_error_redirect('error_paste_rate_limit');
     }
 
+    // Guests must solve the local CAPTCHA. Validate it after the rate limit so
+    // a wrong answer still consumes an attempt instead of allowing unlimited
+    // challenge rotation (SEC-19).
+    if ($user_id === null) {
+        $captcha_answer = http_string_parameter($_POST, 'captcha_answer', 5);
+        if (!captcha_validate($captcha_answer)) {
+            $db->close();
+            opng_error_redirect('captcha_incorrect');
+        }
+    }
+
     // Global soft cap for all paste text, configurable with
     // OPNG_STORAGE_QUOTA_BYTES (default 10 GiB). The counter row is locked
     // inside the same transaction as the insert, so concurrent writes cannot
@@ -102,6 +105,9 @@ try {
     $db->begin_transaction();
     $transaction_started = true;
 
+    // Global lock order (ROB-15): storage_counters -> users -> entries. The
+    // counter row is taken first, then the account (if any), and the parent
+    // entry (if this is a reply) last.
     $global_used = global_quota_lock($db);
     if ($global_used === null) {
         error_log('OPNG submit.php: global storage counter is unavailable');

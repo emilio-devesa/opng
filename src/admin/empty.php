@@ -73,21 +73,46 @@ if (!reauthenticate_user($db, $session_user_id, $current_password, 'admin_reauth
 }
 
 // DELETE works with the runtime DML account; TRUNCATE would require DROP privileges.
+const OPNG_EMPTY_BATCH_SIZE = 1000;
 $transaction_started = false;
 try {
     $db->begin_transaction();
     $transaction_started = true;
-    if (!$db->query("DELETE FROM entries")) {
-        throw new RuntimeException('Entries could not be removed.');
+
+    // Global lock order (ROB-15): storage_counters -> entries. Holding the
+    // counter row also blocks concurrent paste creation while the batches run,
+    // so global_quota_zero() cannot erase a delta from a racing insert.
+    if (global_quota_lock($db) === null) {
+        throw new RuntimeException('Global storage counter is unavailable.');
     }
+
+    // Delete in bounded batches instead of a single table-wide statement
+    // (ROB-16). The self-referencing FK is processed batch by batch and the
+    // transaction stays atomic.
+    $deleted_total = 0;
+    $batches = 0;
+    do {
+        if (!$db->query('DELETE FROM entries ORDER BY id LIMIT ' . OPNG_EMPTY_BATCH_SIZE)) {
+            throw new RuntimeException('Entries could not be removed.');
+        }
+        $deleted_batch = max(0, $db->affected_rows);
+        $deleted_total += $deleted_batch;
+        $batches++;
+    } while ($deleted_batch === OPNG_EMPTY_BATCH_SIZE);
+
     if (!global_quota_zero($db)) {
         throw new RuntimeException('Global storage counter could not be reset.');
     }
-    audit_log_record($db, $session_user_id, 'database.empty', 'entries');
     if (!$db->commit()) {
         throw new RuntimeException('Empty-database transaction could not be committed.');
     }
     $transaction_started = false;
+
+    // Audit after commit: the audit log is best-effort, and this keeps the
+    // opportunistic retention DELETE outside the business transaction
+    // (ROB-20).
+    audit_log_record($db, $session_user_id, 'database.empty', 'entries');
+    error_log("OPNG empty.php: deleted {$deleted_total} entries in {$batches} batch(es)");
     admin_metrics_invalidate($db);
     header("Location: ../index.php?msg=" . urlencode("All pastes have been deleted"));
 } catch (mysqli_sql_exception | RuntimeException $exception) {

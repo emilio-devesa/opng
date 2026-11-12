@@ -1,6 +1,36 @@
 # Open Pastebin NG - Changelog
 ============================
 
+## Version 1.2.0 (in development)
+
+### Phase 8 — Security and UX fixes
+#### 🔐 Authentication and anti-abuse
+- **SEC-18:** the login page hides *Forgot your password?* when the reset flow is unavailable (`OPNG_DEV_RESET` simulation off), so it no longer advertises a flow that ends in an "unavailable" page.
+- **SEC-19:** guest paste creation and password-reset requests now record the rate limit **before** validating the CAPTCHA. The image is the default challenge; the accessible arithmetic challenge requires an explicit opt-in through `auth/captcha.php?mode=text`, is rate-limited separately, and each challenge allows three attempts before it is discarded. The image endpoint reuses the current challenge unless the refresh control requests a new code, so the attempt budget applies across form reloads. A failed login CAPTCHA also counts as a failed authentication attempt. The refresh control is centered below the challenge in both image and text modes. The text alternative remains inherently automatable, so the finding is marked **partially resolved**: the rate limit and attempt budget are the effective controls.
+- **SEC-20:** `db_connect()` now fails closed when the session cannot be validated against the database: it drops the authenticated identity with `session_forget_account()` instead of keeping stale privileges. Public pages keep working.
+- **SEC-22:** audit log IP hashes now use `client_ip()`, so they honour `OPNG_TRUSTED_PROXIES` and match the rate-limit address behind a proxy.
+
+#### 🛠️ Operations and hardening
+- **SEC-23:** `tools/create_admin.php` rejects `--password=` unless `--allow-argv-password` is explicit; the environment variable and hidden prompt remain the recommended paths. `--print-sql` now warns on stderr that its output contains a reusable password hash.
+- **SEC-24:** added `form-action 'self'` to the CSP and the `Permissions-Policy`, `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Resource-Policy: same-origin` headers in PHP, the Apache configurations, both Nginx examples and `healthz.php`.
+- **UX-11:** an explicit `?sort=date` without `?order=` now defaults to descending order, matching the default listing; other columns still default to ascending.
+- The `+` create-entry control now uses a color-inheriting text glyph instead of an emoji, so it keeps the action colors' contrast in both themes.
+- The admin entry delete trigger and its help text now sit beside *Search entries* in the Manage Entries search form.
+- Updated the README, security guide, classic and container install guides, i18n catalogs and contract tests for the new behaviour.
+
+### Phase 9 — Transactional integrity and concurrency
+#### 🔒 Lock order and transactions
+- **ROB-15:** all write flows now follow one documented order: `storage_counters → users → entries`. `submit.php`, `update.php`, `drop_id.php`, `user_action.php` and `empty.php` lock the global counter first; `update.php` and `drop_id.php` re-read the entry with `FOR UPDATE` after locking its owner. Administrator rows are locked with `ORDER BY id`.
+- **ROB-16:** `admin/empty.php` deletes entries in batches of 1,000 (`DELETE ... ORDER BY id LIMIT 1000`) inside one transaction while holding the global counter, so the operation stays atomic without one table-wide statement.
+- **ROB-20:** administrative audit events are written after `commit()`. `audit_log_prune()` deletes one bounded batch (`ORDER BY id LIMIT 1000`) and `audit_log_prune_all()` drains the backlog from `tools/audit_prune.php`, keeping opportunistic pruning outside business transactions.
+- Added [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) with the lock order, transaction boundaries, audit retention and migration rules. Added `tests/lock_order_test.php` and `tests/lock_order_integration_test.php`.
+
+#### 🧱 Schema and connection robustness
+- **ROB-17:** the reset form now accepts only the short-lived token already exchanged in the session; a token posted by a legacy form is rejected instead of being stored before validation.
+- **ROB-18:** `schema_split_sql()` now respects single/double-quoted strings, backtick identifiers, line comments and block comments, so a semicolon inside a literal or identifier no longer splits a migration. Migration `0004_entry_threads.sql` checks `information_schema` before adding each column, index and foreign key, so an interrupted run can be replayed safely.
+- **ROB-19:** `db_connect()` applies `MYSQLI_OPT_CONNECT_TIMEOUT` from `OPNG_DB_CONNECT_TIMEOUT` (default 5 seconds) and an optional `OPNG_DB_READ_TIMEOUT`, preventing a down database from exhausting PHP-FPM workers.
+- Added `tests/database_timeout_test.php`, extended `tests/migration_system_test.php`, `tests/audit_log_test.php`, `tests/password_reset_security_test.php` and `tests/thread_integration_test.php`, and wired the new concurrency test into both CI database jobs.
+
 ## Version 1.1.0 (2026-11-10)
 
 ### Phase 7 — Code hygiene

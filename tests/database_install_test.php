@@ -13,8 +13,14 @@ $db = new mysqli($mysql_server, $mysql_username, $mysql_password, $mysql_dbname)
 $db->set_charset('utf8mb4');
 
 $settings = $db->query('SELECT @@lower_case_table_names AS case_mode')->fetch_assoc();
-if ((int) $settings['case_mode'] !== 0) {
-    throw new RuntimeException('This integration test requires case-sensitive table names.');
+$case_mode = (int) ($settings['case_mode'] ?? -1);
+if ($case_mode !== 0) {
+    // The assertions below verify that the installer never creates mixed-case
+    // duplicates, which is only observable on a case-sensitive server. MAMP
+    // and other macOS installs use lower_case_table_names=2; skip instead of
+    // failing an environment the CI MySQL job already covers.
+    echo "SKIP: database_install_test requires lower_case_table_names=0; this server reports {$case_mode}.\n";
+    exit(0);
 }
 
 $result = $db->query(

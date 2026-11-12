@@ -116,7 +116,9 @@ container exec -it opng-app php tools/create_admin.php
 ```
 
 `tools/create_admin.php` refuses to add another administrator unless `--force`
-is explicit. `--if-empty` is idempotent and used by the entrypoint.
+is explicit. `--if-empty` is idempotent and used by the entrypoint. Prefer
+`OPNG_ADMIN_PASSWORD` or the interactive prompt; `--password=` is rejected
+unless `--allow-argv-password` is explicit.
 
 ## 5. Backups and restores
 
