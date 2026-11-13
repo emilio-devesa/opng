@@ -60,10 +60,12 @@ $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, role) V
 $user_ids = [];
 $normal_ids = [];
 $admin_ids = [];
+$usernames = [];
 foreach ($users as [$name, $email, $role]) {
     $stmt->bind_param('ssss', $name, $email, $password_hash, $role);
     $stmt->execute();
     $user_ids[] = $db->insert_id;
+    $usernames[(int) $db->insert_id] = $name;
     if ($role === 'admin') {
         $admin_ids[] = $db->insert_id;
     } else {
@@ -71,6 +73,18 @@ foreach ($users as [$name, $email, $role]) {
     }
 }
 $stmt->close();
+
+/**
+ * Resolve the denormalized author label for a seeded entry.
+ */
+function seed_author_label(?int $user_id, array $usernames): string
+{
+    if ($user_id === null) {
+        return 'Guest';
+    }
+
+    return $usernames[$user_id] ?? 'Guest';
+}
 
 // ---------------------------------------------------------------------------
 // Snippets per language (nowdoc: no $ interpolation)
@@ -555,12 +569,13 @@ for ($i = 0; $i < 60; $i++) {
     $date = date('Y-m-d H:i:s', $start + $i * 86400 + ($i * 137) % 3600);
 
     $base_entries[] = [
-        'id'       => sprintf('seed%04d', $i + 1),
-        'user_id'  => $user_id,
-        'language' => $language,
-        'topic'    => $topic,
-        'text'     => $text,
-        'date'     => $date,
+        'id'           => sprintf('seed%04d', $i + 1),
+        'user_id'      => $user_id,
+        'author_label' => seed_author_label($user_id, $usernames),
+        'language'     => $language,
+        'topic'        => $topic,
+        'text'         => $text,
+        'date'         => $date,
     ];
 }
 
@@ -602,12 +617,13 @@ foreach ($reply_texts as $k => $reply_text) {
 
     $parent_first_line = strtok($parent['text'], "\n");
     $entries[] = [
-        'id'       => sprintf('seed1%03d', $k + 1),
-        'user_id'  => $user_id,
-        'language' => $parent['language'],
-        'topic'    => 'RE: ' . $parent['topic'],
-        'text'     => "> " . $parent_first_line . "\n\n" . $reply_text,
-        'date'     => date('Y-m-d H:i:s', strtotime($parent['date']) + (2 + $k * 3) * 3600),
+        'id'           => sprintf('seed1%03d', $k + 1),
+        'user_id'      => $user_id,
+        'author_label' => seed_author_label($user_id, $usernames),
+        'language'     => $parent['language'],
+        'topic'        => 'RE: ' . $parent['topic'],
+        'text'         => "> " . $parent_first_line . "\n\n" . $reply_text,
+        'date'         => date('Y-m-d H:i:s', strtotime($parent['date']) + (2 + $k * 3) * 3600),
     ];
 }
 
@@ -616,10 +632,23 @@ foreach ($reply_texts as $k => $reply_text) {
 // ---------------------------------------------------------------------------
 // Seed rows are roots: set root_id = id and depth = 0 so history does not rely
 // on the migration backfill and a freshly seeded database has no NULL roots.
-$stmt = $db->prepare("INSERT INTO entries (id, root_id, depth, user_id, language, text, topic, date) VALUES (?, ?, 0, ?, ?, ?, ?, ?)");
+$stmt = $db->prepare(
+    "INSERT INTO entries (id, root_id, depth, user_id, author_label, language, text, topic, date)
+     VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?)"
+);
 $inserted = 0;
 foreach ($entries as $e) {
-    $stmt->bind_param('ssissss', $e['id'], $e['id'], $e['user_id'], $e['language'], $e['text'], $e['topic'], $e['date']);
+    $stmt->bind_param(
+        'ssisssss',
+        $e['id'],
+        $e['id'],
+        $e['user_id'],
+        $e['author_label'],
+        $e['language'],
+        $e['text'],
+        $e['topic'],
+        $e['date']
+    );
     if (!$stmt->execute()) {
         fwrite(STDERR, "ERROR insert {$e['id']}: " . $stmt->error . "\n");
         continue;
@@ -628,10 +657,11 @@ foreach ($entries as $e) {
 }
 $stmt->close();
 
-// The seed inserts rows directly, bypassing submit.php; reconcile the global
-// storage counter so the next writes see the real usage.
-if (!global_quota_recount($db)) {
-    fwrite(STDERR, "WARNING: could not reconcile the global storage counter\n");
+// The seed inserts rows directly, bypassing submit.php, so rebuild every
+// denormalized counter (global bytes/entries and users.used_bytes) from the
+// authoritative data.
+if (!global_quota_recount($db) || !user_quota_recount($db)) {
+    fwrite(STDERR, "WARNING: could not reconcile the storage counters\n");
 }
 
 // ---------------------------------------------------------------------------

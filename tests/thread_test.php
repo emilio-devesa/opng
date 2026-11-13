@@ -164,7 +164,7 @@ expect_thread(
     && str_contains($submit, 'thread_position($parent, $id)')
     && str_contains($submit, "'error_thread_too_deep'")
     && str_contains($submit, "'error_entry_not_found'")
-    && str_contains($submit, 'INSERT INTO entries (id, parent_id, root_id, depth, user_id, language, text, topic)')
+    && str_contains($submit, 'INSERT INTO entries (id, parent_id, root_id, depth, user_id, author_label, language, text, topic)')
     && str_contains($submit, 'header("Location: view.php?id=" . urlencode($id));'),
     'submit validates the parent, locks it, stores the position and redirects replies to the new entry',
     $failures

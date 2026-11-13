@@ -123,6 +123,7 @@ try {
         opng_error_redirect('error_global_storage_quota');
     }
 
+    $author_label = 'Guest';
     if ($user_id !== null) {
         $usage = lock_user_quota($db, (int) $user_id);
         if ($usage === null) {
@@ -138,6 +139,7 @@ try {
             $db->close();
             opng_error_redirect('error_storage_quota');
         }
+        $author_label = $usage['username'];
     }
 
     $parent = null;
@@ -169,31 +171,33 @@ try {
 
     if ($user_id === null) {
         $stmt = $db->prepare(
-            "INSERT INTO entries (id, parent_id, root_id, depth, user_id, language, text, topic)
-             VALUES (?, ?, ?, ?, NULL, ?, ?, ?)"
+            "INSERT INTO entries (id, parent_id, root_id, depth, user_id, author_label, language, text, topic)
+             VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?)"
         );
         $stmt->bind_param(
-            "sssisss",
+            "sssissss",
             $id,
             $position_parent_id,
             $position_root_id,
             $position_depth,
+            $author_label,
             $language,
             $text,
             $topic
         );
     } else {
         $stmt = $db->prepare(
-            "INSERT INTO entries (id, parent_id, root_id, depth, user_id, language, text, topic)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO entries (id, parent_id, root_id, depth, user_id, author_label, language, text, topic)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
         );
         $stmt->bind_param(
-            "sssiisss",
+            "sssiissss",
             $id,
             $position_parent_id,
             $position_root_id,
             $position_depth,
             $user_id,
+            $author_label,
             $language,
             $text,
             $topic
@@ -211,8 +215,12 @@ try {
     $stmt->close();
     $stmt = null;
 
-    if (!global_quota_consume($db, $text_bytes)) {
-        error_log('OPNG submit.php: could not update the global storage counter');
+    if (
+        !global_quota_consume($db, $text_bytes)
+        || !global_entry_consume($db, 1)
+        || ($user_id !== null && !user_quota_consume($db, (int) $user_id, $text_bytes))
+    ) {
+        error_log('OPNG submit.php: could not update the storage counters');
         $db->rollback();
         $transaction_started = false;
         $db->close();

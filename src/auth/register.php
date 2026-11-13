@@ -7,6 +7,7 @@ require("../includes/password_validation.php");
 require("../includes/http_input.php");
 require("../includes/error_messages.php");
 require("../includes/assets.php");
+require("../includes/admin_metrics.php");
 require_once("../includes/captcha.php");
 require("../database.php");
 
@@ -94,6 +95,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                             $form_error_key = 'error_registration';
                         } else {
                             $stmt->close();
+                            // total_users changed; do not wait for the metrics TTL.
+                            admin_metrics_invalidate($db);
                             $db->close();
                             header("Location: login.php?msg=" . urlencode("Registration successful. Please sign in."));
                             exit;

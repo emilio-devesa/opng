@@ -549,6 +549,7 @@ if (
     || !str_contains($metrics_source, 'admin_metrics_rest')
     || str_contains($metrics_source, 'style=')
     || !is_string($metrics_include)
+    || !str_contains($metrics_include, 'storage_counters')
     || !str_contains($metrics_include, 'SUM(OCTET_LENGTH(text))')
     || !str_contains($metrics_include, 'LIMIT 5')
     || !str_contains($metrics_include, 'admin_metrics_cache')
@@ -693,6 +694,56 @@ if (
     || !str_contains($admin_styles, '.line-numbers-notice')
 ) {
     $failures[] = 'Line-number cap styles are missing from the stylesheet';
+}
+$copy_script = file_get_contents($root . '/src/assets/js/copy.js');
+if (
+    !is_string($copy_script)
+    || !str_contains($copy_script, 'MAX_AUTO_HIGHLIGHT_BYTES')
+    || !str_contains($copy_script, 'highlight-button')
+    || !str_contains($copy_script, 'requestAnimationFrame')
+    || !str_contains($copy_script, 'highlight-error-message')
+) {
+    $failures[] = 'Large-paste highlighting lacks the size threshold, manual control, or progress/error state';
+}
+if (
+    !is_string($view_page)
+    || !str_contains($view_page, 'OPNG_MAX_AUTO_HIGHLIGHT_BYTES')
+    || !str_contains($view_page, 'highlight-controls')
+    || !str_contains($view_page, 'highlight_large_notice')
+    || !str_contains($view_page, 'highlight-button')
+    || !str_contains($view_page, "\$highlight_enabled")
+) {
+    $failures[] = 'View page does not expose the manual highlight control for large pastes';
+}
+if (
+    !is_string($admin_styles)
+    || !str_contains($admin_styles, '.highlight-controls')
+    || !str_contains($admin_styles, '.highlight-status-error')
+) {
+    $failures[] = 'Highlight control styles are missing from the stylesheet';
+}
+if (
+    !is_string($length_script)
+    || !str_contains($length_script, 'UPDATE_DELAY_MS')
+    || !str_contains($length_script, 'clearTimeout')
+) {
+    $failures[] = 'The paste length meter must debounce input measurement';
+}
+$dark_mode_script = file_get_contents($root . '/src/assets/js/dark-mode.js');
+if (
+    !is_string($dark_mode_script)
+    || !str_contains($dark_mode_script, 'window.opngLanguageCatalog')
+    || str_contains($dark_mode_script, 'fetch(')
+) {
+    $failures[] = 'Dark mode must reuse the shared language catalog instead of fetching it again';
+}
+if (
+    !is_string($language_script)
+    || !str_contains($language_script, 'window.opngLanguageCatalog')
+    || !str_contains($language_script, 'CustomEvent("languageChanged"')
+    || !str_contains($language_script, 'detail: { lang: lang, catalog: data }')
+) {
+    $failures[] = 'Language switching must share its catalog through the change event';
 }
 
 $rate_limit_source = file_get_contents($root . '/src/includes/ratelimit.php');

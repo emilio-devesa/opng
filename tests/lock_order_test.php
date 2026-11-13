@@ -83,7 +83,7 @@ $user_action = lock_order_source($root . '/src/admin/user_action.php');
 lock_order_expect(
     lock_order_in_order($user_action, [
         'global_quota_lock($db)',
-        'SELECT role FROM users WHERE id = ? FOR UPDATE',
+        'SELECT role, used_bytes FROM users WHERE id = ? FOR UPDATE',
         'ORDER BY id ASC FOR UPDATE',
         'DELETE FROM entries',
     ]),

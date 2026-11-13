@@ -2,6 +2,8 @@
 
 require __DIR__ . '/../src/includes/user_quota.php';
 
+$root = dirname(__DIR__);
+
 function assert_global_quota(bool $expected, bool $actual, string $message): void
 {
     if ($expected !== $actual) {
@@ -35,11 +37,35 @@ assert_global_quota(
     'the default global quota is 10 GiB'
 );
 
-foreach (['global_quota_lock', 'global_quota_consume', 'global_quota_zero', 'global_quota_recount'] as $function) {
+foreach ([
+    'global_quota_lock',
+    'global_quota_consume',
+    'global_quota_zero',
+    'global_quota_recount',
+    'global_entry_usage',
+    'global_entry_consume',
+    'user_quota_consume',
+    'user_quota_zero_all',
+    'user_quota_recount',
+] as $function) {
     assert_global_quota(true, function_exists($function), "{$function}() is available");
 }
 
-$root = dirname(__DIR__);
+$quota_source = file_get_contents($root . '/src/includes/user_quota.php');
+$lock_function = '';
+if (is_string($quota_source)) {
+    $lock_start = strpos($quota_source, 'function lock_user_quota');
+    $lock_end = $lock_start === false ? false : strpos($quota_source, 'function user_quota_consume', $lock_start);
+    if ($lock_start !== false && $lock_end !== false) {
+        $lock_function = substr($quota_source, $lock_start, $lock_end - $lock_start);
+    }
+}
+assert_global_quota(
+    true,
+    $lock_function !== '' && !str_contains($lock_function, 'SUM('),
+    'locking an account reads users.used_bytes instead of summing its entries (PERF-10)'
+);
+
 $submit = file_get_contents($root . '/src/submit.php');
 $update = file_get_contents($root . '/src/update.php');
 assert_global_quota(
@@ -75,4 +101,55 @@ assert_global_quota(
     true,
     is_string($install) && str_contains($install, 'storage_counters'),
     'the installer creates the storage counter table'
+);
+assert_global_quota(
+    true,
+    is_string($install)
+        && str_contains($install, 'used_entries')
+        && str_contains($install, 'author_label'),
+    'the installer seeds the entry counter and author label columns'
+);
+
+foreach ([
+    '/src/submit.php' => ['global_entry_consume', 'user_quota_consume'],
+    '/src/update.php' => ['user_quota_consume'],
+    '/src/admin/drop_id.php' => ['global_entry_consume', 'user_quota_consume'],
+    '/src/admin/user_action.php' => ['global_entry_consume', 'used_bytes'],
+    '/src/admin/empty.php' => ['user_quota_zero_all'],
+] as $path => $markers) {
+    $source = file_get_contents($root . $path);
+    $found = is_string($source);
+    foreach ($markers as $marker) {
+        $found = $found && str_contains($source, $marker);
+    }
+    assert_global_quota(true, $found, "{$path} maintains the denormalized counters");
+}
+
+$seed = file_get_contents($root . '/tools/seed.php');
+assert_global_quota(
+    true,
+    is_string($seed)
+        && str_contains($seed, 'author_label')
+        && str_contains($seed, 'global_quota_recount')
+        && str_contains($seed, 'user_quota_recount'),
+    'tools/seed.php writes author labels and reconciles both counters'
+);
+$recount = $root . '/tools/recount_storage.php';
+$refresh = $root . '/tools/metrics_refresh.php';
+assert_global_quota(true, is_file($recount) && is_file($refresh), 'counter and metrics maintenance tools are installed');
+$recount_source = is_file($recount) ? file_get_contents($recount) : false;
+assert_global_quota(
+    true,
+    is_string($recount_source)
+        && str_contains($recount_source, '--check')
+        && str_contains($recount_source, 'global_quota_lock'),
+    'tools/recount_storage.php verifies drift and takes the global lock first'
+);
+$metrics = file_get_contents($root . '/src/includes/admin_metrics.php');
+assert_global_quota(
+    true,
+    is_string($metrics)
+        && str_contains($metrics, 'storage_counters')
+        && str_contains($metrics, 'GROUP BY language'),
+    'admin metrics read the counters and group by the indexed language column'
 );

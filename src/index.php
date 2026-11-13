@@ -206,7 +206,7 @@ $show_search = true;
                             <?php echo htmlspecialchars($row['topic'], ENT_QUOTES, 'UTF-8'); ?>
                         </a>
                     </td>
-                    <td><?php echo htmlspecialchars($row['username'] ?? "Guest", ENT_QUOTES, 'UTF-8'); ?></td>
+                    <td><?php echo htmlspecialchars($row['author_label'] ?? "Guest", ENT_QUOTES, 'UTF-8'); ?></td>
                     <td><?php echo htmlspecialchars($row['language'], ENT_QUOTES, 'UTF-8'); ?></td>
                     <td><?php echo opng_datetime_html((string) $row['date']); ?></td>
                 </tr>

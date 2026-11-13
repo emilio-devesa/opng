@@ -87,6 +87,11 @@ $textarea_rows = min(max($line_count, 10), 50);
 // 1 MiB paste. Cap the gutter; the code itself is always shown in full.
 const OPNG_MAX_RENDERED_LINE_NUMBERS = 5000;
 $show_line_numbers = $line_count <= OPNG_MAX_RENDERED_LINE_NUMBERS;
+// Highlighting a 1 MiB paste blocks the main thread. Small and medium pastes
+// keep the automatic behaviour; larger ones get an explicit control so the
+// initial render stays responsive (PERF-15/UX-13).
+const OPNG_MAX_AUTO_HIGHLIGHT_BYTES = 200 * 1024;
+$text_bytes = strlen($array['text']);
 // Preselect the closest current language when editing a paste saved with the
 // legacy combined "Java/C/C++" value.
 $selected_language = $language === 'Java/C/C++' ? 'C++' : $language;
@@ -223,6 +228,8 @@ $highlight_language_class = match (strtolower($language)) {
     'java/c/c++' => 'language-cpp',
     default => '',
 };
+$highlight_enabled = $highlight_language_class !== 'language-plaintext';
+$highlight_manual = $highlight_enabled && $text_bytes > OPNG_MAX_AUTO_HIGHLIGHT_BYTES;
 $flash_key = match ($flash_message) {
     'Paste updated successfully' => 'paste_updated',
     default => '',
@@ -263,7 +270,16 @@ require(__DIR__ . "/includes/layout_header.php");
                 <pre class="code-content"><code id="code-block"<?php echo $highlight_language_class !== '' ? ' class="' . htmlspecialchars($highlight_language_class, ENT_QUOTES, 'UTF-8') . '"' : ''; ?>><?php echo htmlspecialchars($array['text'], ENT_QUOTES, 'UTF-8'); ?></code></pre>
             </div>
             <?php if (!$show_line_numbers): ?>
-            <p class="line-numbers-notice" data-i18n="line_numbers_hidden">Line numbers are hidden for very long pastes.</p>
+            <p class="line-numbers-notice" data-i18n="line_numbers_hidden">Line numbers are hidden for pastes with more than 5,000 lines to keep the page responsive.</p>
+            <?php endif; ?>
+            <?php if ($highlight_enabled): ?>
+            <div class="highlight-controls">
+                <p id="highlight-notice" class="highlight-notice" data-i18n="highlight_large_notice"<?php echo $highlight_manual ? '' : ' hidden'; ?>>This paste is large, so syntax highlighting is off by default to keep the page responsive.</p>
+                <button id="highlight-button" type="button" class="highlight-button" data-i18n="highlight_button"<?php echo $highlight_manual ? '' : ' hidden'; ?>>Highlight</button>
+                <p id="highlight-status" class="highlight-status" role="status" aria-live="polite" hidden></p>
+                <span id="highlighting-message" data-i18n="highlighting" hidden>Highlighting…</span>
+                <span id="highlight-error-message" data-i18n="highlight_error" hidden>The paste could not be highlighted.</span>
+            </div>
             <?php endif; ?>
             <div class="paste-actions">
                 <div class="copy-controls">
@@ -498,7 +514,7 @@ require(__DIR__ . "/includes/layout_header.php");
         <?php endif; ?>
     </div>
     <?php if ($tab === 'view'): ?>
-    <?php if ($highlight_language_class !== 'language-plaintext'): ?>
+    <?php if ($highlight_enabled): ?>
     <script src="assets/vendor/highlight.min.js?v=<?php echo $asset_version; ?>" defer></script>
     <?php endif; ?>
     <script src="assets/js/copy.js?v=<?php echo $asset_version; ?>" defer></script>

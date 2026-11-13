@@ -82,7 +82,7 @@ container logs opng-app
 container logs opng-db
 ```
 
-The health endpoint returns `200 {"status":"ok","schema":"0004_entry_threads"}`
+The health endpoint returns `200 {"status":"ok","schema":"0006_entry_author_label"}`
 when the database, schema and storage headroom are usable. It returns `503`
 without leaking credentials or internals.
 

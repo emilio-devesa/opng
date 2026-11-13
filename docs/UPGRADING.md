@@ -94,6 +94,32 @@ php tools/link_legacy_replies.php --apply --reply=REPLY_ID --parent=PARENT_ID
 
 Each applied pair is written to the audit log.
 
+### From 1.1.x to 1.2
+
+- `0005_storage_counters` adds `users.used_bytes` and
+  `storage_counters.used_entries`, then backfills both from `entries`. After the
+  upgrade, per-account quota checks and the dashboard totals are O(1) instead of
+  scanning the account's pastes or the whole table.
+- `0006_entry_author_label` adds `entries.author_label` and
+  `idx_entries_author (author_label, id)`, backfilling existing rows from
+  `users.username` (`Guest` for anonymous pastes). Author sorting no longer
+  joins `users`.
+- Both migrations are idempotent and safe to re-run if a previous attempt was
+  interrupted.
+
+After any manual import, bulk insert or restore that bypassed the application,
+rebuild and verify the counters:
+
+```bash
+php tools/recount_storage.php
+php tools/recount_storage.php --check
+```
+
+`--check` changes nothing and exits non-zero when a counter differs from the
+authoritative data. Schedule `tools/metrics_refresh.php` if you want the admin
+dashboard cache warmed before its five-minute TTL; the dashboard still computes
+the values on demand when the cache is empty.
+
 ## 5. Run the doctor and smoke test
 
 ```bash

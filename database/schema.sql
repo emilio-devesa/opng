@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS users (
     session_version INT UNSIGNED NOT NULL DEFAULT 0,
     reset_token VARCHAR(255) NULL,
     reset_token_expires DATETIME NULL,
+    used_bytes BIGINT UNSIGNED NOT NULL DEFAULT 0,
     KEY idx_users_created (created_at, id),
     KEY idx_users_role (role, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -29,6 +30,7 @@ CREATE TABLE IF NOT EXISTS entries (
     root_id VARCHAR(255) NULL,
     depth TINYINT UNSIGNED NOT NULL DEFAULT 0,
     user_id INT NULL,
+    author_label VARCHAR(50) NOT NULL DEFAULT 'Guest',
     date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     language VARCHAR(20) NOT NULL DEFAULT '',
     text MEDIUMTEXT,
@@ -40,6 +42,7 @@ CREATE TABLE IF NOT EXISTS entries (
     KEY idx_entries_language (language, id),
     KEY idx_entries_parent (parent_id, date, id),
     KEY idx_entries_root (root_id, date, id),
+    KEY idx_entries_author (author_label, id),
     FULLTEXT KEY ft_entries_topic (topic),
     CONSTRAINT fk_entries_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL,
     CONSTRAINT fk_entries_parent FOREIGN KEY (parent_id) REFERENCES entries (id) ON DELETE SET NULL
@@ -63,7 +66,8 @@ CREATE TABLE IF NOT EXISTS admin_metrics_cache (
 
 CREATE TABLE IF NOT EXISTS storage_counters (
     counter_key VARCHAR(32) NOT NULL PRIMARY KEY,
-    used_bytes BIGINT UNSIGNED NOT NULL DEFAULT 0
+    used_bytes BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    used_entries BIGINT UNSIGNED NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS audit_log (
@@ -79,10 +83,29 @@ CREATE TABLE IF NOT EXISTS audit_log (
     CONSTRAINT fk_audit_actor FOREIGN KEY (actor_id) REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT IGNORE INTO storage_counters (counter_key, used_bytes)
-SELECT 'global', COALESCE(SUM(OCTET_LENGTH(text)), 0) FROM entries;
+INSERT IGNORE INTO storage_counters (counter_key, used_bytes, used_entries)
+SELECT 'global', COALESCE(SUM(OCTET_LENGTH(text)), 0), COUNT(*) FROM entries;
 
--- Importing this file (for example through phpMyAdmin) installs the v1.0 end
+-- Reconcile the denormalized counters and author labels when this file is
+-- imported over an existing database. Fresh installations have no rows yet.
+UPDATE users u
+LEFT JOIN (
+    SELECT user_id, COALESCE(SUM(OCTET_LENGTH(text)), 0) AS used_bytes
+    FROM entries
+    WHERE user_id IS NOT NULL
+    GROUP BY user_id
+) AS entry_usage ON entry_usage.user_id = u.id
+SET u.used_bytes = COALESCE(entry_usage.used_bytes, 0);
+
+UPDATE storage_counters
+SET used_entries = (SELECT COUNT(*) FROM entries)
+WHERE counter_key = 'global';
+
+UPDATE entries e
+LEFT JOIN users u ON u.id = e.user_id
+SET e.author_label = COALESCE(u.username, 'Guest');
+
+-- Importing this file (for example through phpMyAdmin) installs the v1.2 end
 -- state, so record every migration that is already represented above. Without
 -- these rows `tools/migrate.php` would try to apply the same ALTER statements
 -- again. `INSERT IGNORE` keeps repeated imports harmless.
@@ -90,4 +113,6 @@ INSERT IGNORE INTO schema_migrations (version) VALUES
     ('0001_baseline'),
     ('0002_foreign_keys'),
     ('0003_admin_metrics_expires_bigint'),
-    ('0004_entry_threads');
+    ('0004_entry_threads'),
+    ('0005_storage_counters'),
+    ('0006_entry_author_label');

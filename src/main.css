@@ -511,6 +511,31 @@ form.search-form button {
     text-align: right;
 }
 
+.highlight-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+    margin: 0.75rem 0 0;
+}
+
+.highlight-notice {
+    flex: 1 1 18rem;
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+.highlight-status {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+.highlight-status-error {
+    color: var(--danger);
+}
+
 /* ========================= */
 /* CÓDIGO */
 /* ========================= */

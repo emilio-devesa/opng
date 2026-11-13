@@ -24,7 +24,7 @@ an edit, an admin deletion or an account-role change.
 | `src/update.php` | global counter → paste owner (if any) → entry `FOR UPDATE` → update |
 | `src/admin/drop_id.php` | global counter → entry owner (if any) → entry `FOR UPDATE` → delete |
 | `src/admin/user_action.php` | global counter → target user → administrator rows (`ORDER BY id`) → entries |
-| `src/admin/empty.php` | global counter → entries (batched delete) |
+| `src/admin/empty.php` | global counter → every `users` counter → entries (batched delete) |
 
 Rules for new code:
 
@@ -37,6 +37,53 @@ Rules for new code:
 The non-locking `SELECT` used to discover an entry owner is not a lock. The row
 is re-read with `FOR UPDATE` after the owner and counter are locked, and the
 owner is checked again before the update or delete.
+
+## Denormalized storage counters
+
+The request path never aggregates `entries` to enforce a quota or to draw the
+dashboard:
+
+| Value | Column | Maintained by |
+|---|---|---|
+| Global paste bytes | `storage_counters.used_bytes` (`counter_key = 'global'`) | `global_quota_consume()` |
+| Global entry count | `storage_counters.used_entries` (`counter_key = 'global'`) | `global_entry_consume()` |
+| Account paste bytes | `users.used_bytes` | `user_quota_consume()` |
+
+The byte and entry deltas are applied in the same transaction as the entry
+write, after the rows from the lock order have been taken. Negative deltas are
+clamped at zero so a reconciliation mistake cannot produce a negative usage.
+`lock_user_quota()` reads `users.used_bytes` and the username from the locked
+account row instead of running `SUM(OCTET_LENGTH(text))` per write (PERF-10).
+
+Bulk paths that bypass the normal write flow (`tools/seed.php`, manual imports)
+must rebuild the counters. `tools/recount_storage.php` recalculates every value
+from the authoritative `entries` table and takes the global counter lock first;
+`--check` reports drift without changing anything and exits non-zero, so it can
+run from cron or monitoring.
+
+The admin dashboard reads the same counters for the totals. It only falls back
+to `COUNT(*)`/`SUM()` when the global counter row is missing, which keeps a
+recovery path without paying the aggregate on every refresh (PERF-17).
+`tools/metrics_refresh.php` can warm the dashboard cache from cron.
+
+## Listing and history query shapes
+
+- `entries.author_label` is the denormalized display author (username or
+  `Guest`). The global listing orders by `entries.author_label` through
+  `idx_entries_author (author_label, id)` and does not join `users` (PERF-12).
+  The label is written on insert, copied on edit, backfilled by migration
+  `0006_entry_author_label.sql` and reset to `Guest` when an account is deleted
+  with the preserve option. v1.2 has no username-change feature, so no rename
+  maintenance is required.
+- `thread_page_query()` builds the production history SQL as
+  `UNION ALL` of the `root_id` branch and the legacy-root branch
+  (`id = ? AND (root_id IS NULL OR root_id <> ?)`). Each branch uses its own
+  index instead of the previous `root_id = ? OR id = ?` index-merge plan, and
+  the outer sort only sees the rows that belong to the thread (PERF-13). The
+  root branch excludes the normal case where the root already belongs to the
+  first branch, so it never duplicates a row.
+- Admin entry search still joins `users` when filtering by author prefix; that
+  query is admin-only and benefits from the unique username index.
 
 ## Transaction boundaries
 
@@ -64,8 +111,12 @@ rely on `idx_audit_created (created_at, id)`.
 - Migrations are applied in filename order and recorded in `schema_migrations`.
 - MySQL DDL commits implicitly, so a migration cannot be rolled back as a unit.
   Each migration must therefore be idempotent: check `information_schema`
-  before adding columns, indexes or constraints, as `0004_entry_threads.sql`
-  does. A migration interrupted halfway can then be re-run safely.
+  before adding columns, indexes or constraints, as `0004_entry_threads.sql`,
+  `0005_storage_counters.sql` and `0006_entry_author_label.sql` do. A migration
+  interrupted halfway can then be re-run safely.
+- `0005_storage_counters` backfills `users.used_bytes` and
+  `storage_counters.used_entries`; `0006_entry_author_label` backfills
+  `entries.author_label` from `users.username`.
 - `DELIMITER` is a native-client command, not SQL. Do not put stored routines
   with embedded semicolons in a migration file; apply those with `mysql` or
   `mariadb` and document the manual step.

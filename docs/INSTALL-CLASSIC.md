@@ -96,7 +96,7 @@ php tools/install.php
 
 The target database must already exist; the installer deliberately does not
 create or drop databases. It prints the applied migration versions and ends
-with `schema version 0004_entry_threads`. If the host runs MySQL 8.4 or newer
+with `schema version 0006_entry_author_label`. If the host runs MySQL 8.4 or newer
 and the legacy table names differ only by case, resolve them before running
 the installer; it aborts rather than deleting ambiguous data.
 
@@ -205,7 +205,7 @@ After installation, verify:
 3. Create a paste, open it, reply to it and open the **History** tab.
 4. Run `php tools/backup.php /tmp/smoke.sql` and confirm the file is non-empty.
 5. `curl -fsS https://paste.example.com/healthz.php` returns
-   `{"status":"ok","schema":"0004_entry_threads"}`.
+   `{"status":"ok","schema":"0006_entry_author_label"}`.
 
 ## Troubleshooting
 

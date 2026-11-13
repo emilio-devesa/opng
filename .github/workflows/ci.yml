@@ -373,6 +373,15 @@ jobs:
           OPNG_TEST_DB_PASS: ci-root-password
         run: php tests/thread_integration_test.php
 
+      - name: Verify storage counters against authoritative data
+        env:
+          OPNG_TEST_ALLOW_DATABASE_FIXTURES: '1'
+          OPNG_TEST_DB_HOST: 127.0.0.1
+          OPNG_TEST_DB_PORT: '3306'
+          OPNG_TEST_DB_USER: root
+          OPNG_TEST_DB_PASS: ci-root-password
+        run: php tests/storage_counters_integration_test.php
+
       - name: Verify write flows serialize on the documented lock order
         env:
           OPNG_TEST_ALLOW_DATABASE_FIXTURES: '1'
@@ -529,6 +538,15 @@ jobs:
           OPNG_TEST_DB_USER: root
           OPNG_TEST_DB_PASS: ci-root-password
         run: php tests/thread_integration_test.php
+
+      - name: Verify storage counters against authoritative data
+        env:
+          OPNG_TEST_ALLOW_DATABASE_FIXTURES: '1'
+          OPNG_TEST_DB_HOST: 127.0.0.1
+          OPNG_TEST_DB_PORT: '3306'
+          OPNG_TEST_DB_USER: root
+          OPNG_TEST_DB_PASS: ci-root-password
+        run: php tests/storage_counters_integration_test.php
 
       - name: Verify write flows serialize on the documented lock order
         env:

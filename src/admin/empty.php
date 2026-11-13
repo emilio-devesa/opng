@@ -85,6 +85,11 @@ try {
     if (global_quota_lock($db) === null) {
         throw new RuntimeException('Global storage counter is unavailable.');
     }
+    // Reset account counters before touching entries: the documented lock
+    // order is storage_counters -> users -> entries (ROB-15).
+    if (!user_quota_zero_all($db)) {
+        throw new RuntimeException('Account storage counters could not be reset.');
+    }
 
     // Delete in bounded batches instead of a single table-wide statement
     // (ROB-16). The self-referencing FK is processed batch by batch and the

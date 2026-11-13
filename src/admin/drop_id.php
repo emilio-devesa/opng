@@ -134,8 +134,18 @@ try {
         $deleted = $stmt->affected_rows === 1;
         $stmt->close();
         $stmt = null;
-        if ($deleted && !global_quota_consume($db, -$entry_bytes)) {
-            throw new RuntimeException('Global storage counter could not be updated.');
+        if (
+            $deleted
+            && (
+                !global_quota_consume($db, -$entry_bytes)
+                || !global_entry_consume($db, -1)
+                || (
+                    $entry_owner_id !== null
+                    && !user_quota_consume($db, $entry_owner_id, -$entry_bytes)
+                )
+            )
+        ) {
+            throw new RuntimeException('Storage counters could not be updated.');
         }
     }
 

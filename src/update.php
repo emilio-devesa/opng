@@ -171,6 +171,7 @@ try {
     $previous_bytes = (int) ($entry['text_bytes'] ?? 0);
     $replacement_bytes = strlen($text);
     $global_delta = $replacement_bytes - $previous_bytes;
+    $author_label = $owner_id === null ? 'Guest' : ($usage['username'] ?? 'Guest');
 
     if ($global_delta > 0 && !global_quota_allows($global_used, $global_delta)) {
         $db->rollback();
@@ -186,8 +187,10 @@ try {
         opng_error_redirect('error_storage_quota');
     }
 
-    $stmt = $db->prepare("UPDATE entries SET language = ?, text = ?, topic = ? WHERE id = ?");
-    $stmt->bind_param("ssss", $language, $text, $topic, $id);
+    $stmt = $db->prepare(
+        "UPDATE entries SET language = ?, text = ?, topic = ?, author_label = ? WHERE id = ?"
+    );
+    $stmt->bind_param("sssss", $language, $text, $topic, $author_label, $id);
     $ok = $stmt->execute();
     $stmt->close();
     $stmt = null;
@@ -198,8 +201,11 @@ try {
         opng_error_redirect('error_update_paste');
     }
 
-    if ($global_delta !== 0 && !global_quota_consume($db, $global_delta)) {
-        error_log('OPNG update.php: could not update the global storage counter');
+    if (
+        ($global_delta !== 0 && !global_quota_consume($db, $global_delta))
+        || ($owner_id !== null && $global_delta !== 0 && !user_quota_consume($db, $owner_id, $global_delta))
+    ) {
+        error_log('OPNG update.php: could not update the storage counters');
         $db->rollback();
         $transaction_started = false;
         $db->close();

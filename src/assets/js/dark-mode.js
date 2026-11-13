@@ -6,9 +6,6 @@
 (function () {
     "use strict";
 
-    // Prefijo de rutas (capturado en tiempo de carga; en subdirectorios como admin/ o auth/)
-    const basePath = (document.currentScript && document.currentScript.dataset.base) || "";
-
     document.addEventListener("DOMContentLoaded", function () {
         const themeToggle = document.getElementById("theme-toggle");
         if (!themeToggle) return; // Evita errores si el botón no está presente
@@ -28,24 +25,28 @@
             updateThemeButtonText();
         }
 
-        function updateThemeButtonText() {
-            const lang = localStorage.getItem("lang") || "en";
-            fetch(`${basePath}assets/lang/${lang}.json`)
-                .then(response => response.json())
-                .then(data => {
-                    const isDark = document.body.classList.contains("dark-mode");
-                    const label = isDark ? data.light_mode : data.dark_mode;
-                    const emoji = isDark ? "☀️" : "🌙";
-                    if (label) {
-                        themeToggle.textContent = emoji;
-                        themeToggle.setAttribute("aria-label", label);
-                        themeToggle.setAttribute("title", label);
-                    }
-                })
-                .catch(error => console.error("Error loading language file:", error));
+        // Reuse the catalog language.js has already fetched. The server renders
+        // the initial label, so no extra request is needed here (PERF-16).
+        function updateThemeButtonText(catalog) {
+            const shared = window.opngLanguageCatalog;
+            const data = catalog || (shared && shared.data);
+            if (!data) return;
+
+            const isDark = document.body.classList.contains("dark-mode");
+            const label = isDark ? data.light_mode : data.dark_mode;
+            const emoji = isDark ? "☀️" : "🌙";
+            if (label) {
+                themeToggle.textContent = emoji;
+                themeToggle.setAttribute("aria-label", label);
+                themeToggle.setAttribute("title", label);
+            }
         }
 
-        // Actualizar el botón cuando cambia el idioma
-        document.addEventListener("languageChanged", updateThemeButtonText);
+        // language.js dispatches the loaded catalog with the change event, so
+        // the button is refreshed without a second fetch.
+        document.addEventListener("languageChanged", function (event) {
+            const catalog = event && event.detail ? event.detail.catalog : null;
+            updateThemeButtonText(catalog);
+        });
     });
 })();

@@ -81,7 +81,7 @@ assert_value(
 );
 assert_value(
     [
-        'sql' => "(COALESCE(users.username, 'Guest') < ? OR (COALESCE(users.username, 'Guest') = ? AND entries.id < ?))",
+        'sql' => '(entries.author_label < ? OR (entries.author_label = ? AND entries.id < ?))',
         'params' => ['Guest', 'Guest', 'entry-2'],
     ],
     listing_cursor_condition([
@@ -92,10 +92,20 @@ assert_value(
     ], 'newer'),
     'reverse sorted cursors use the opposite comparison'
 );
+assert_value(
+    'entries.author_label',
+    entry_sort_expression('author'),
+    'author sorting uses the denormalized entry label instead of a users JOIN expression'
+);
 assert_value(null, entry_sort_expression('id'), 'unsupported listing columns cannot become SQL');
 assert_value(
+    'lucia_dev',
+    entry_listing_sort_value('author', ['author_label' => 'lucia_dev']),
+    'entries sort by their stored author label'
+);
+assert_value(
     'Guest',
-    entry_listing_sort_value('author', ['username' => null]),
+    entry_listing_sort_value('author', ['author_label' => 'Guest']),
     'anonymous entries sort by their displayed author label'
 );
 
@@ -111,6 +121,11 @@ assert_value(
     'the default listing no longer wraps the date in COALESCE'
 );
 assert_value([], $default_listing['params'], 'the default listing has no bound parameters');
+assert_value(
+    false,
+    str_contains($default_listing['sql'], 'LEFT JOIN users'),
+    'the global listing no longer joins users because the author label is denormalized'
+);
 
 $filtered_listing = build_listing_query('+needle*', [
     'sort' => 'topic',

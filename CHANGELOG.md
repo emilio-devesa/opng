@@ -31,6 +31,32 @@
 - **ROB-19:** `db_connect()` applies `MYSQLI_OPT_CONNECT_TIMEOUT` from `OPNG_DB_CONNECT_TIMEOUT` (default 5 seconds) and an optional `OPNG_DB_READ_TIMEOUT`, preventing a down database from exhausting PHP-FPM workers.
 - Added `tests/database_timeout_test.php`, extended `tests/migration_system_test.php`, `tests/audit_log_test.php`, `tests/password_reset_security_test.php` and `tests/thread_integration_test.php`, and wired the new concurrency test into both CI database jobs.
 
+### Phase 10 — Rendering, storage and query efficiency
+#### ⚡ Storage and listing
+- **PERF-10:** account quota checks read the denormalized `users.used_bytes` counter instead of running `SUM(OCTET_LENGTH(text))` over the account's entries on every create or edit. The counter is updated in the same transaction as the write, and `tools/recount_storage.php` can rebuild it.
+- **PERF-11:** a successful registration invalidates the dashboard cache, so the user total is not stale for up to the five-minute TTL.
+- **PERF-12:** `entries.author_label` stores the displayed author (username or `Guest`) and `idx_entries_author (author_label, id)` serves `?sort=author` without joining `users` or filesorting. The label is written on insert/edit, backfilled by migration `0006_entry_author_label`, and reset to `Guest` when an account is preserved after deletion.
+- **PERF-17:** `storage_counters.used_entries` joins the existing global byte counter, so the dashboard reads total pastes and paste bytes in O(1) instead of scanning `entries`. The authoritative query remains as a recovery fallback when the counter row is missing, and `tools/metrics_refresh.php` warms the cache from cron.
+- Migration `0005_storage_counters` adds `users.used_bytes` and `storage_counters.used_entries` and backfills both. Both new migrations are idempotent.
+- `tools/seed.php` now writes `author_label` and reconciles every counter after its direct inserts.
+
+#### 🧵 History and i18n
+- **PERF-13:** `thread_page_query()` builds the history SQL as `UNION ALL` of the `root_id` branch and the legacy-root branch (`id = ? AND (root_id IS NULL OR root_id <> ?)`). Each branch uses its own index instead of an index-merge plan, while preserving roots with `root_id = NULL` and excluding the normal case so no row is duplicated.
+- **PERF-14:** the server-side translator temporarily replaces `<pre>` and `<textarea>` payloads before the `DOMDocument` pass and restores them afterwards, so translating a page no longer parses or serializes a 1 MiB paste.
+
+#### 🎨 Frontend behaviour
+- **PERF-15 / UX-13:** pastes up to 200 KiB keep automatic syntax highlighting; larger pastes show a translated notice and a **Highlight** button with progress and error states, giving the browser a frame to paint before highlight.js runs.
+- **PERF-16:** `dark-mode.js` reuses the catalog already fetched by `language.js` through `window.opngLanguageCatalog` and the `languageChanged` event, removing a duplicate request.
+- **UX-12:** the line-number notice now states that numbers are hidden above 5,000 lines to keep the page responsive.
+- The paste length meter debounces input measurement with a 120 ms timer, keeping typing responsive for 1 MiB pastes.
+- `language.js` now exposes the loaded catalog and dispatches a `CustomEvent` with `lang`/`catalog` details, and the new highlight strings were added to all six catalogs.
+
+#### 🧪 Tests and docs
+- **HYG-15:** `tests/performance_query_plan_test.php` now EXPLAINs the exact `thread_page_query()` SQL and covers the `author` listing index; it also checks that the quota and dashboard lookups are primary-key reads instead of aggregates.
+- Added `tests/storage_counters_integration_test.php` (disposable database: recount, signed deltas, clamping and bulk reset) and wired it into both CI database jobs.
+- Extended `tests/search_pagination_test.php`, `tests/thread_integration_test.php`, `tests/database_install_test.php`, `tests/migration_system_test.php`, `tests/i18n_test.php`, `tests/global_quota_test.php`, `tests/frontend_contract_test.php`, `tests/lock_order_test.php` and `tests/thread_test.php`.
+- Updated `README.md`, `docs/ARCHITECTURE.md`, `docs/UPGRADING.md` and `docs/BACKUP-RESTORE.md` with the counters, author label, thread query, upgrade migrations and reconciliation commands.
+
 ## Version 1.1.0 (2026-11-10)
 
 ### Phase 7 — Code hygiene

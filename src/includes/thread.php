@@ -84,38 +84,72 @@ function thread_position(?array $parent, string $new_id): array
 }
 
 /**
+ * Build the production history query.
+ *
+ * The previous `(root_id = ? OR id = ?)` form made MySQL choose index_merge
+ * plus sort_union for the two access paths. Two UNION ALL branches can each
+ * use their own index; the outer ORDER BY only sorts the rows that belong to
+ * this thread (PERF-13). The second branch keeps legacy roots with
+ * root_id = NULL, and excludes the normal case where the root already belongs
+ * to the first branch, so no row is duplicated.
+ *
+ * @param array{id: string, date: string|null}|null $cursor
+ * @return array{sql: string, types: string, params: list<string>}
+ */
+function thread_page_query(string $root_id, ?array $cursor = null): array
+{
+    $columns = 'entries.id, entries.parent_id, entries.root_id, entries.depth,
+                entries.topic, entries.date, entries.author_label';
+    $descendants = "SELECT {$columns} FROM entries WHERE entries.root_id = ?";
+    $root = "SELECT {$columns} FROM entries
+             WHERE entries.id = ? AND (entries.root_id IS NULL OR entries.root_id <> ?)";
+    $condition_types = '';
+    $condition_params = [];
+    if ($cursor !== null) {
+        $condition = entry_cursor_condition($cursor, 'newer');
+        $descendants .= ' AND ' . $condition['sql'];
+        $root .= ' AND ' . $condition['sql'];
+        $condition_types = str_repeat('s', count($condition['params']));
+        $condition_params = $condition['params'];
+    }
+
+    $sql = "SELECT thread_entries.id, thread_entries.parent_id, thread_entries.root_id,
+                   thread_entries.depth, thread_entries.topic, thread_entries.date,
+                   thread_entries.author_label AS username
+            FROM ({$descendants} UNION ALL {$root}) AS thread_entries
+            ORDER BY thread_entries.date ASC, thread_entries.id ASC
+            LIMIT " . (OPNG_THREAD_PAGE_SIZE + 1);
+
+    // Parameter order follows the SQL text: the descendants branch consumes
+    // its root id and cursor values first, then the legacy-root branch consumes
+    // its own id, root comparison and cursor values.
+    $types = 's' . $condition_types . 'ss' . $condition_types;
+    $params = array_merge(
+        [$root_id],
+        $condition_params,
+        [$root_id, $root_id],
+        $condition_params
+    );
+
+    return ['sql' => $sql, 'types' => $types, 'params' => $params];
+}
+
+/**
  * Fetch one chronological page of a thread.
  *
  * @param array{id: string, date: string|null}|null $cursor
  * @return array{
- *   nodes: list<array{id: string, parent_id: string|null, root_id: string|null, depth: int, topic: string, date: string, username: string|null}>,
+ *   nodes: list<array{id: string, parent_id: string|null, root_id: string|null, depth: int, topic: string, date: string, username: string}>,
  *   truncated: bool,
  *   next_cursor: string|null
  * }
  */
 function thread_fetch_page(mysqli $db, string $root_id, ?array $cursor = null): array
 {
-    // The root row is matched by id as well: legacy and seeded roots can have
-    // root_id = NULL, so an equality filter alone would silently drop them and
-    // show only their replies in the history.
-    $sql = "SELECT entries.id, entries.parent_id, entries.root_id, entries.depth,
-                   entries.topic, entries.date, u.username
-            FROM entries
-            LEFT JOIN users u ON u.id = entries.user_id
-            WHERE (entries.root_id = ? OR entries.id = ?)";
-    $types = 'ss';
-    $params = [$root_id, $root_id];
-
-    if ($cursor !== null) {
-        $condition = entry_cursor_condition($cursor, 'newer');
-        $sql .= ' AND ' . $condition['sql'];
-        foreach ($condition['params'] as $parameter) {
-            $types .= 's';
-            $params[] = $parameter;
-        }
-    }
-
-    $sql .= ' ORDER BY entries.date ASC, entries.id ASC LIMIT ' . (OPNG_THREAD_PAGE_SIZE + 1);
+    $query = thread_page_query($root_id, $cursor);
+    $sql = $query['sql'];
+    $types = $query['types'];
+    $params = $query['params'];
 
     $stmt = $db->prepare($sql);
     if (!$stmt) {
@@ -145,7 +179,7 @@ function thread_fetch_page(mysqli $db, string $root_id, ?array $cursor = null): 
             'depth' => max(0, (int) ($row['depth'] ?? 0)),
             'topic' => is_string($row['topic'] ?? null) ? $row['topic'] : '',
             'date' => is_string($row['date'] ?? null) ? $row['date'] : '',
-            'username' => is_string($row['username'] ?? null) ? $row['username'] : null,
+            'username' => is_string($row['username'] ?? null) ? $row['username'] : 'Guest',
         ];
     }
     $result->free();

@@ -74,8 +74,18 @@ mysql opng_restore < opng-2026-11-05.sql
 mysql opng_restore -e 'SELECT COUNT(*) FROM entries; SELECT MAX(version) FROM schema_migrations;'
 ```
 
-The restored schema must include `schema_migrations`, `storage_counters`,
-`entries.parent_id/root_id/depth`, the FULLTEXT index and all foreign keys.
+The restored schema must include `schema_migrations`, `storage_counters`
+(with `used_bytes` and `used_entries`), `users.used_bytes`,
+`entries.parent_id/root_id/depth/author_label`, `idx_entries_author`, the
+FULLTEXT index and all foreign keys. The dump includes the denormalized
+counters, so a normal restore keeps the quota and dashboard values consistent.
+If you import only table data or a partial dump, rebuild them:
+
+```bash
+php tools/recount_storage.php
+php tools/recount_storage.php --check
+```
+
 For an automated end-to-end check, run:
 
 ```bash
@@ -117,11 +127,14 @@ Set `OPNG_MYSQL_CLIENT=/path/to/mysql` when the client is not in `PATH`
 
 ```bash
 mysql opng < /secure/backups/opng-2026-11-05.sql
+php tools/recount_storage.php --check
 php tools/doctor.php
 ```
 
 The dump disables foreign-key checks during import and re-enables them. Do not
-interrupt an import; restore into a fresh database instead if it fails.
+interrupt an import; restore into a fresh database instead if it fails. A
+successful `tools/backup.php` dump already contains matching counters; the
+check will report drift if the import was partial or edited by hand.
 
 ## Restore into a different installation
 

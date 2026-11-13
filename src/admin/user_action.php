@@ -76,7 +76,7 @@ try {
         throw new RuntimeException('Global storage counter is unavailable.');
     }
 
-    $stmt = $db->prepare('SELECT role FROM users WHERE id = ? FOR UPDATE');
+    $stmt = $db->prepare('SELECT role, used_bytes FROM users WHERE id = ? FOR UPDATE');
     $stmt->bind_param('i', $target_user_id);
     if (!$stmt->execute()) {
         throw new RuntimeException('User role lookup failed.');
@@ -95,6 +95,7 @@ try {
         $db->close();
         redirect_admin('user_not_found');
     }
+    $target_used_bytes = (int) ($target['used_bytes'] ?? 0);
 
     $removes_admin = $target['role'] === 'admin'
         && ($action === 'delete' || $new_role === 'user');
@@ -124,7 +125,11 @@ try {
         $message = 'user_role_changed';
     } else {
         if ($delete_mode === 'preserve') {
-            $stmt = $db->prepare('UPDATE entries SET user_id = NULL WHERE user_id = ?');
+            $stmt = $db->prepare(
+                "UPDATE entries
+                 SET user_id = NULL, author_label = 'Guest'
+                 WHERE user_id = ?"
+            );
             $stmt->bind_param('i', $target_user_id);
             if (!$stmt->execute()) {
                 throw new RuntimeException('User entries could not be preserved anonymously.');
@@ -132,34 +137,23 @@ try {
             $stmt->close();
             $stmt = null;
         } else {
-            // Measure the account's pastes before deleting them. The target
-            // user row is locked above, so no concurrent paste can slip in.
-            $usage_stmt = $db->prepare(
-                'SELECT COALESCE(SUM(OCTET_LENGTH(text)), 0) AS used_bytes FROM entries WHERE user_id = ?'
-            );
-            $usage_stmt->bind_param('i', $target_user_id);
-            if (!$usage_stmt->execute()) {
-                $usage_stmt->close();
-                throw new RuntimeException('User entry size lookup failed.');
-            }
-            $usage_result = $usage_stmt->get_result();
-            $usage_row = $usage_result ? $usage_result->fetch_assoc() : null;
-            if ($usage_result instanceof mysqli_result) {
-                $usage_result->free();
-            }
-            $usage_stmt->close();
-            $deleted_bytes = is_array($usage_row) ? (int) ($usage_row['used_bytes'] ?? 0) : 0;
-
+            // The locked target row carries the account byte counter, so this
+            // path no longer runs SUM(OCTET_LENGTH(text)) before the delete
+            // (PERF-10). The DELETE reports how many entry counters to release.
             $stmt = $db->prepare('DELETE FROM entries WHERE user_id = ?');
             $stmt->bind_param('i', $target_user_id);
             if (!$stmt->execute()) {
                 throw new RuntimeException('User entries could not be deleted.');
             }
+            $deleted_entries = max(0, $stmt->affected_rows);
             $stmt->close();
             $stmt = null;
 
-            if (!global_quota_consume($db, -$deleted_bytes)) {
-                throw new RuntimeException('Global storage counter could not be updated.');
+            if (
+                !global_quota_consume($db, -$target_used_bytes)
+                || !global_entry_consume($db, -$deleted_entries)
+            ) {
+                throw new RuntimeException('Global storage counters could not be updated.');
             }
         }
 

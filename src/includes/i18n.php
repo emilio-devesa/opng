@@ -150,6 +150,34 @@ function opng_node_has_element_children(DOMNode $node): bool
 }
 
 /**
+ * Temporarily replace large preformatted blocks before the DOM pass.
+ *
+ * A 1 MiB paste is escaped into the response as one <pre> (or an edit
+ * <textarea>) element. Parsing and serializing that payload for every
+ * translated response is wasteful and cannot change anything inside it, so it
+ * is swapped for a unique text token and restored afterwards (PERF-14).
+ *
+ * @return array{html: string, blocks: array<string, string>}
+ */
+function opng_i18n_protect_blocks(string $html): array
+{
+    $blocks = [];
+    $prefix = 'OPNGI18NBLOCK' . bin2hex(random_bytes(8)) . '_';
+    $protected = preg_replace_callback(
+        '~<(pre|textarea)\b[^>]*>.*?</\1\s*>~is',
+        static function (array $match) use (&$blocks, $prefix): string {
+            $token = $prefix . count($blocks);
+            $blocks[$token] = $match[0];
+
+            return $token;
+        },
+        $html
+    );
+
+    return ['html' => is_string($protected) ? $protected : $html, 'blocks' => $blocks];
+}
+
+/**
  * Translate the data-i18n attributes in a complete HTML document.
  *
  * Elements with nested markup are left untouched so buttons that combine an
@@ -168,6 +196,11 @@ function opng_i18n_apply(string $html): string
         return $html;
     }
 
+    $original = $html;
+    $protected = opng_i18n_protect_blocks($html);
+    $html = $protected['html'];
+    $blocks = $protected['blocks'];
+
     $previous = libxml_use_internal_errors(true);
     $document = new DOMDocument('1.0', 'UTF-8');
     $loaded = $document->loadHTML(
@@ -178,7 +211,7 @@ function opng_i18n_apply(string $html): string
     libxml_use_internal_errors($previous);
 
     if (!$loaded || !$document->documentElement instanceof DOMElement) {
-        return $html;
+        return $original;
     }
 
     $document->documentElement->setAttribute('lang', $locale);
@@ -208,10 +241,15 @@ function opng_i18n_apply(string $html): string
 
     $output = $document->saveHTML();
     if (!is_string($output)) {
-        return $html;
+        return $original;
     }
 
-    return preg_replace('/<\?xml[^>]*\?>\s*/', '', $output) ?? $output;
+    $output = preg_replace('/<\?xml[^>]*\?>\s*/', '', $output) ?? $output;
+    if ($blocks !== []) {
+        $output = strtr($output, $blocks);
+    }
+
+    return $output;
 }
 
 /**

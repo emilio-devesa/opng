@@ -106,15 +106,16 @@ function entry_cursor_condition(array $cursor, string $direction): array
 /**
  * SQL expression for each supported global listing sort.
  *
- * topic, language and date are NOT NULL in the migrated schema, so the bare
- * columns can use their (column, id) indexes. author is derived from the
- * LEFT JOIN and keeps COALESCE for anonymous pastes.
+ * topic, language, date and author are NOT NULL columns in the migrated
+ * schema, so the bare columns can use their (column, id) indexes. The author
+ * label is denormalized on the entry, which removes the COALESCE over the
+ * users JOIN and its filesort (PERF-12).
  */
 function entry_sort_expression(string $sort): ?string
 {
     return match ($sort) {
         'topic' => 'entries.topic',
-        'author' => "COALESCE(users.username, 'Guest')",
+        'author' => 'entries.author_label',
         'language' => 'entries.language',
         'date' => 'entries.date',
         default => null,
@@ -188,7 +189,7 @@ function entry_listing_sort_value(string $sort, array $row): string
 {
     $value = match ($sort) {
         'topic' => $row['topic'] ?? '',
-        'author' => $row['username'] ?? 'Guest',
+        'author' => $row['author_label'] ?? $row['username'] ?? 'Guest',
         'language' => $row['language'] ?? '',
         'date' => $row['date'] ?? '',
         default => throw new InvalidArgumentException('Unsupported listing sort.'),
@@ -277,9 +278,8 @@ function build_listing_query(
         $query_order = $query_order === 'asc' ? 'desc' : 'asc';
     }
 
-    $sql = "SELECT entries.id, entries.user_id, users.username, entries.topic, entries.language, entries.date
-             FROM entries
-             LEFT JOIN users ON entries.user_id = users.id"
+    $sql = "SELECT entries.id, entries.user_id, entries.author_label, entries.topic, entries.language, entries.date
+             FROM entries"
              . $where_sql .
              " ORDER BY {$sort_expression} {$query_order}, entries.id {$query_order} LIMIT 21";
 
