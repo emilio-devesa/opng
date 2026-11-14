@@ -163,18 +163,51 @@ function opng_i18n_protect_blocks(string $html): array
 {
     $blocks = [];
     $prefix = 'OPNGI18NBLOCK' . bin2hex(random_bytes(8)) . '_';
-    $protected = preg_replace_callback(
-        '~<(pre|textarea)\b[^>]*>.*?</\1\s*>~is',
-        static function (array $match) use (&$blocks, $prefix): string {
-            $token = $prefix . count($blocks);
-            $blocks[$token] = $match[0];
+    $output = '';
+    $offset = 0;
+    $length = strlen($html);
 
-            return $token;
-        },
-        $html
-    );
+    // Scan opening tags with a bounded regex and locate the closing tag with
+    // stripos(), so the 1 MiB payload is never matched by a lazy-dot pattern.
+    while (
+        $offset < $length
+        && preg_match(
+            '~<(pre|textarea)\b[^>]*>~i',
+            $html,
+            $match,
+            PREG_OFFSET_CAPTURE,
+            $offset
+        ) === 1
+    ) {
+        $tag = strtolower($match[1][0]);
+        $start = $match[0][1];
+        $open_end = $start + strlen($match[0][0]);
+        $close = stripos($html, '</' . $tag, $open_end);
+        if ($close === false) {
+            break;
+        }
+        $after_name = $close + 2 + strlen($tag);
+        $next = $html[$after_name] ?? '';
+        if ($next !== '>' && !ctype_space($next)) {
+            $offset = $after_name;
+            continue;
+        }
+        $close_end = strpos($html, '>', $after_name);
+        if ($close_end === false) {
+            break;
+        }
+        $close_end++;
 
-    return ['html' => is_string($protected) ? $protected : $html, 'blocks' => $blocks];
+        $block = substr($html, $start, $close_end - $start);
+        $token = $prefix . count($blocks);
+        $blocks[$token] = $block;
+        $output .= substr($html, $offset, $start - $offset) . $token;
+        $offset = $close_end;
+    }
+
+    $output .= substr($html, $offset);
+
+    return ['html' => $output, 'blocks' => $blocks];
 }
 
 /**

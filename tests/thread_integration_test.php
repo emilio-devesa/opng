@@ -188,10 +188,13 @@ try {
         $page['nodes'][0]['username'] !== $author
         || $page['nodes'][1]['username'] !== $second
         || $page['nodes'][2]['username'] !== 'Guest'
+        || $page['nodes'][0]['guest'] !== false
+        || $page['nodes'][1]['guest'] !== false
+        || $page['nodes'][2]['guest'] !== true
     ) {
         thread_integration_fail('the thread page did not return the expected author labels');
     }
-    thread_integration_pass('history lists root, reply and nested reply chronologically with authors');
+    thread_integration_pass('history lists root, reply and nested reply chronologically with authors and guest flags');
 
     $grouped = thread_group($page['nodes']);
     $ancestors = thread_ancestor_ids($page['nodes'], 'thread-nested');

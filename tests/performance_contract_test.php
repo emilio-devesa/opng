@@ -64,6 +64,17 @@ assert_perf(
     $failures
 );
 
+$benchmark = file_get_contents($root . '/tools/benchmark_queries.php');
+assert_perf(
+    is_string($benchmark)
+        && str_contains($benchmark, "PHP_SAPI !== 'cli'")
+        && str_contains($benchmark, 'OPNG_TEST_ALLOW_DATABASE_FIXTURES')
+        && str_contains($benchmark, 'thread_page_query')
+        && str_contains($benchmark, 'opng_i18n_apply'),
+    'the phase 10 benchmark is CLI-only, opt-in and exercises the production helpers',
+    $failures
+);
+
 foreach ($failures as $failure) {
     fwrite(STDERR, "FAIL: {$failure}\n");
 }
@@ -71,4 +82,4 @@ if ($failures !== []) {
     exit(1);
 }
 
-echo "Performance contracts passed: metrics invalidation, session role reads, prefix admin search, and users indexes.\n";
+echo "Performance contracts passed: metrics invalidation, session role reads, prefix admin search, users indexes, and the phase 10 benchmark.\n";

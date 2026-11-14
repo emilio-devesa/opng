@@ -99,7 +99,7 @@ function thread_position(?array $parent, string $new_id): array
 function thread_page_query(string $root_id, ?array $cursor = null): array
 {
     $columns = 'entries.id, entries.parent_id, entries.root_id, entries.depth,
-                entries.topic, entries.date, entries.author_label';
+                entries.topic, entries.date, entries.author_label, entries.user_id';
     $descendants = "SELECT {$columns} FROM entries WHERE entries.root_id = ?";
     $root = "SELECT {$columns} FROM entries
              WHERE entries.id = ? AND (entries.root_id IS NULL OR entries.root_id <> ?)";
@@ -115,7 +115,7 @@ function thread_page_query(string $root_id, ?array $cursor = null): array
 
     $sql = "SELECT thread_entries.id, thread_entries.parent_id, thread_entries.root_id,
                    thread_entries.depth, thread_entries.topic, thread_entries.date,
-                   thread_entries.author_label AS username
+                   thread_entries.author_label AS username, thread_entries.user_id
             FROM ({$descendants} UNION ALL {$root}) AS thread_entries
             ORDER BY thread_entries.date ASC, thread_entries.id ASC
             LIMIT " . (OPNG_THREAD_PAGE_SIZE + 1);
@@ -139,7 +139,7 @@ function thread_page_query(string $root_id, ?array $cursor = null): array
  *
  * @param array{id: string, date: string|null}|null $cursor
  * @return array{
- *   nodes: list<array{id: string, parent_id: string|null, root_id: string|null, depth: int, topic: string, date: string, username: string}>,
+ *   nodes: list<array{id: string, parent_id: string|null, root_id: string|null, depth: int, topic: string, date: string, username: string, guest: bool}>,
  *   truncated: bool,
  *   next_cursor: string|null
  * }
@@ -180,6 +180,7 @@ function thread_fetch_page(mysqli $db, string $root_id, ?array $cursor = null): 
             'topic' => is_string($row['topic'] ?? null) ? $row['topic'] : '',
             'date' => is_string($row['date'] ?? null) ? $row['date'] : '',
             'username' => is_string($row['username'] ?? null) ? $row['username'] : 'Guest',
+            'guest' => ($row['user_id'] ?? null) === null,
         ];
     }
     $result->free();

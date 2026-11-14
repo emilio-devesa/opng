@@ -1,4 +1,5 @@
 <?php
+
 // Real paste editing (UPDATE).
 // Only the paste author or an administrator may do it.
 require("includes/session.php");
@@ -171,7 +172,7 @@ try {
     $previous_bytes = (int) ($entry['text_bytes'] ?? 0);
     $replacement_bytes = strlen($text);
     $global_delta = $replacement_bytes - $previous_bytes;
-    $author_label = $owner_id === null ? 'Guest' : ($usage['username'] ?? 'Guest');
+    $author_label = $owner_id === null ? 'Guest' : $usage['username'];
 
     if ($global_delta > 0 && !global_quota_allows($global_used, $global_delta)) {
         $db->rollback();

@@ -423,10 +423,10 @@ require(__DIR__ . "/includes/layout_header.php");
                         <?php echo opng_datetime_html((string) $node['date']); ?>
                         <span class="history-author">
                             <span data-i18n="history_author">Author:</span>
-                            <?php if ($node['username'] !== null): ?>
-                            <?php echo htmlspecialchars($node['username'], ENT_QUOTES, 'UTF-8'); ?>
-                            <?php else: ?>
+                            <?php if ($node['guest']): ?>
                             <span data-i18n="history_guest">Guest</span>
+                            <?php else: ?>
+                            <?php echo htmlspecialchars($node['username'], ENT_QUOTES, 'UTF-8'); ?>
                             <?php endif; ?>
                         </span>
                     </span>
@@ -476,9 +476,9 @@ require(__DIR__ . "/includes/layout_header.php");
                         echo '<span class="history-meta">'
                             . opng_datetime_html((string) $node['date']) . ' · '
                             . '<span data-i18n="history_author">Author:</span> ';
-                        echo $node['username'] !== null
-                            ? htmlspecialchars($node['username'], ENT_QUOTES, 'UTF-8')
-                            : '<span data-i18n="history_guest">Guest</span>';
+                        echo $node['guest']
+                            ? '<span data-i18n="history_guest">Guest</span>'
+                            : htmlspecialchars($node['username'], ENT_QUOTES, 'UTF-8');
                         echo '</span></span>';
 
                         $children = $thread_grouped['children'][$node_id] ?? [];

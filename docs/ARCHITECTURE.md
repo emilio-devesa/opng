@@ -66,6 +66,11 @@ to `COUNT(*)`/`SUM()` when the global counter row is missing, which keeps a
 recovery path without paying the aggregate on every refresh (PERF-17).
 `tools/metrics_refresh.php` can warm the dashboard cache from cron.
 
+The before/after measurements for these paths (and the i18n and listing
+changes below) are recorded in [`PERFORMANCE.md`](PERFORMANCE.md) and can be
+reproduced with `php tools/benchmark_queries.php` against a disposable
+database.
+
 ## Listing and history query shapes
 
 - `entries.author_label` is the denormalized display author (username or

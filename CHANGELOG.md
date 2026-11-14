@@ -41,8 +41,8 @@
 - `tools/seed.php` now writes `author_label` and reconciles every counter after its direct inserts.
 
 #### 🧵 History and i18n
-- **PERF-13:** `thread_page_query()` builds the history SQL as `UNION ALL` of the `root_id` branch and the legacy-root branch (`id = ? AND (root_id IS NULL OR root_id <> ?)`). Each branch uses its own index instead of an index-merge plan, while preserving roots with `root_id = NULL` and excluding the normal case so no row is duplicated.
-- **PERF-14:** the server-side translator temporarily replaces `<pre>` and `<textarea>` payloads before the `DOMDocument` pass and restores them afterwards, so translating a page no longer parses or serializes a 1 MiB paste.
+- **PERF-13:** `thread_page_query()` builds the history SQL as `UNION ALL` of the `root_id` branch and the legacy-root branch (`id = ? AND (root_id IS NULL OR root_id <> ?)`). Each branch uses its own index instead of an index-merge plan, while preserving roots with `root_id = NULL` and excluding the normal case so no row is duplicated. The page also exposes a `guest` flag from `user_id`, so the history keeps rendering the translatable **Guest** label instead of the raw `author_label`.
+- **PERF-14:** the server-side translator temporarily replaces `<pre>` and `<textarea>` payloads before the `DOMDocument` pass and restores them afterwards, so translating a page no longer parses or serializes a 1 MiB paste. The protected-block scanner locates the closing tag with `stripos()` instead of a lazy-dot pattern over the payload.
 
 #### 🎨 Frontend behaviour
 - **PERF-15 / UX-13:** pastes up to 200 KiB keep automatic syntax highlighting; larger pastes show a translated notice and a **Highlight** button with progress and error states, giving the browser a frame to paint before highlight.js runs.
@@ -54,7 +54,9 @@
 #### 🧪 Tests and docs
 - **HYG-15:** `tests/performance_query_plan_test.php` now EXPLAINs the exact `thread_page_query()` SQL and covers the `author` listing index; it also checks that the quota and dashboard lookups are primary-key reads instead of aggregates.
 - Added `tests/storage_counters_integration_test.php` (disposable database: recount, signed deltas, clamping and bulk reset) and wired it into both CI database jobs.
+- Added `tools/benchmark_queries.php` and [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md) with reproducible before/after measurements for PERF-10/12/13/14/17 and the manual browser procedure for PERF-15.
 - Extended `tests/search_pagination_test.php`, `tests/thread_integration_test.php`, `tests/database_install_test.php`, `tests/migration_system_test.php`, `tests/i18n_test.php`, `tests/global_quota_test.php`, `tests/frontend_contract_test.php`, `tests/lock_order_test.php` and `tests/thread_test.php`.
+- Added a guest-flag assertion to `tests/thread_integration_test.php` so the history keeps its translated guest author label.
 - Updated `README.md`, `docs/ARCHITECTURE.md`, `docs/UPGRADING.md` and `docs/BACKUP-RESTORE.md` with the counters, author label, thread query, upgrade migrations and reconciliation commands.
 
 ## Version 1.1.0 (2026-11-10)

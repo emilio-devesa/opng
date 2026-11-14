@@ -234,6 +234,8 @@ For security reasons, access to **admin features** is restricted to administrato
 
 - **`tools/metrics_refresh.php`** — recomputes the admin dashboard cache ahead of its five-minute TTL. Run it from cron if you want the first administrator visit to be cache-warm.
 
+- **`tools/benchmark_queries.php`** — reproduces the phase 10 before/after measurements (quota counter, author index, thread history, i18n protection and dashboard counters) against a disposable database. It refuses to run without explicit test credentials. The measured results and caveats are in [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md).
+
 - **Static analysis and linting** — the repo ships `composer.json`, `phpstan.neon` (level 5) and a GitHub Actions workflow (PHP 8.2–8.5).
 
   ```bash
