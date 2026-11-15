@@ -237,7 +237,7 @@ function thread_ancestor_ids(array $nodes, string $current_id): array
  * rendering, so the graph never loses a branch.
  *
  * @param list<array{id: string, parent_id: string|null}> $nodes
- * @return array{by_id: array<string, array>, children: array<string, list<string>>, roots: list<string>}
+ * @return array{by_id: array<string, array<string, mixed>>, children: array<string, list<string>>, roots: list<string>}
  */
 function thread_group(array $nodes): array
 {

@@ -191,6 +191,23 @@ try {
         "INSERT INTO audit_log (actor_id, action, target, ip_hash)
          VALUES ({$user_id}, 'backup.download', 'restore-fixture', REPEAT('b', 64))"
     );
+
+    // Enough rows to cross the dump batch boundary more than once (ROB-21).
+    $batch_total = (OPNG_BACKUP_BATCH_ROWS * 2) + 50;
+    $insert_batch = $db->prepare(
+        'INSERT INTO entries (id, user_id, date, language, text, topic)
+         VALUES (?, ?, NOW(), ?, ?, ?)'
+    );
+    $batch_language = 'text';
+    for ($index = 0; $index < $batch_total; $index++) {
+        $batch_id = sprintf('restore-batch-%04d', $index);
+        $batch_text = str_repeat('b', 40 + ($index % 10));
+        $batch_topic = sprintf('Batch topic %04d', $index);
+        $insert_batch->bind_param('sisss', $batch_id, $user_id, $batch_language, $batch_text, $batch_topic);
+        $insert_batch->execute();
+    }
+    $insert_batch->close();
+    backup_restore_pass('a multi-batch fixture exceeds the dump batch size');
     backup_restore_pass('fixture rows include hashes, Unicode, quotes, NUL bytes and a foreign key');
 
     $tables = backup_restore_tables($db);
@@ -234,6 +251,22 @@ try {
     if (!str_contains($dump, 'SET FOREIGN_KEY_CHECKS=0;') || !str_contains($dump, 'SET FOREIGN_KEY_CHECKS=1;')) {
         backup_restore_fail('the dump does not manage FOREIGN_KEY_CHECKS');
     }
+
+    $entry_total_result = $db->query('SELECT COUNT(*) AS total FROM entries');
+    $entry_total_row = $entry_total_result->fetch_assoc();
+    $entry_total_result->free();
+    $entry_total = is_array($entry_total_row) ? (int) ($entry_total_row['total'] ?? 0) : 0;
+    $entry_inserts = substr_count($dump, 'INSERT INTO `entries`');
+    if ($entry_total <= OPNG_BACKUP_BATCH_ROWS) {
+        backup_restore_fail('the batch fixture did not exceed the row batch size');
+    }
+    if ($entry_inserts < 2) {
+        backup_restore_fail('the dump did not split entries into multiple INSERT statements');
+    }
+    if ($entry_inserts >= $entry_total) {
+        backup_restore_fail('the dump still writes one INSERT per row');
+    }
+    backup_restore_pass('entries are grouped into multi-row INSERT statements');
 
     $db->close();
     $admin->query("DROP DATABASE `{$source}`");

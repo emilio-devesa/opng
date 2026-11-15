@@ -128,6 +128,13 @@ body.dark-mode {
     box-sizing: border-box;
 }
 
+/* The HTML hidden attribute must win over component display rules such as
+   `button { display: inline-block }`; otherwise hidden controls stay visible
+   and uninitialised (for example the manual highlight button). */
+[hidden] {
+    display: none !important;
+}
+
 html,
 body {
     margin: 0;

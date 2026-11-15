@@ -20,6 +20,9 @@ function install_fail(string $message, ?string $detail = null): never
     exit(1);
 }
 
+/**
+ * @return list<string>
+ */
 function install_table_names(mysqli $conn): array
 {
     $result = $conn->query(
@@ -83,6 +86,9 @@ function normalize_table_name(mysqli $conn, string $target, string $legacy): boo
     return true;
 }
 
+/**
+ * @return array<string, mixed>|null
+ */
 function install_column_info(mysqli $conn, string $table, string $column): ?array
 {
     $stmt = $conn->prepare(
@@ -98,6 +104,10 @@ function install_column_info(mysqli $conn, string $table, string $column): ?arra
     return is_array($row) ? $row : null;
 }
 
+/**
+ * @param list<string> $report
+ * @return array<string, mixed>
+ */
 function install_ensure_column(
     mysqli $conn,
     string $table,
@@ -138,6 +148,9 @@ function install_index_exists(mysqli $conn, string $table, string $index_name): 
     return $exists;
 }
 
+/**
+ * @param list<string> $report
+ */
 function install_ensure_unique_column_index(
     mysqli $conn,
     string $table,

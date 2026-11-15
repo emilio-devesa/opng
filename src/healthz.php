@@ -2,12 +2,14 @@
 // healthz.php
 // Cheap, unauthenticated health check for the container and monitoring (ROB-06).
 //
-// Returns 200 {"status":"ok","schema":"..."} when the database, schema version
-// and storage headroom are usable, or 503 {"status":"error"} without leaking
-// credentials or server internals.
+// Returns 200 {"status":"ok"} when the database, schema version and storage
+// headroom are usable, or 503 {"status":"error"} without leaking credentials or
+// server internals. The schema version is only included when the request sends
+// the OPNG_HEALTHZ_DETAIL_TOKEN as an Authorization: Bearer token (SEC-26).
 
 require(__DIR__ . '/includes/db.php');
 require(__DIR__ . '/includes/user_quota.php');
+require(__DIR__ . '/includes/healthz.php');
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
@@ -25,6 +27,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     exit;
 }
 
+/**
+ * @param array<string, mixed> $payload
+ */
 function healthz_respond(int $status, array $payload): never
 {
     http_response_code($status);
@@ -74,4 +79,15 @@ if ($schema === null || !$storage_ok) {
     healthz_respond(503, ['status' => 'error']);
 }
 
-healthz_respond(200, ['status' => 'ok', 'schema' => $schema]);
+$detail_token = getenv('OPNG_HEALTHZ_DETAIL_TOKEN');
+$payload = ['status' => 'ok'];
+if (
+    healthz_detail_authorized(
+        is_string($detail_token) ? $detail_token : null,
+        healthz_authorization_header($_SERVER)
+    )
+) {
+    $payload['schema'] = $schema;
+}
+
+healthz_respond(200, $payload);

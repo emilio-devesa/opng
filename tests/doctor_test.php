@@ -27,6 +27,7 @@ file_put_contents($config, "<?php\n");
 chmod($config, 0600);
 
 $base = [
+    'php_version' => '8.3.36',
     'config_path' => $config,
     'config_password' => 'not-the-example-password',
     'database' => [
@@ -49,7 +50,7 @@ expect_doctor(
     $summary[OPNG_DOCTOR_FAIL] === 0
         && $summary[OPNG_DOCTOR_WARN] === 0
         && $summary[OPNG_DOCTOR_SKIP] === 0
-        && count($results) === 8,
+        && count($results) === 9,
     'a healthy production context passes every check',
     $failures
 );
@@ -59,7 +60,8 @@ foreach ($results as $result) {
     $by_id[$result['id']] = $result['status'];
 }
 expect_doctor(
-    ($by_id['config_file'] ?? null) === OPNG_DOCTOR_OK
+    ($by_id['php_version'] ?? null) === OPNG_DOCTOR_OK
+        && ($by_id['config_file'] ?? null) === OPNG_DOCTOR_OK
         && ($by_id['database_password'] ?? null) === OPNG_DOCTOR_OK
         && ($by_id['database_connection'] ?? null) === OPNG_DOCTOR_OK
         && ($by_id['schema_version'] ?? null) === OPNG_DOCTOR_OK
@@ -72,6 +74,16 @@ expect_doctor(
 );
 
 $cases = [
+    'an unsupported PHP patch level fails' => [
+        array_replace($base, ['php_version' => '8.2.0']),
+        'php_version',
+        OPNG_DOCTOR_FAIL,
+    ],
+    'the PHP floor itself is supported' => [
+        array_replace($base, ['php_version' => '8.2.35']),
+        'php_version',
+        OPNG_DOCTOR_OK,
+    ],
     'an empty database password fails' => [
         array_replace($base, ['config_password' => '']),
         'database_password',
@@ -263,6 +275,14 @@ expect_doctor(
         && str_contains($readme, 'php tools/doctor.php')
         && str_contains($readme, 'OPNG_PUBLIC_URL'),
     'README.md documents the doctor and OPNG_PUBLIC_URL',
+    $failures
+);
+
+$composer = json_decode((string) file_get_contents($root . '/composer.json'), true);
+expect_doctor(
+    is_array($composer)
+        && ($composer['require']['php'] ?? null) === OPNG_PHP_REQUIREMENT,
+    'the doctor PHP range matches the Composer constraint',
     $failures
 );
 

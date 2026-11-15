@@ -76,6 +76,8 @@ $stmt->close();
 
 /**
  * Resolve the denormalized author label for a seeded entry.
+ *
+ * @param array<int, string> $usernames
  */
 function seed_author_label(?int $user_id, array $usernames): string
 {

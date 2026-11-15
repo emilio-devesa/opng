@@ -37,6 +37,7 @@ const BENCHMARK_DEFAULT_ROWS = 20000;
 const BENCHMARK_DEFAULT_ITERATIONS = 10;
 
 /**
+ * @param list<string> $argv
  * @return array{rows: int, iterations: int}
  */
 function benchmark_options(array $argv): array
@@ -94,6 +95,10 @@ function benchmark_measure(callable $operation, int $iterations): array
     ];
 }
 
+/**
+ * @param array{median: float, mean: float, min: float} $legacy_result
+ * @param array{median: float, mean: float, min: float} $current_result
+ */
 function benchmark_print_row(
     string $finding,
     string $legacy,
@@ -119,6 +124,7 @@ function benchmark_print_row(
 /**
  * EXPLAIN a query, optionally with bound parameters.
  *
+ * @param list<string> $params
  * @return list<array<string, mixed>>
  */
 function benchmark_explain(mysqli $db, string $sql, string $types = '', array $params = []): array
@@ -138,6 +144,8 @@ function benchmark_explain(mysqli $db, string $sql, string $types = '', array $p
 
 /**
  * Compact plan description for the Markdown report.
+ *
+ * @param list<array<string, mixed>> $rows
  */
 function benchmark_plan_summary(array $rows): string
 {

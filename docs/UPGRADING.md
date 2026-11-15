@@ -132,8 +132,10 @@ Fix every failure. Then verify:
 2. Load an existing paste and its **History** tab.
 3. Create a paste, reply, edit and delete a reply.
 4. Download an admin backup.
-5. `curl -fsS https://paste.example.com/healthz.php` returns `200` and the
-   expected schema version.
+5. `curl -fsS https://paste.example.com/healthz.php` returns `200` and
+   `{"status":"ok"}`. The schema version is only returned when the request
+   sends the optional `OPNG_HEALTHZ_DETAIL_TOKEN` as a bearer token; the
+   container healthcheck intentionally does not need it.
 6. Check the PHP error log and the admin audit log.
 
 ## 6. Rollback

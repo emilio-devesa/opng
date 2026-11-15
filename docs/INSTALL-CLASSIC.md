@@ -7,7 +7,11 @@ is a documented fallback.
 
 ## Requirements
 
-- PHP 8.2 or newer with `mysqli`, `mbstring` and `gd`.
+- PHP 8.2.35+ with `mysqli`, `mbstring` and `gd`, respecting the exact patch
+  ranges from `composer.json`: `>=8.2.35 <8.3.0`, `>=8.3.36 <8.4.0`,
+  `>=8.4.27 <8.5.0` or `>=8.5.12 <9.0.0`. Earlier patch releases are rejected
+  because of security or runtime bugs. `php tools/doctor.php` checks the
+  running patch level.
 - MySQL 5.7+ or MariaDB 10.4+.
 - A web server whose document root can point at the extracted `src/`
   directory (Apache 2.4 with `mod_rewrite`/`mod_headers`, or Nginx).
@@ -204,8 +208,22 @@ After installation, verify:
 2. Sign in as the administrator.
 3. Create a paste, open it, reply to it and open the **History** tab.
 4. Run `php tools/backup.php /tmp/smoke.sql` and confirm the file is non-empty.
-5. `curl -fsS https://paste.example.com/healthz.php` returns
-   `{"status":"ok","schema":"0006_entry_author_label"}`.
+5. `curl -fsS https://paste.example.com/healthz.php` returns `{"status":"ok"}`.
+
+`/healthz.php` is public and status-only by default. Monitoring that needs the
+schema version can set `OPNG_HEALTHZ_DETAIL_TOKEN` in the PHP environment and
+send it as a bearer token:
+
+```bash
+OPNG_HEALTHZ_DETAIL_TOKEN="$(openssl rand -hex 32)"
+curl -fsS -H "Authorization: Bearer ${OPNG_HEALTHZ_DETAIL_TOKEN}" \
+  https://paste.example.com/healthz.php
+# {"status":"ok","schema":"0006_entry_author_label"}
+```
+
+The comparison uses `hash_equals()`. Never put the token in a URL, a
+client-side bundle or a public issue. Without the matching token the response
+stays `{"status":"ok"}`, and the container healthcheck does not need it.
 
 ## Troubleshooting
 

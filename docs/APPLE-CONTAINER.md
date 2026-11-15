@@ -82,9 +82,11 @@ container logs opng-app
 container logs opng-db
 ```
 
-The health endpoint returns `200 {"status":"ok","schema":"0006_entry_author_label"}`
-when the database, schema and storage headroom are usable. It returns `503`
-without leaking credentials or internals.
+The health endpoint returns `200 {"status":"ok"}` when the database, schema
+and storage headroom are usable. It returns `503` without leaking credentials
+or internals. The schema version is only included when the request sends the
+optional `OPNG_HEALTHZ_DETAIL_TOKEN` as a bearer token; the container
+healthcheck does not need it.
 
 On plain `http://127.0.0.1:8080`, `php tools/doctor.php` intentionally reports
 the HTTPS check as a failure because TLS is not terminated yet. Re-run it with

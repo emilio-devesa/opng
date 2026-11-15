@@ -12,6 +12,8 @@ declare(strict_types=1);
 // Checks are intentionally report-only: a failed check prints a clear action
 // and makes the command exit non-zero, but the doctor never rewrites config.
 
+require_once __DIR__ . '/requirements.php';
+
 const OPNG_DOCTOR_OK = 'ok';
 const OPNG_DOCTOR_WARN = 'warn';
 const OPNG_DOCTOR_FAIL = 'fail';
@@ -82,6 +84,7 @@ function opng_doctor_https_state(?string $public_url): ?bool
  * Run every deployment check.
  *
  * Context keys:
+ *   php_version       string   runtime PHP version (defaults to PHP_VERSION)
  *   config_path       ?string  absolute path to config.php
  *   config_password   string   runtime database password (never printed)
  *   database          array    connected, server_info, current_schema, applied
@@ -99,6 +102,20 @@ function opng_doctor_checks(array $context): array
 {
     $results = [];
     $sapi = is_string($context['sapi'] ?? null) ? $context['sapi'] : PHP_SAPI;
+
+    // The runtime must be inside the supported patch range (HYG-12).
+    $php_version = is_string($context['php_version'] ?? null)
+        ? $context['php_version']
+        : PHP_VERSION;
+    $php_supported = opng_php_version_supported($php_version);
+    $results[] = opng_doctor_result(
+        'php_version',
+        'PHP version',
+        $php_supported ? OPNG_DOCTOR_OK : OPNG_DOCTOR_FAIL,
+        $php_supported
+            ? "PHP {$php_version} is supported."
+            : "PHP {$php_version} is outside the supported range " . OPNG_PHP_REQUIREMENT . '.'
+    );
 
     // Configuration file: present, readable, and not writable by the web user.
     $config_path = $context['config_path'] ?? null;

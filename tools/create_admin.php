@@ -28,6 +28,7 @@ require __DIR__ . '/../src/config.php';
 require __DIR__ . '/../src/includes/password_validation.php';
 
 /**
+ * @param list<string> $argv
  * @return array<string, string|bool>
  */
 function create_admin_options(array $argv): array

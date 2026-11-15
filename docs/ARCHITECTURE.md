@@ -138,6 +138,11 @@ large admin backup.
 ## Regression coverage
 
 - `tests/lock_order_test.php`: source-level contract for the order above.
+- `tests/lock_order_integration_test.php`: two connections prove the order and
+  wait behaviour on a disposable schema.
+- `tests/write_concurrency_integration_test.php`: behavioural coverage for a
+  quota race, concurrent edits, a double delete and a role change; it fails on
+  a deadlock, a lost update or counter drift.
 - `tests/audit_log_test.php`: bounded retention and audit-after-commit checks.
 - `tests/migration_system_test.php`: SQL splitting and idempotent migration
   markers.

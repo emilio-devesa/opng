@@ -24,6 +24,7 @@ require __DIR__ . '/../src/includes/thread.php';
 require __DIR__ . '/../src/includes/audit_log.php';
 
 /**
+ * @param list<string> $argv
  * @return array<string, string|bool>
  */
 function link_legacy_options(array $argv): array

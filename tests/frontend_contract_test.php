@@ -719,8 +719,9 @@ if (
     !is_string($admin_styles)
     || !str_contains($admin_styles, '.highlight-controls')
     || !str_contains($admin_styles, '.highlight-status-error')
+    || !str_contains($admin_styles, "[hidden] {\n    display: none !important;\n}")
 ) {
-    $failures[] = 'Highlight control styles are missing from the stylesheet';
+    $failures[] = 'Highlight control styles or the global hidden rule are missing from the stylesheet';
 }
 if (
     !is_string($length_script)

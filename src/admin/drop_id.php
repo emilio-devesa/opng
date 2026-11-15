@@ -47,9 +47,10 @@ if (!$db) {
 // Deletion is irreversible; require the current password in addition to CSRF
 // and the explicit confirmation (SEC-07).
 $current_password = http_string_parameter($_POST, 'current_password', 72, false);
-if (!reauthenticate_user($db, $user_id, $current_password, 'entry_delete')) {
+$reauth = reauthenticate_user($db, $user_id, $current_password, 'entry_delete');
+if ($reauth !== ReauthResult::Allowed) {
     $db->close();
-    opng_error_redirect('error_reauth', '../error.php');
+    opng_error_redirect(reauth_error_key($reauth), '../error.php');
 }
 
 $transaction_started = false;

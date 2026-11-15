@@ -67,9 +67,10 @@ if (($_POST['confirm_empty'] ?? null) !== 'yes') {
 // Emptying the database is irreversible: require the current password even
 // when the CSRF token and the explicit confirmation are present (SEC-07).
 $current_password = http_string_parameter($_POST, 'current_password', 72, false);
-if (!reauthenticate_user($db, $session_user_id, $current_password, 'admin_reauth_empty')) {
+$reauth = reauthenticate_user($db, $session_user_id, $current_password, 'admin_reauth_empty');
+if ($reauth !== ReauthResult::Allowed) {
     $db->close();
-    opng_error_redirect('error_reauth', '../error.php');
+    opng_error_redirect(reauth_error_key($reauth), '../error.php');
 }
 
 // DELETE works with the runtime DML account; TRUNCATE would require DROP privileges.

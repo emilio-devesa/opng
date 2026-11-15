@@ -22,6 +22,28 @@ format. The dump is taken from a consistent read-only snapshot and honours
 `OPNG_BACKUP_MAX_SECONDS` (default 300) and `OPNG_BACKUP_MAX_BYTES`
 (default 512 MiB); it aborts rather than write a truncated file.
 
+Rows are written as bounded multi-row `INSERT` statements (`OPNG_BACKUP_BATCH_ROWS
+= 200`, `OPNG_BACKUP_BATCH_BYTES = 1 MiB`). This keeps the file smaller and the
+restore faster without one statement per row, and the batch is flushed when
+either limit is reached. If the dump fails mid-way, the helper rolls the
+read-only snapshot back before rethrowing, so an interrupted backup never keeps
+a transaction open.
+
+### Very large databases
+
+The PHP helper is deliberately portable and has no `mysqldump` dependency. For
+databases in the hundreds of MiB, a native dump is faster and is still
+compatible with `tools/restore.php` if it omits `CREATE DATABASE`/`USE`:
+
+```bash
+mysqldump --single-transaction --quick --skip-add-locks \
+  --no-create-db --skip-comments opng > /secure/backups/opng-native.sql
+```
+
+The application dump remains the reference for a flat shared host where the
+MySQL client is unavailable. Whichever tool you use, restore it into a
+disposable database first and run `tools/recount_storage.php --check`.
+
 ## Create a backup
 
 ### CLI

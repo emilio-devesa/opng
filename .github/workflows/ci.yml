@@ -239,7 +239,7 @@ jobs:
       - name: Install dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
 
-      - name: Run PHPStan (level 5)
+      - name: Run PHPStan (level 6)
         run: composer phpstan
 
   style:
@@ -390,6 +390,15 @@ jobs:
           OPNG_TEST_DB_USER: root
           OPNG_TEST_DB_PASS: ci-root-password
         run: php tests/lock_order_integration_test.php
+
+      - name: Verify concurrent writes, quota and counters
+        env:
+          OPNG_TEST_ALLOW_DATABASE_FIXTURES: '1'
+          OPNG_TEST_DB_HOST: 127.0.0.1
+          OPNG_TEST_DB_PORT: '3306'
+          OPNG_TEST_DB_USER: root
+          OPNG_TEST_DB_PASS: ci-root-password
+        run: php tests/write_concurrency_integration_test.php
 
       - name: Verify database/schema.sql matches the CLI installer
         env:
@@ -556,6 +565,15 @@ jobs:
           OPNG_TEST_DB_USER: root
           OPNG_TEST_DB_PASS: ci-root-password
         run: php tests/lock_order_integration_test.php
+
+      - name: Verify concurrent writes, quota and counters
+        env:
+          OPNG_TEST_ALLOW_DATABASE_FIXTURES: '1'
+          OPNG_TEST_DB_HOST: 127.0.0.1
+          OPNG_TEST_DB_PORT: '3306'
+          OPNG_TEST_DB_USER: root
+          OPNG_TEST_DB_PASS: ci-root-password
+        run: php tests/write_concurrency_integration_test.php
 
       - name: Verify database/schema.sql matches the CLI installer
         env:

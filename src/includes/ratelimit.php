@@ -67,6 +67,9 @@ function trusted_proxy_ranges(): array
     return $ranges;
 }
 
+/**
+ * @param list<string> $ranges
+ */
 function ip_in_ranges(string $ip, array $ranges): bool
 {
     foreach ($ranges as $range) {

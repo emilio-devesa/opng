@@ -46,6 +46,7 @@
 
 #### 🎨 Frontend behaviour
 - **PERF-15 / UX-13:** pastes up to 200 KiB keep automatic syntax highlighting; larger pastes show a translated notice and a **Highlight** button with progress and error states, giving the browser a frame to paint before highlight.js runs.
+- The manual **Highlight** control only appears when it is usable: a global `[hidden]` rule stops the base `button { display: inline-block }` style from overriding the HTML attribute, and the button is hidden again after highlighting a large paste.
 - **PERF-16:** `dark-mode.js` reuses the catalog already fetched by `language.js` through `window.opngLanguageCatalog` and the `languageChanged` event, removing a duplicate request.
 - **UX-12:** the line-number notice now states that numbers are hidden above 5,000 lines to keep the page responsive.
 - The paste length meter debounces input measurement with a 120 ms timer, keeping typing responsive for 1 MiB pastes.
@@ -58,6 +59,22 @@
 - Extended `tests/search_pagination_test.php`, `tests/thread_integration_test.php`, `tests/database_install_test.php`, `tests/migration_system_test.php`, `tests/i18n_test.php`, `tests/global_quota_test.php`, `tests/frontend_contract_test.php`, `tests/lock_order_test.php` and `tests/thread_test.php`.
 - Added a guest-flag assertion to `tests/thread_integration_test.php` so the history keeps its translated guest author label.
 - Updated `README.md`, `docs/ARCHITECTURE.md`, `docs/UPGRADING.md` and `docs/BACKUP-RESTORE.md` with the counters, author label, thread query, upgrade migrations and reconciliation commands.
+
+### Phase 11 — Operational robustness and backups
+#### 💾 Backup format
+- **ROB-21:** the shared dump now groups rows into bounded multi-row `INSERT` statements (`OPNG_BACKUP_BATCH_ROWS = 200`, `OPNG_BACKUP_BATCH_BYTES = 1 MiB`) instead of one statement per row. The dump is smaller and restores faster, and a failure inside the read-only snapshot is rolled back before the exception is rethrown. The byte/time limits and the portable format are unchanged.
+- `docs/BACKUP-RESTORE.md` documents the batching, the internal rollback and when a native `mysqldump --single-transaction --quick` is preferable for very large databases.
+
+#### 🔐 Administrative confirmations and monitoring
+- **ROB-22:** `reauthenticate_user()` returns a `ReauthResult` enum (`Allowed`, `InvalidPassword`, `RateLimited`, `Unavailable`). Infrastructure failures return `Unavailable`, which all four callers map to `error_service_unavailable` (503) through `reauth_error_key()`; wrong passwords and rate limits keep `error_reauth` (403). The failure is also logged.
+- **SEC-26:** `/healthz.php` returns only `{"status":"ok"}` by default. The schema version is included only when the request sends `OPNG_HEALTHZ_DETAIL_TOKEN` as an `Authorization: Bearer` token, compared with `hash_equals()`. The container healthcheck and public monitoring keep working without the token.
+- Added `tests/write_concurrency_integration_test.php` and extended `tests/sql_backup_test.php`, `tests/backup_restore_test.php`, `tests/reauth_test.php` and `tests/health_endpoint_test.php` for the new contracts.
+
+### Phase 12 — Hygiene, CI and documentation
+- **HYG-12:** added `src/includes/requirements.php` as the single source of truth for the supported PHP patch range, mirroring `composer.json`. `tools/doctor.php` now reports a `php_version` check, and `docs/INSTALL-CLASSIC.md` lists the real patch floors instead of a bare "8.2 or newer".
+- **HYG-13:** PHPStan runs at **level 6** for `src/` and `tools/` with `reportUnmatchedIgnoredErrors: true`. All missing iterable/return types were fixed instead of adding ignores, and the CI step and contributor docs were renamed accordingly.
+- **HYG-14:** added a behavioural concurrency test for the write paths: quota race, concurrent edits, double delete and a role change. It opens two connections, fails on a deadlock or lost update, and is wired into both CI database jobs.
+- `docs/ARCHITECTURE.md` lists the new lock-order and write-concurrency coverage; `docs/SECURITY.md` documents the 503 mapping and the health-check detail token.
 
 ## Version 1.1.0 (2026-11-10)
 

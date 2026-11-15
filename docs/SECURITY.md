@@ -132,4 +132,9 @@ should upgrade using [UPGRADING.md](UPGRADING.md).
   linked with `tools/link_legacy_replies.php`.
 - Apple Container networking and healthcheck orchestration are the
   operator's responsibility; the image exposes `/healthz.php` for external
-  checks.
+  checks. The public response is `{"status":"ok"}`; the schema version is only
+  returned when `OPNG_HEALTHZ_DETAIL_TOKEN` matches an `Authorization: Bearer`
+  header, so monitoring does not disclose the deployed revision by default.
+- Destructive administrative actions distinguish an unreachable service from a
+  wrong password: an unavailable rate-limit or users table returns the generic
+  `error_service_unavailable` (503) instead of `error_reauth` (403).

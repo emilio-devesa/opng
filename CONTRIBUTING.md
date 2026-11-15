@@ -64,6 +64,8 @@ Requirements are PHP on a supported patch level, Composer, MySQL or MariaDB, and
 
    `phpcs` currently enforces the adapted PSR-12 ruleset in `phpcs.xml` for `src/includes`; new includes must pass it. The rest of the tree will be added to the ruleset as it is cleaned up.
 
+   PHPStan runs at level 6 for `src/` and `tools/`, with `reportUnmatchedIgnoredErrors: true`. Keep the level and fix types instead of adding ignores; the target is to move to level 7 once the legacy entry points have typed boundaries.
+
 5. Run local regression tests that do not modify the database:
 
    ```bash

@@ -1,5 +1,7 @@
 <?php
 
+require __DIR__ . '/../src/includes/healthz.php';
+
 $root = dirname(__DIR__);
 $source = file_get_contents($root . '/src/healthz.php');
 $failures = [];
@@ -22,9 +24,10 @@ if (is_string($source)) {
         $failures
     );
     expect_health(
-        str_contains($source, "'status' => 'ok'")
-            && str_contains($source, "'schema' => \$schema"),
-        'a healthy response reports only status and schema version',
+        str_contains($source, "\$payload = ['status' => 'ok']")
+            && str_contains($source, 'healthz_detail_authorized(')
+            && str_contains($source, "\$payload['schema'] = \$schema"),
+        'the public response is status-only and the schema version is gated',
         $failures
     );
     expect_health(
@@ -64,6 +67,33 @@ if (is_string($source)) {
         $failures
     );
 }
+
+expect_health(
+    healthz_detail_authorized('secret-token', 'Bearer secret-token'),
+    'a matching bearer token enables the detailed payload',
+    $failures
+);
+expect_health(
+    healthz_detail_authorized('secret-token', 'bearer secret-token'),
+    'the bearer scheme is case-insensitive',
+    $failures
+);
+expect_health(
+    !healthz_detail_authorized('secret-token', 'Bearer wrong-token')
+        && !healthz_detail_authorized('secret-token', 'Basic secret-token')
+        && !healthz_detail_authorized(null, 'Bearer secret-token')
+        && !healthz_detail_authorized('', 'Bearer secret-token')
+        && !healthz_detail_authorized('secret-token', null),
+    'a wrong scheme, wrong token or missing configuration keeps the detail hidden',
+    $failures
+);
+expect_health(
+    healthz_authorization_header(['HTTP_AUTHORIZATION' => 'Bearer abc']) === 'Bearer abc'
+        && healthz_authorization_header(['REDIRECT_HTTP_AUTHORIZATION' => 'Bearer def']) === 'Bearer def'
+        && healthz_authorization_header([]) === null,
+    'the endpoint reads Authorization and its rewrite fallback',
+    $failures
+);
 
 $nginx = file_get_contents($root . '/deploy/nginx/opng.conf');
 expect_health(
