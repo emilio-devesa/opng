@@ -143,6 +143,9 @@ foreach ([$root . '/src/.htaccess', $root . '/deploy/nginx/opng.conf'] as $polic
     if (preg_match("/Content-Security-Policy[^\\r\\n]*style-src 'self'; script-src 'self'/", $policy) !== 1) {
         $failures[] = "CSP is missing same-origin style/script restrictions: {$policy_file}";
     }
+    if (!str_contains($policy, "worker-src 'self'")) {
+        $failures[] = "CSP does not allow same-origin workers: {$policy_file}";
+    }
     if (
         !str_contains($policy, "frame-ancestors 'none'")
         || !str_contains($policy, 'X-Frame-Options "DENY"')
@@ -154,6 +157,9 @@ foreach ([$root . '/src/.htaccess', $root . '/deploy/nginx/opng.conf'] as $polic
 $layout = file_get_contents($root . '/src/includes/layout_header.php');
 if (!is_string($layout) || preg_match('/Content-Security-Policy:[^"]*style-src \'self\'; script-src \'self\'/', $layout) !== 1) {
     $failures[] = 'Shared application layout is missing the strict same-origin CSP';
+}
+if (!is_string($layout) || !str_contains($layout, "worker-src 'self'")) {
+    $failures[] = 'Shared application layout does not allow same-origin workers';
 }
 if (
     !is_string($layout)

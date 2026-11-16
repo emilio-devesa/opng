@@ -14,6 +14,7 @@ require("includes/admin_metrics.php");
 require("includes/http_input.php");
 require("includes/account_role.php");
 require("includes/error_messages.php");
+require_once("includes/entry_access.php");
 
 // ------------------ Validaciones de seguridad ------------------
 if (
@@ -53,6 +54,25 @@ $validation_error = paste_validation_error($text, $topic);
 if ($validation_error !== null) {
     opng_error_redirect($validation_error);
 }
+
+// Access fields are only meaningful for thread roots. Replies inherit the
+// parent's visibility, expiry and password protection, so their edit form does
+// not post these values and the transaction leaves them untouched (10.5).
+$visibility = http_string_parameter($_POST, 'visibility', 16, false) ?? 'public';
+if (!entry_visibility_valid($visibility)) {
+    opng_error_redirect('error_visibility_invalid');
+}
+$expiry_option = http_string_parameter($_POST, 'expiry', 16, false) ?? 'never';
+if (!array_key_exists($expiry_option, entry_expiry_options())) {
+    opng_error_redirect('error_expiry_invalid');
+}
+$protection_password = http_string_parameter($_POST, 'protection_password', 72, false);
+$protection_error = entry_protection_error($protection_password);
+if ($protection_error !== null) {
+    opng_error_redirect($protection_error);
+}
+$expires_at = entry_expiry_from_option($expiry_option);
+$remove_protection = ($_POST['remove_protection'] ?? null) === 'yes';
 
 // Language: allowlist (same as in submit.php)
 try {
@@ -127,7 +147,9 @@ try {
 
     // The entry is the last resource in the global lock order.
     $stmt = $db->prepare(
-        'SELECT user_id, OCTET_LENGTH(text) AS text_bytes FROM entries WHERE id = ? FOR UPDATE'
+        'SELECT user_id, parent_id, root_id, depth, visibility, expires_at, protection_hash,
+                OCTET_LENGTH(text) AS text_bytes
+         FROM entries WHERE id = ? FOR UPDATE'
     );
     $stmt->bind_param('s', $id);
     $stmt->execute();
@@ -200,6 +222,48 @@ try {
         $transaction_started = false;
         $db->close();
         opng_error_redirect('error_update_paste');
+    }
+
+    // Editing a thread root updates the access policy of every entry in the
+    // thread so replies cannot drift away from their parent. Editing a reply
+    // keeps the inherited values from the parent (10.5).
+    $is_root = (int) ($entry['depth'] ?? 0) === 0;
+    if ($is_root) {
+        $root_id = is_string($entry['root_id'] ?? null) && $entry['root_id'] !== ''
+            ? $entry['root_id']
+            : $id;
+        $new_protection_hash = $entry['protection_hash'] ?? null;
+        if ($protection_password !== null && $protection_password !== '') {
+            $new_protection_hash = entry_protection_hash($protection_password);
+        } elseif ($remove_protection) {
+            $new_protection_hash = null;
+        }
+        $stmt = $db->prepare(
+            'UPDATE entries
+             SET visibility = ?, expires_at = ?, protection_hash = ?
+             WHERE id = ? OR root_id = ?'
+        );
+        if (!$stmt) {
+            throw new RuntimeException('Thread access fields could not be prepared.');
+        }
+        $stmt->bind_param(
+            'sssss',
+            $visibility,
+            $expires_at,
+            $new_protection_hash,
+            $id,
+            $root_id
+        );
+        if (!$stmt->execute()) {
+            error_log('OPNG update.php: ' . $stmt->error);
+            $stmt->close();
+            $db->rollback();
+            $transaction_started = false;
+            $db->close();
+            opng_error_redirect('error_update_paste');
+        }
+        $stmt->close();
+        $stmt = null;
     }
 
     if (

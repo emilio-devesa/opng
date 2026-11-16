@@ -13,6 +13,9 @@ declare(strict_types=1);
 // and makes the command exit non-zero, but the doctor never rewrites config.
 
 require_once __DIR__ . '/requirements.php';
+require_once __DIR__ . '/mailer.php';
+require_once __DIR__ . '/mfa.php';
+require_once __DIR__ . '/external_backup.php';
 
 const OPNG_DOCTOR_OK = 'ok';
 const OPNG_DOCTOR_WARN = 'warn';
@@ -254,6 +257,83 @@ function opng_doctor_checks(array $context): array
         $https_detail = 'TLS could not be inferred; set OPNG_PUBLIC_URL=https://... for a definitive check.';
     }
     $results[] = opng_doctor_result('https', 'HTTPS', $https_status, $https_detail);
+
+    // Mail transport (10.1): validate the selected transport at startup. The
+    // `log` transport is valid for development and never reaches a mailbox.
+    $mail_config = opng_mail_config();
+    $mail_errors = opng_mail_validate_config($mail_config);
+    if ($mail_errors !== []) {
+        $results[] = opng_doctor_result(
+            'mail_transport',
+            'Mail transport',
+            OPNG_DOCTOR_FAIL,
+            implode(' ', $mail_errors)
+        );
+    } else {
+        $mail_detail = $mail_config['transport'] === 'log'
+            ? 'The log transport is active; password reset emails are written to the application log.'
+            : 'The ' . $mail_config['transport'] . ' transport is configured.';
+        $results[] = opng_doctor_result('mail_transport', 'Mail transport', OPNG_DOCTOR_OK, $mail_detail);
+    }
+
+    // MFA (10.2): an active enrollment without the encryption key must fail
+    // closed. The count is supplied by the caller because the doctor does not
+    // open its own database connection.
+    $mfa_active = (int) ($context['mfa_active_admins'] ?? 0);
+    $mfa_key = mfa_key();
+    $mfa_env = getenv('OPNG_MFA_KEY');
+    $mfa_key_present = is_string($mfa_env) && trim($mfa_env) !== '';
+    if ($mfa_key_present && $mfa_key === null) {
+        $results[] = opng_doctor_result(
+            'mfa_key',
+            'MFA encryption key',
+            OPNG_DOCTOR_FAIL,
+            'OPNG_MFA_KEY is set but is not 32 bytes encoded as base64.'
+        );
+    } elseif ($mfa_key === null && $mfa_active > 0) {
+        $results[] = opng_doctor_result(
+            'mfa_key',
+            'MFA encryption key',
+            OPNG_DOCTOR_FAIL,
+            'Administrators have MFA enabled but OPNG_MFA_KEY is missing; their secrets cannot be decrypted.'
+        );
+    } elseif ($mfa_key === null) {
+        $results[] = opng_doctor_result(
+            'mfa_key',
+            'MFA encryption key',
+            OPNG_DOCTOR_OK,
+            'MFA is not configured; set OPNG_MFA_KEY to let administrators enroll.'
+        );
+    } else {
+        $results[] = opng_doctor_result(
+            'mfa_key',
+            'MFA encryption key',
+            OPNG_DOCTOR_OK,
+            $mfa_active . ' administrator(s) currently have MFA enabled.'
+        );
+    }
+
+    // External backups (10.7): disabled is a valid state; a configured target
+    // must be complete and writable.
+    $backup_config = external_backup_config();
+    if ($backup_config['target'] === 'none') {
+        $results[] = opng_doctor_result(
+            'external_backup',
+            'External backups',
+            OPNG_DOCTOR_OK,
+            'No off-host backup target is configured.'
+        );
+    } else {
+        $backup_errors = external_backup_validate_config($backup_config);
+        $results[] = opng_doctor_result(
+            'external_backup',
+            'External backups',
+            $backup_errors === [] ? OPNG_DOCTOR_OK : OPNG_DOCTOR_FAIL,
+            $backup_errors === []
+                ? 'The ' . $backup_config['target'] . ' backup target is ready.'
+                : implode(' ', $backup_errors)
+        );
+    }
 
     return $results;
 }

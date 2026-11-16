@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, master, v0.8-development, v0.9-development, v1.0-development, v1.1-development]
+    branches: [main, master, v0.8-development, v0.9-development, v1.0-development, v1.1-development, v1.2.0-development]
   pull_request:
 
 permissions:
@@ -79,6 +79,21 @@ jobs:
 
       - name: Server-side locale regression test
         run: php tests/i18n_test.php
+
+      - name: MFA/TOTP regression test
+        run: php tests/mfa_test.php
+
+      - name: Visibility, expiry and protection regression test
+        run: php tests/entry_visibility_test.php
+
+      - name: External backup regression test
+        run: php tests/external_backup_test.php
+
+      - name: API token and read-only API contract regression test
+        run: php tests/api_contract_test.php
+
+      - name: Progressive highlighting regression test
+        run: php tests/frontend_phase13_test.php
 
       - name: Global storage quota regression test
         run: php tests/global_quota_test.php
@@ -373,6 +388,24 @@ jobs:
           OPNG_TEST_DB_PASS: ci-root-password
         run: php tests/thread_integration_test.php
 
+      - name: Verify trash, restore, purge and retention counters
+        env:
+          OPNG_TEST_ALLOW_DATABASE_FIXTURES: '1'
+          OPNG_TEST_DB_HOST: 127.0.0.1
+          OPNG_TEST_DB_PORT: '3306'
+          OPNG_TEST_DB_USER: root
+          OPNG_TEST_DB_PASS: ci-root-password
+        run: php tests/trash_integration_test.php
+
+      - name: Verify API token lifecycle and scopes
+        env:
+          OPNG_TEST_ALLOW_DATABASE_FIXTURES: '1'
+          OPNG_TEST_DB_HOST: 127.0.0.1
+          OPNG_TEST_DB_PORT: '3306'
+          OPNG_TEST_DB_USER: root
+          OPNG_TEST_DB_PASS: ci-root-password
+        run: php tests/api_token_integration_test.php
+
       - name: Verify storage counters against authoritative data
         env:
           OPNG_TEST_ALLOW_DATABASE_FIXTURES: '1'
@@ -547,6 +580,24 @@ jobs:
           OPNG_TEST_DB_USER: root
           OPNG_TEST_DB_PASS: ci-root-password
         run: php tests/thread_integration_test.php
+
+      - name: Verify trash, restore, purge and retention counters
+        env:
+          OPNG_TEST_ALLOW_DATABASE_FIXTURES: '1'
+          OPNG_TEST_DB_HOST: 127.0.0.1
+          OPNG_TEST_DB_PORT: '3306'
+          OPNG_TEST_DB_USER: root
+          OPNG_TEST_DB_PASS: ci-root-password
+        run: php tests/trash_integration_test.php
+
+      - name: Verify API token lifecycle and scopes
+        env:
+          OPNG_TEST_ALLOW_DATABASE_FIXTURES: '1'
+          OPNG_TEST_DB_HOST: 127.0.0.1
+          OPNG_TEST_DB_PORT: '3306'
+          OPNG_TEST_DB_USER: root
+          OPNG_TEST_DB_PASS: ci-root-password
+        run: php tests/api_token_integration_test.php
 
       - name: Verify storage counters against authoritative data
         env:

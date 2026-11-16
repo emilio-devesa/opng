@@ -6,6 +6,8 @@ require("../includes/ratelimit.php");
 require("../includes/http_input.php");
 require_once("../includes/captcha.php");
 require_once("../includes/password_reset.php");
+require_once("../includes/auth.php");
+require_once("../includes/mfa.php");
 
 require("../database.php");
 require("../includes/error_messages.php");
@@ -121,7 +123,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         // Look up the user
         $stmt = null;
         try {
-            $stmt = $db->prepare("SELECT id, username, password_hash, role, session_version FROM users WHERE email = ?");
+            $stmt = $db->prepare("SELECT id, username, password_hash, role, session_version, mfa_enabled FROM users WHERE email = ?");
             $stmt->bind_param("s", $email);
             $stmt->execute();
             $result = $stmt->get_result();
@@ -176,23 +178,35 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             rate_limit_clear($db, 'login', client_ip() . '|' . $normalized_email, 600);
             rate_limit_clear($db, 'login_account', $normalized_email, 600);
             audit_log_record($db, (int) $user['id'], 'auth.login', '');
+
+            // Administrators must present a second factor. The first (lowest
+            // id) administrator is forced to enroll on the next login; the
+            // remaining administrators may opt in from the security page.
+            $mfa_challenge = false;
+            $mfa_enroll = false;
+            if ((string) ($user['role'] ?? '') === 'admin') {
+                if ((int) ($user['mfa_enabled'] ?? 0) === 1) {
+                    $mfa_challenge = true;
+                } elseif (mfa_is_first_admin($db, (int) $user['id'])) {
+                    $mfa_challenge = true;
+                    $mfa_enroll = true;
+                }
+            }
+
+            if ($mfa_challenge) {
+                auth_begin_mfa($user, $mfa_enroll, $redirect_url);
+                $db->close();
+                header('Location: ' . ($mfa_enroll ? 'mfa_enroll.php' : 'mfa.php'));
+                exit;
+            }
+
             $db->close();
 
-            // (S10) Regenerate the session ID to prevent session fixation
-            session_regenerate_id(true);
-
-            $_SESSION["user_id"] = $user['id'];
-            $_SESSION["username"] = $user['username'];
-            $_SESSION["role"] = $user['role'];
-            $_SESSION["session_version"] = (int) ($user['session_version'] ?? 0);
-            $_SESSION["opng_authenticated_at"] = time();
-            // The pre-login page token must not remain valid after authentication.
-            csrf_rotate();
+            // (S10) Establish the session only after every factor has passed.
+            auth_login_user($user);
 
             // Redirect the user to the original page after login
             header("Location: " . $redirect_url);
-
-            unset($_SESSION['redirect_after_login']); // Remove the session variable
             exit;
         }
 
@@ -215,10 +229,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $captcha_required = $_SESSION["login_attempts"] >= 3;
 }
 
-    // Password resets are only available in the local development simulation
-    // until a real mail transport exists. Do not advertise a flow that would
-    // end in an "unavailable" page (SEC-18).
-    $reset_available = password_reset_simulation_enabled();
+    // Password resets are advertised only when a real transport (or the local
+    // development simulation) can deliver the link (SEC-18/10.1).
+    $reset_available = password_reset_available();
     $notice = http_string_parameter($_GET, 'msg', 128) ?? '';
     $notice_key = $notice === 'Registration successful. Please sign in.' ? 'registration_success' : '';
     $notice = $notice_key !== '' ? $notice : '';

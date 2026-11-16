@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/entry_access.php';
+
 /**
  * @return array{id: string, date: string|null}|null
  */
@@ -253,7 +255,9 @@ function build_listing_query(
         throw new InvalidArgumentException('Invalid listing direction.');
     }
 
-    $conditions = [];
+    // The public listing only shows live, public entries. Trashed and expired
+    // entries stay reachable from the owner's trash or an administrator view.
+    $conditions = [entry_public_filter_sql('entries')];
     $params = [];
     if ($search_expression !== null) {
         $conditions[] = 'MATCH(entries.topic) AGAINST (? IN BOOLEAN MODE)';
@@ -268,7 +272,9 @@ function build_listing_query(
         array_push($params, ...$cursor_condition['params']);
     }
 
-    $where_sql = $conditions === [] ? '' : ' WHERE ' . implode(' AND ', $conditions);
+    // The public-entry predicate is always present, so the WHERE clause is
+    // never empty.
+    $where_sql = ' WHERE ' . implode(' AND ', $conditions);
     $sort_expression = entry_sort_expression($sort);
     if ($sort_expression === null) {
         throw new InvalidArgumentException('Unsupported listing sort.');

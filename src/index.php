@@ -147,6 +147,7 @@ $flash_message = http_string_parameter($_GET, 'msg', 128) ?? '';
 $flash_key = match ($flash_message) {
     'Paste created successfully' => 'paste_created',
     'Paste deleted successfully' => 'paste_deleted',
+    'Paste moved to trash' => 'paste_trashed',
     'All pastes have been deleted' => 'all_pastes_deleted',
     default => '',
 };

@@ -65,7 +65,7 @@ if (!is_string($install) || !str_contains($install, 'CREATE TABLE IF NOT EXISTS 
 }
 
 foreach ([
-    'src/admin/drop_id.php' => 'entry.delete',
+    'src/admin/drop_id.php' => 'entry.trash',
     'src/admin/empty.php' => 'database.empty',
     'src/admin/user_action.php' => 'user.role',
     'src/admin/backup.php' => 'backup.download',
@@ -73,6 +73,12 @@ foreach ([
     'src/auth/request_reset.php' => 'auth.reset_requested',
     'src/auth/reset_password.php' => 'auth.reset_completed',
     'src/auth/change_password.php' => 'auth.password_changed',
+    'src/admin/trash_action.php' => 'entry.purge',
+    'src/auth/trash_action.php' => 'entry.restore',
+    'src/admin/tokens_action.php' => 'api_token.admin_revoke',
+    'src/auth/tokens_action.php' => 'api_token.create',
+    'src/admin/external_backup_action.php' => 'backup.external',
+    'src/auth/mfa.php' => 'auth.mfa',
 ] as $path => $action) {
     $source = file_get_contents($root . '/' . $path);
     if (!is_string($source) || !str_contains($source, 'audit_log_record(') || !str_contains($source, $action)) {

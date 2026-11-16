@@ -22,11 +22,13 @@ if (isset($page_title_i18n) && is_string($page_title_i18n)) {
 }
 require_once(__DIR__ . '/csrf.php');
 require_once(__DIR__ . '/i18n.php');
+require_once(__DIR__ . '/logging.php');
+opng_send_request_id_header();
 // The locale cookie/Accept-Language wins over page-local hard-coded values so
 // every page declares the language the server actually rendered.
 $lang_attr = opng_current_locale();
 $logout_csrf_token = $logged_in ? csrf_token() : '';
-header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'");
+header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'");
 header('Permissions-Policy: geolocation=(), camera=(), microphone=()');
 header('Cross-Origin-Opener-Policy: same-origin');
 header('Cross-Origin-Resource-Policy: same-origin');
@@ -70,6 +72,7 @@ ob_start();
                 <?php if ($logged_in && ($_SESSION['role'] ?? '') === 'admin') : ?>
                 <nav class="header-nav" aria-label="Account navigation" data-i18n-aria-label="account_navigation">
                     <a href="<?php echo $base; ?>admin/admin.php" aria-label="Admin" title="Admin" data-i18n-aria-label="admin" data-i18n-title="admin">🛠️</a>
+                    <a href="<?php echo $base; ?>auth/security.php" aria-label="Account security" title="Account security" data-i18n-aria-label="security_title" data-i18n-title="security_title">🔒</a>
                     <a href="<?php echo $base; ?>auth/change_password.php" aria-label="Change password" title="Change password" data-i18n-aria-label="change_password" data-i18n-title="change_password">🔑</a>
                     <form method="post" action="<?php echo $base; ?>auth/logout.php" class="logout-form">
                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($logout_csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
@@ -78,6 +81,7 @@ ob_start();
                 </nav>
                 <?php elseif ($logged_in) : ?>
                 <nav class="header-nav" aria-label="Account navigation" data-i18n-aria-label="account_navigation">
+                    <a href="<?php echo $base; ?>auth/security.php" aria-label="Account security" title="Account security" data-i18n-aria-label="security_title" data-i18n-title="security_title">🔒</a>
                     <a href="<?php echo $base; ?>auth/change_password.php" aria-label="Change password" title="Change password" data-i18n-aria-label="change_password" data-i18n-title="change_password">🔑</a>
                     <form method="post" action="<?php echo $base; ?>auth/logout.php" class="logout-form">
                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($logout_csrf_token, ENT_QUOTES, 'UTF-8'); ?>">

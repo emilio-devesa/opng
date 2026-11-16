@@ -1,0 +1,12 @@
+# Open Pastebin NG — API v1 front controller.
+#
+# Every path under /api/v1/ is handled by index.php. Direct requests to
+# existing files keep working, but no other file should be added here.
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^ index.php [QSA,L]
+</IfModule>
+
+Options -Indexes

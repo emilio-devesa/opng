@@ -33,35 +33,97 @@ document.addEventListener("DOMContentLoaded", function () {
         highlightStatus.hidden = messageId === null;
     }
 
+    function languageFromClass() {
+        if (!codeBlock) return "";
+        const match = (codeBlock.className || "").match(/\blanguage-([a-z0-9-]+)\b/);
+        return match ? match[1] : "";
+    }
+
+    function finishHighlight() {
+        if (highlightButton) {
+            highlightButton.disabled = false;
+            highlightButton.hidden = true;
+        }
+        if (highlightNotice) highlightNotice.hidden = true;
+        setHighlightStatus(null);
+    }
+
+    function failHighlight(error) {
+        console.error("Could not highlight paste text:", error);
+        setHighlightStatus("highlight-error-message");
+        if (highlightButton) highlightButton.disabled = false;
+    }
+
+    function highlightOnMainThread() {
+        try {
+            window.hljs.highlightElement(codeBlock);
+        } catch (error) {
+            failHighlight(error);
+            return;
+        }
+        finishHighlight();
+    }
+
     function runHighlight() {
-        if (!codeBlock || !window.hljs) return;
+        if (!codeBlock) return;
         if (highlightButton) highlightButton.disabled = true;
         setHighlightStatus("highlighting-message");
 
-        // Give the browser one frame to paint the status before the
-        // synchronous highlight.js pass starts (UX-13).
+        // Give the browser one frame to paint the status before the work
+        // starts (UX-13).
         window.requestAnimationFrame(function () {
             window.setTimeout(function () {
-                try {
-                    window.hljs.highlightElement(codeBlock);
-                } catch (error) {
-                    console.error("Could not highlight paste text:", error);
-                    setHighlightStatus("highlight-error-message");
-                    if (highlightButton) highlightButton.disabled = false;
-                    return;
+                const source = codeBlock.textContent || "";
+                const language = languageFromClass();
+
+                // The worker keeps a 1 MiB paste from blocking the main thread
+                // (PERF-15/10.8). Fall back to the in-page bundle when Worker
+                // or the script is unavailable.
+                if (window.Worker) {
+                    let worker;
+                    try {
+                        worker = new Worker("assets/js/highlight-worker.js");
+                    } catch (error) {
+                        worker = null;
+                    }
+                    if (worker) {
+                        const fallback = function (error) {
+                            worker.terminate();
+                            if (window.hljs) {
+                                highlightOnMainThread();
+                            } else {
+                                failHighlight(error);
+                            }
+                        };
+                        worker.onmessage = function (event) {
+                            worker.terminate();
+                            const payload = event.data || {};
+                            if (!payload.ok || typeof payload.html !== "string") {
+                                failHighlight(new Error("Highlight worker failed."));
+                                return;
+                            }
+                            codeBlock.innerHTML = payload.html;
+                            codeBlock.classList.add("hljs");
+                            codeBlock.removeAttribute("data-highlighted");
+                            finishHighlight();
+                        };
+                        worker.onerror = fallback;
+                        worker.postMessage({ code: source, language: language });
+                        return;
+                    }
                 }
 
-                if (highlightButton) highlightButton.hidden = true;
-                if (highlightNotice) highlightNotice.hidden = true;
-                setHighlightStatus(null);
+                if (!window.hljs) {
+                    failHighlight(new Error("Syntax highlighting library did not load."));
+                    return;
+                }
+                highlightOnMainThread();
             }, 0);
         });
     }
 
     if (codeBlock && codeBlock.classList.contains("language-plaintext")) {
         // Nothing to highlight.
-    } else if (codeBlock && !window.hljs) {
-        console.error("Syntax highlighting library did not load.");
     } else if (codeBlock) {
         const manual = highlightButton !== null && !highlightButton.hidden;
         if (manual) {

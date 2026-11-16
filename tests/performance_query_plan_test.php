@@ -175,7 +175,7 @@ try {
 
     $date_plan = $listing_plans['date'];
     if (
-        !in_array($date_plan['key'] ?? null, ['idx_entries_cursor', 'idx_entries_date'], true)
+        !in_array($date_plan['key'] ?? null, ['idx_entries_cursor', 'idx_entries_date', 'idx_entries_deleted'], true)
         || str_contains(strtolower((string) ($date_plan['Extra'] ?? '')), 'filesort')
     ) {
         throw new RuntimeException('Cursor listing did not use a date index without filesort.');

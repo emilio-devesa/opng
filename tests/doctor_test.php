@@ -50,7 +50,7 @@ expect_doctor(
     $summary[OPNG_DOCTOR_FAIL] === 0
         && $summary[OPNG_DOCTOR_WARN] === 0
         && $summary[OPNG_DOCTOR_SKIP] === 0
-        && count($results) === 9,
+        && count($results) === 12,
     'a healthy production context passes every check',
     $failures
 );
@@ -68,7 +68,10 @@ expect_doctor(
         && ($by_id['display_errors'] ?? null) === OPNG_DOCTOR_OK
         && ($by_id['dev_reset'] ?? null) === OPNG_DOCTOR_OK
         && ($by_id['install_credentials'] ?? null) === OPNG_DOCTOR_OK
-        && ($by_id['https'] ?? null) === OPNG_DOCTOR_OK,
+        && ($by_id['https'] ?? null) === OPNG_DOCTOR_OK
+        && ($by_id['mail_transport'] ?? null) === OPNG_DOCTOR_OK
+        && ($by_id['mfa_key'] ?? null) === OPNG_DOCTOR_OK
+        && ($by_id['external_backup'] ?? null) === OPNG_DOCTOR_OK,
     'the checklist reports every required deployment control',
     $failures
 );

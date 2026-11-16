@@ -12,6 +12,8 @@ require("includes/admin_metrics.php");
 require("includes/http_input.php");
 require("includes/error_messages.php");
 require("includes/thread.php");
+require_once("includes/entry_access.php");
+require_once("includes/account_role.php");
 require_once("includes/captcha.php");
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -54,6 +56,27 @@ $parent_id = http_string_parameter($_POST, 'parent_id', 255, false);
 if ($parent_id !== null && !http_valid_entry_id($parent_id)) {
     opng_error_redirect('error_invalid_paste');
 }
+
+// Visibility, expiry and password protection apply to new roots. Replies
+// inherit all three from their parent inside the transaction, so a reply can
+// never make a private or protected thread public.
+$visibility = http_string_parameter($_POST, 'visibility', 16, false) ?? 'public';
+if (!entry_visibility_valid($visibility)) {
+    opng_error_redirect('error_visibility_invalid');
+}
+$expiry_option = http_string_parameter($_POST, 'expiry', 16, false) ?? 'never';
+if (!array_key_exists($expiry_option, entry_expiry_options())) {
+    opng_error_redirect('error_expiry_invalid');
+}
+$protection_password = http_string_parameter($_POST, 'protection_password', 72, false);
+$protection_error = entry_protection_error($protection_password);
+if ($protection_error !== null) {
+    opng_error_redirect($protection_error);
+}
+$expires_at = entry_expiry_from_option($expiry_option);
+$protection_hash = $protection_password !== null && $protection_password !== ''
+    ? entry_protection_hash($protection_password)
+    : null;
 
 $user_id = $_SESSION['user_id'] ?? null;
 if ($user_id !== null) {
@@ -154,6 +177,16 @@ try {
             $db->close();
             opng_error_redirect('error_entry_not_found');
         }
+        // A reply inherits the parent's access policy, so only an account that
+        // can already view the thread may add to it. Otherwise a private or
+        // protected thread could be polluted by an unrelated visitor.
+        $reply_role = refresh_account_role($db) ?? 'guest';
+        if (!entry_can_view($parent, $user_id, $reply_role)) {
+            $db->rollback();
+            $transaction_started = false;
+            $db->close();
+            opng_error_redirect('error_entry_not_found');
+        }
     }
 
     try {
@@ -206,6 +239,40 @@ try {
 
     if (!$stmt->execute()) {
         error_log("OPNG submit.php: " . $stmt->error);
+        $stmt->close();
+        $db->rollback();
+        $transaction_started = false;
+        $db->close();
+        opng_error_redirect('error_save_paste');
+    }
+    $stmt->close();
+    $stmt = null;
+
+    // The INSERT above keeps the legacy column list stable; visibility,
+    // expiry and protection are written separately so replies can copy them
+    // from the locked parent.
+    $access = $parent !== null
+        ? entry_reply_inherited_fields($parent)
+        : [
+            'visibility' => $visibility,
+            'expires_at' => $expires_at,
+            'protection_hash' => $protection_hash,
+        ];
+    $stmt = $db->prepare(
+        'UPDATE entries SET visibility = ?, expires_at = ?, protection_hash = ? WHERE id = ?'
+    );
+    if (!$stmt) {
+        throw new RuntimeException('Entry access fields could not be prepared.');
+    }
+    $stmt->bind_param(
+        'ssss',
+        $access['visibility'],
+        $access['expires_at'],
+        $access['protection_hash'],
+        $id
+    );
+    if (!$stmt->execute()) {
+        error_log('OPNG submit.php: ' . $stmt->error);
         $stmt->close();
         $db->rollback();
         $transaction_started = false;

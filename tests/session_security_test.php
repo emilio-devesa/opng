@@ -91,6 +91,7 @@ $db_source = file_get_contents(__DIR__ . '/../src/includes/db.php');
 $login_source = file_get_contents(__DIR__ . '/../src/auth/login.php');
 $change_source = file_get_contents(__DIR__ . '/../src/auth/change_password.php');
 $reset_source = file_get_contents(__DIR__ . '/../src/auth/reset_password.php');
+$auth_source = file_get_contents(__DIR__ . '/../src/includes/auth.php');
 foreach ([
     'session.php defines session_validate_account' => is_string($session_source) && str_contains($session_source, 'function session_validate_account'),
     'db_connect validates the session version' => is_string($db_source) && str_contains($db_source, 'session_validate_account($conn)'),
@@ -98,7 +99,10 @@ foreach ([
     'login stores the account session version' => is_string($login_source) && str_contains($login_source, 'session_version'),
     'password changes increment the session version' => is_string($change_source) && str_contains($change_source, 'session_version = session_version + 1'),
     'password resets increment the session version' => is_string($reset_source) && str_contains($reset_source, 'session_version = session_version + 1'),
-    'login rotates the CSRF token after authentication' => is_string($login_source) && str_contains($login_source, 'csrf_rotate()'),
+    'login rotates the CSRF token after authentication' => is_string($login_source)
+        && str_contains($login_source, "includes/auth.php")
+        && is_string($auth_source)
+        && str_contains($auth_source, 'csrf_rotate()'),
     'password changes rotate the CSRF token' => is_string($change_source) && str_contains($change_source, 'csrf_rotate()'),
     'password resets rotate the CSRF token' => is_string($reset_source) && str_contains($reset_source, 'csrf_rotate()'),
 ] as $message => $condition) {

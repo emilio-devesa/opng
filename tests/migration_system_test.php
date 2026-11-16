@@ -46,6 +46,56 @@ expect_migration(
     'the entry author-label migration is present and recognized',
     $failures
 );
+expect_migration(
+    array_key_exists('0007_admin_mfa', $migrations),
+    'the administrator MFA migration is present and recognized',
+    $failures
+);
+expect_migration(
+    array_key_exists('0008_entry_retention', $migrations),
+    'the entry retention migration is present and recognized',
+    $failures
+);
+expect_migration(
+    array_key_exists('0009_api_tokens', $migrations),
+    'the API token migration is present and recognized',
+    $failures
+);
+$mfa_migration = file_get_contents($migrations['0007_admin_mfa'] ?? '');
+expect_migration(
+    is_string($mfa_migration)
+        && str_contains($mfa_migration, 'ADD COLUMN mfa_secret VARBINARY(255) NULL')
+        && str_contains($mfa_migration, 'ADD COLUMN mfa_enabled TINYINT UNSIGNED NOT NULL DEFAULT 0')
+        && str_contains($mfa_migration, 'ADD COLUMN mfa_enrolled_at DATETIME NULL')
+        && str_contains($mfa_migration, 'CREATE TABLE IF NOT EXISTS mfa_recovery_codes')
+        && str_contains($mfa_migration, 'information_schema.COLUMNS'),
+    'the MFA migration adds the secret columns and recovery codes idempotently',
+    $failures
+);
+$retention_migration = file_get_contents($migrations['0008_entry_retention'] ?? '');
+expect_migration(
+    is_string($retention_migration)
+        && str_contains($retention_migration, 'ADD COLUMN deleted_at DATETIME NULL')
+        && str_contains($retention_migration, 'ADD COLUMN expires_at DATETIME NULL')
+        && str_contains($retention_migration, "ADD COLUMN visibility ENUM('public', 'unlisted', 'private') NOT NULL DEFAULT 'public'")
+        && str_contains($retention_migration, 'ADD COLUMN protection_hash VARCHAR(255) NULL')
+        && str_contains($retention_migration, 'idx_entries_visibility')
+        && str_contains($retention_migration, 'idx_entries_expires')
+        && str_contains($retention_migration, 'idx_entries_deleted')
+        && str_contains($retention_migration, 'information_schema.COLUMNS')
+        && str_contains($retention_migration, 'information_schema.STATISTICS'),
+    'the retention migration adds trash, expiry, visibility and protection idempotently',
+    $failures
+);
+$tokens_migration = file_get_contents($migrations['0009_api_tokens'] ?? '');
+expect_migration(
+    is_string($tokens_migration)
+        && str_contains($tokens_migration, 'CREATE TABLE IF NOT EXISTS api_tokens')
+        && str_contains($tokens_migration, 'UNIQUE KEY uniq_api_token_hash')
+        && str_contains($tokens_migration, 'ON DELETE CASCADE'),
+    'the API token migration creates the hashed-token table idempotently',
+    $failures
+);
 $storage_counters_migration = file_get_contents($migrations['0005_storage_counters'] ?? '');
 expect_migration(
     is_string($storage_counters_migration)

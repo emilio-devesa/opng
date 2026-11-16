@@ -76,13 +76,23 @@ try {
     $db->close();
     $db = null;
 
-    if (count($schema_tables) !== 7) {
-        schema_drift_fail('database/schema.sql did not create the seven application tables');
+    if (count($schema_tables) !== 9) {
+        schema_drift_fail('database/schema.sql did not create the nine application tables');
     }
-    if (array_diff(['0001_baseline', '0002_foreign_keys', '0003_admin_metrics_expires_bigint', '0004_entry_threads'], $schema_versions) !== []) {
+    if (array_diff([
+        '0001_baseline',
+        '0002_foreign_keys',
+        '0003_admin_metrics_expires_bigint',
+        '0004_entry_threads',
+        '0005_storage_counters',
+        '0006_entry_author_label',
+        '0007_admin_mfa',
+        '0008_entry_retention',
+        '0009_api_tokens',
+    ], $schema_versions) !== []) {
         schema_drift_fail('database/schema.sql did not record every migration version');
     }
-    schema_drift_pass('database/schema.sql installs the v1.0 end state and records every migration');
+    schema_drift_pass('database/schema.sql installs the v1.2 end state and records every migration');
 
     $environment = getenv();
     $environment['OPNG_DB_HOST'] = $host . ':' . $port;

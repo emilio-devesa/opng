@@ -36,6 +36,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
                 <label for="empty_current_password" data-i18n="reauth_password">Current password:</label>
                 <input id="empty_current_password" type="password" name="current_password" maxlength="72" autocomplete="current-password" required>
+                <label for="empty_mfa_code" data-i18n="mfa_code_optional">Authentication code (if enabled):</label>
+                <input id="empty_mfa_code" type="text" name="mfa_code" maxlength="32" inputmode="numeric" autocomplete="one-time-code">
                 <label class="confirm-check">
                     <input id="empty_confirm" type="checkbox" name="confirm_empty" value="yes" required>
                     <span data-i18n="empty_confirm_check">I understand every paste will be deleted.</span>
@@ -67,7 +69,8 @@ if (($_POST['confirm_empty'] ?? null) !== 'yes') {
 // Emptying the database is irreversible: require the current password even
 // when the CSRF token and the explicit confirmation are present (SEC-07).
 $current_password = http_string_parameter($_POST, 'current_password', 72, false);
-$reauth = reauthenticate_user($db, $session_user_id, $current_password, 'admin_reauth_empty');
+$mfa_code = http_string_parameter($_POST, 'mfa_code', 32, false);
+$reauth = reauthenticate_user($db, $session_user_id, $current_password, 'admin_reauth_empty', $mfa_code);
 if ($reauth !== ReauthResult::Allowed) {
     $db->close();
     opng_error_redirect(reauth_error_key($reauth), '../error.php');

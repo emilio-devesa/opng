@@ -1,5 +1,5 @@
 <?php
-// Paste deletion. Refactor: centralized session/CSRF.
+// Paste deletion (soft delete). The whole thread moves to the trash (10.3).
 require_once('../includes/session.php');
 session_start_secured();
 require_once('../includes/csrf.php');
@@ -11,6 +11,7 @@ require_once("../includes/error_messages.php");
 require_once('../includes/admin_metrics.php');
 require_once('../includes/audit_log.php');
 require_once('../includes/user_quota.php');
+require_once('../includes/trash.php');
 
 // Verify that the request is POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -44,17 +45,20 @@ if (!$db) {
     opng_error_redirect('error_database_unavailable', '../error.php');
 }
 
-// Deletion is irreversible; require the current password in addition to CSRF
-// and the explicit confirmation (SEC-07).
+// Moving data to the trash requires the current password (and the second
+// factor when enrolled) in addition to CSRF and the explicit confirmation
+// (SEC-07/10.2).
 $current_password = http_string_parameter($_POST, 'current_password', 72, false);
-$reauth = reauthenticate_user($db, $user_id, $current_password, 'entry_delete');
+$mfa_code = http_string_parameter($_POST, 'mfa_code', 32, false);
+$reauth = reauthenticate_user($db, $user_id, $current_password, 'entry_delete', $mfa_code);
 if ($reauth !== ReauthResult::Allowed) {
     $db->close();
     opng_error_redirect(reauth_error_key($reauth), '../error.php');
 }
 
 $transaction_started = false;
-$deleted = false;
+$trashed = false;
+$trashed_rows = 0;
 try {
     $db->begin_transaction();
     $transaction_started = true;
@@ -74,8 +78,8 @@ try {
     }
 
     // Discover the owner first, then lock the account before the entry. The
-    // row is re-read with FOR UPDATE below, so the measured bytes always come
-    // from the locked row.
+    // row is re-read with FOR UPDATE below, so the ownership check always
+    // comes from the locked row.
     $stmt = $db->prepare('SELECT user_id FROM entries WHERE id = ?');
     $stmt->bind_param('s', $input_ID);
     if (!$stmt->execute()) {
@@ -95,15 +99,13 @@ try {
         throw new RuntimeException('Entry owner was not found while checking storage quota.');
     }
 
-    // Measure and lock the entry before deleting it so the global counter
-    // stays in sync without a full-table SUM().
-    $entry_bytes = 0;
+    // Lock the target entry before touching the thread.
     $stmt = $db->prepare(
-        'SELECT user_id, OCTET_LENGTH(text) AS text_bytes FROM entries WHERE id = ? FOR UPDATE'
+        'SELECT user_id, deleted_at FROM entries WHERE id = ? FOR UPDATE'
     );
     $stmt->bind_param('s', $input_ID);
     if (!$stmt->execute()) {
-        throw new RuntimeException('Entry size lookup failed.');
+        throw new RuntimeException('Entry lock failed.');
     }
     $size_result = $stmt->get_result();
     $size_row = $size_result ? $size_result->fetch_assoc() : null;
@@ -113,53 +115,39 @@ try {
     $stmt->close();
     $stmt = null;
 
-    if (is_array($size_row)) {
-        $locked_owner_id = $size_row['user_id'] !== null ? (int) $size_row['user_id'] : null;
-        if ($locked_owner_id !== $entry_owner_id) {
-            throw new RuntimeException('Entry ownership changed while the deletion locked it.');
-        }
-        $entry_bytes = (int) ($size_row['text_bytes'] ?? 0);
-
-        // If the user is an administrator, they may delete any paste.
-        if ($user_role === "admin") {
-            $stmt = $db->prepare("DELETE FROM entries WHERE id = ?");
-            $stmt->bind_param("s", $input_ID);
-        } else {
-            $stmt = $db->prepare("DELETE FROM entries WHERE id = ? AND user_id = ?");
-            $stmt->bind_param("si", $input_ID, $user_id);
-        }
-
-        if (!$stmt->execute()) {
-            throw new RuntimeException('Entry deletion query failed.');
-        }
-        $deleted = $stmt->affected_rows === 1;
-        $stmt->close();
-        $stmt = null;
-        if (
-            $deleted
-            && (
-                !global_quota_consume($db, -$entry_bytes)
-                || !global_entry_consume($db, -1)
-                || (
-                    $entry_owner_id !== null
-                    && !user_quota_consume($db, $entry_owner_id, -$entry_bytes)
-                )
-            )
-        ) {
-            throw new RuntimeException('Storage counters could not be updated.');
-        }
+    if (!is_array($size_row)) {
+        $db->rollback();
+        $transaction_started = false;
+        $db->close();
+        opng_error_redirect('error_entry_not_found', '../error.php');
     }
 
+    $locked_owner_id = $size_row['user_id'] !== null ? (int) $size_row['user_id'] : null;
+    if ($locked_owner_id !== $entry_owner_id) {
+        throw new RuntimeException('Entry ownership changed while the deletion locked it.');
+    }
+    if ($user_role !== 'admin' && $locked_owner_id !== $user_id) {
+        $db->rollback();
+        $transaction_started = false;
+        $db->close();
+        opng_error_redirect('error_permission', '../error.php');
+    }
+
+    // Storage and quota counters stay charged until the scheduled purge
+    // physically removes the rows, so a restore never re-checks quotas.
+    $trashed_rows = trash_soft_delete_thread($db, $input_ID);
+    $trashed = $trashed_rows > 0;
+
     if (!$db->commit()) {
-        throw new RuntimeException('Entry deletion transaction could not be committed.');
+        throw new RuntimeException('Trash transaction could not be committed.');
     }
     $transaction_started = false;
 
-    if ($deleted) {
+    if ($trashed) {
         // Audit after commit: the audit log is best-effort, and this keeps the
         // opportunistic retention DELETE outside the business transaction
         // (ROB-20).
-        audit_log_record($db, $user_id, 'entry.delete', $input_ID);
+        audit_log_record($db, $user_id, 'entry.trash', $input_ID);
         admin_metrics_invalidate($db);
     }
 } catch (mysqli_sql_exception | RuntimeException $exception) {
@@ -175,8 +163,8 @@ try {
 }
 
 $db->close();
-if ($deleted) {
-    header("Location: ../index.php?msg=" . urlencode("Paste deleted successfully"));
+if ($trashed) {
+    header("Location: ../index.php?msg=" . urlencode("Paste moved to trash"));
     exit;
 }
 

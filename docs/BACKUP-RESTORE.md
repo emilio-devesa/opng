@@ -82,6 +82,41 @@ three monthly copies, with at least one copy off the host. Define and test an
 RPO/RTO appropriate to your data; a backup that has never been restored is not
 a backup.
 
+### Off-host targets
+
+`tools/backup_external.php` runs one backup to the target selected by
+`OPNG_BACKUP_TARGET`:
+
+```bash
+# Mounted directory, optionally encrypted at rest.
+OPNG_BACKUP_TARGET=local \
+OPNG_BACKUP_DIR=/mnt/offsite/opng \
+OPNG_BACKUP_KEY="$(base64 < /run/secrets/opng-backup-key)" \
+OPNG_BACKUP_RETENTION_DAYS=30 \
+php tools/backup_external.php
+
+# Any S3-compatible endpoint (AWS, MinIO, Backblaze, ...).
+OPNG_BACKUP_TARGET=s3 \
+OPNG_BACKUP_S3_ENDPOINT=https://s3.example.com \
+OPNG_BACKUP_S3_BUCKET=opng-backups \
+OPNG_BACKUP_S3_REGION=us-east-1 \
+OPNG_BACKUP_S3_ACCESS_KEY=... \
+OPNG_BACKUP_S3_SECRET_KEY=... \
+OPNG_BACKUP_S3_PREFIX=opng \
+php tools/backup_external.php
+```
+
+The command writes `opng-YYYYMMDD-HHMMSS-xxxxxxxx.sql` (or `.enc` for an
+encrypted local backup) plus a `.sha256` sidecar, applies the retention window
+and logs a structured `external_backup_completed` event. Local retention removes
+expired plain and encrypted files together with their sidecars. S3 uploads use
+native SigV4 signing and no SDK; objects are uploaded as-is, so use a private
+bucket with bucket-side encryption. The admin page (`admin/external_backup.php`)
+shows the configuration and local files, and can run or verify a backup after
+password + MFA reauthentication. Verification imports the dump into a disposable
+schema and compares the table list, so the verification account needs
+`CREATE`/`DROP`.
+
 ## Verify a backup
 
 ```bash
@@ -97,8 +132,11 @@ mysql opng_restore -e 'SELECT COUNT(*) FROM entries; SELECT MAX(version) FROM sc
 ```
 
 The restored schema must include `schema_migrations`, `storage_counters`
-(with `used_bytes` and `used_entries`), `users.used_bytes`,
-`entries.parent_id/root_id/depth/author_label`, `idx_entries_author`, the
+(with `used_bytes` and `used_entries`), `users.used_bytes`, the MFA columns
+(`users.mfa_secret`, `mfa_enabled`, `mfa_enrolled_at`) and `mfa_recovery_codes`,
+`api_tokens`, `entries.parent_id/root_id/depth/author_label`,
+`entries.visibility/expires_at/protection_hash/deleted_at`,
+`idx_entries_author`, `idx_entries_visibility`, `idx_entries_deleted`, the
 FULLTEXT index and all foreign keys. The dump includes the denormalized
 counters, so a normal restore keeps the quota and dashboard values consistent.
 If you import only table data or a partial dump, rebuild them:

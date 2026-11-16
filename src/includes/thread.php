@@ -22,11 +22,16 @@ class ThreadDepthException extends RuntimeException
 /**
  * Load the direct parent of a reply.
  *
- * @return array{id: string, root_id: string, depth: int}|null
+ * Replies inherit the parent's visibility, absolute expiry and password
+ * protection (10.5), so the caller needs those fields together with the
+ * position values.
+ *
+ * @return array{id: string, user_id: int|null, root_id: string, depth: int, visibility: string, expires_at: string|null, protection_hash: string|null}|null
  */
 function thread_parent_for_reply(mysqli $db, string $parent_id, bool $lock = false): ?array
 {
-    $sql = 'SELECT id, COALESCE(root_id, id) AS root_id, depth FROM entries WHERE id = ?';
+    $sql = 'SELECT id, user_id, COALESCE(root_id, id) AS root_id, depth, visibility, expires_at, protection_hash
+            FROM entries WHERE id = ? AND deleted_at IS NULL';
     if ($lock) {
         $sql .= ' FOR UPDATE';
     }
@@ -53,10 +58,20 @@ function thread_parent_for_reply(mysqli $db, string $parent_id, bool $lock = fal
 
     return [
         'id' => $row['id'],
+        'user_id' => $row['user_id'] !== null ? (int) $row['user_id'] : null,
         'root_id' => is_string($row['root_id'] ?? null) && $row['root_id'] !== ''
             ? $row['root_id']
             : $row['id'],
         'depth' => max(0, (int) ($row['depth'] ?? 0)),
+        'visibility' => is_string($row['visibility'] ?? null) && $row['visibility'] !== ''
+            ? $row['visibility']
+            : 'public',
+        'expires_at' => is_string($row['expires_at'] ?? null) && $row['expires_at'] !== ''
+            ? $row['expires_at']
+            : null,
+        'protection_hash' => is_string($row['protection_hash'] ?? null) && $row['protection_hash'] !== ''
+            ? $row['protection_hash']
+            : null,
     ];
 }
 
@@ -100,9 +115,15 @@ function thread_page_query(string $root_id, ?array $cursor = null): array
 {
     $columns = 'entries.id, entries.parent_id, entries.root_id, entries.depth,
                 entries.topic, entries.date, entries.author_label, entries.user_id';
-    $descendants = "SELECT {$columns} FROM entries WHERE entries.root_id = ?";
+    $descendants = "SELECT {$columns} FROM entries
+                    WHERE entries.root_id = ?
+                      AND entries.deleted_at IS NULL
+                      AND (entries.expires_at IS NULL OR entries.expires_at > NOW())";
     $root = "SELECT {$columns} FROM entries
-             WHERE entries.id = ? AND (entries.root_id IS NULL OR entries.root_id <> ?)";
+             WHERE entries.id = ?
+               AND (entries.root_id IS NULL OR entries.root_id <> ?)
+               AND entries.deleted_at IS NULL
+               AND (entries.expires_at IS NULL OR entries.expires_at > NOW())";
     $condition_types = '';
     $condition_params = [];
     if ($cursor !== null) {

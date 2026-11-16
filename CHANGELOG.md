@@ -76,6 +76,49 @@
 - **HYG-14:** added a behavioural concurrency test for the write paths: quota race, concurrent edits, double delete and a role change. It opens two connections, fails on a deadlock or lost update, and is wired into both CI database jobs.
 - `docs/ARCHITECTURE.md` lists the new lock-order and write-concurrency coverage; `docs/SECURITY.md` documents the 503 mapping and the health-check detail token.
 
+### Phase 13 — New features (10.1–10.8)
+#### 📧 Account recovery (10.1)
+- Added a pluggable mail layer (`includes/mailer.php`) with a native SMTP client (STARTTLS/implicit TLS and AUTH LOGIN/PLAIN), PHP `mail()` for local `sendmail`, and a `log` transport for development. No Composer dependency.
+- Added localized reset templates (`includes/mail_templates.php`), absolute links via `OPNG_PUBLIC_URL`, audit events for requests/deliveries and a doctor check for the selected transport. The login page only advertises *Forgot your password?* when the transport validates and can deliver; the loopback-only `OPNG_DEV_RESET` simulation remains available for development.
+- Reset tokens remain SHA-256 hashed, single-use and short-lived.
+
+#### 🔐 Administrator MFA (10.2)
+- Added RFC 6238 TOTP enrollment and challenges (`includes/mfa.php`, `auth/mfa.php`, `auth/mfa_enroll.php`, `auth/security.php`). The lowest-id administrator must enroll on the next login; other administrators may enroll voluntarily.
+- TOTP secrets are encrypted with AES-256-GCM under `OPNG_MFA_KEY`; recovery codes are one-time, 80-bit values stored as SHA-256 hashes. Enrollment, disable and recovery-code replacement run in transactions.
+- Destructive administrator actions now require the password **and** an MFA code/recovery code when MFA is enabled. The doctor fails while MFA is active without a valid key.
+
+#### 🗑️ Trash and retention (10.3)
+- Deleting a paste now moves the whole thread (root and replies) to the trash; restoring brings the whole thread back. Storage and quota counters stay charged until the physical purge.
+- Added author trash (`auth/trash.php`) and administrator trash (`admin/trash.php`) with restore and immediate purge. The purge refuses live rows and keeps the `storage_counters → users → entries` lock order.
+- Added `tools/trash_purge.php` and `OPNG_TRASH_RETENTION_DAYS` (default 7) for scheduled purges with structured audit events.
+
+#### 🔑 Read-only API and tokens (10.4)
+- Added personal token management (`auth/tokens.php`) and administrator review/revocation (`admin/tokens.php`). Tokens use `read`/`write` scopes, optional expiry and are stored only as SHA-256 hashes.
+- Added the read-only `src/api/v1/` router: `GET /api/v1/me`, `GET /api/v1/entries` (optional `?topic=`), `GET /api/v1/entries/{id}`. Bearer authentication, scope checks, per-token rate limits and the public visibility filter are enforced; private/unlisted entries are never returned.
+- Added the API front-controller rewrite and documented the `.htaccess` requirement.
+
+#### 👁️ Visibility, expiry and protection (10.5)
+- Added `public`, `unlisted` and `private` visibility, absolute expiry presets and Argon2id password protection (`includes/entry_access.php`, `src/unlock.php`).
+- Replies inherit the parent's visibility, expiry and protection hash, and reject replies to threads the account cannot view. Editing a thread root propagates access fields to the whole thread.
+- The public listing excludes deleted, expired and non-public rows; administrators retain access for moderation.
+
+#### 🧾 Observability (10.6)
+- Added `admin/audit.php` with action/actor/date filters plus a rate-limit and quota observability panel.
+- Added structured JSON logging with request IDs (`includes/logging.php`) and the `X-Request-ID` response header. API, backup and error paths log structured events.
+
+#### 💾 External backups (10.7)
+- Added `admin/external_backup.php`, `admin/external_backup_action.php` and `tools/backup_external.php`: local mounted-directory or S3-compatible targets with native SigV4 signing, SHA-256 checksums, configurable retention, optional local AES-256-GCM encryption and disposable-schema restore verification.
+- Extended `tools/doctor.php` with mail, MFA and external-backup checks.
+
+#### ⚡ Progressive highlighting and editor (10.8)
+- Added a syntax-highlighting Web Worker (`src/assets/js/highlight-worker.js`) with an automatic main-thread fallback, and virtualized line numbers above 1,000 lines (`src/assets/js/line-gutter.js`).
+- Added `worker-src 'self'` to the PHP, Apache and Nginx CSPs; reduced-motion handling and the global `[hidden]` rule remain in place.
+
+#### 🧪 Tests, schema and docs
+- Added migrations `0007_admin_mfa`, `0008_entry_retention` and `0009_api_tokens` (idempotent, `information_schema` guarded) and updated `database/schema.sql`.
+- Added `tests/mfa_test.php`, `tests/entry_visibility_test.php`, `tests/external_backup_test.php`, `tests/api_contract_test.php`, `tests/frontend_phase13_test.php`, `tests/trash_integration_test.php` and `tests/api_token_integration_test.php`; extended the doctor, password-reset, session, audit, quota, schema-drift, migration and query-plan tests.
+- Added 153 translation keys to all six catalogs (now 440 keys each) and updated the README, architecture, security, backup/restore and upgrade guides.
+
 ## Version 1.1.0 (2026-11-10)
 
 ### Phase 7 — Code hygiene

@@ -86,7 +86,7 @@ assert_global_quota(
 );
 foreach ([
     '/src/admin/empty.php' => 'global_quota_zero',
-    '/src/admin/drop_id.php' => 'global_quota_consume',
+    '/src/includes/trash.php' => 'global_quota_consume',
     '/src/admin/user_action.php' => 'global_quota_consume',
 ] as $path => $marker) {
     $source = file_get_contents($root . $path);
@@ -113,7 +113,7 @@ assert_global_quota(
 foreach ([
     '/src/submit.php' => ['global_entry_consume', 'user_quota_consume'],
     '/src/update.php' => ['user_quota_consume'],
-    '/src/admin/drop_id.php' => ['global_entry_consume', 'user_quota_consume'],
+    '/src/includes/trash.php' => ['global_entry_consume', 'user_quota_consume'],
     '/src/admin/user_action.php' => ['global_entry_consume', 'used_bytes'],
     '/src/admin/empty.php' => ['user_quota_zero_all'],
 ] as $path => $markers) {

@@ -58,7 +58,8 @@ $current_user_id = require_admin($db, 'user_action.php');
 // Role changes and account deletion require an explicit password confirmation
 // in addition to CSRF (SEC-07).
 $current_password = http_string_parameter($_POST, 'current_password', 72, false);
-$reauth = reauthenticate_user($db, $current_user_id, $current_password, 'admin_reauth_user');
+$mfa_code = http_string_parameter($_POST, 'mfa_code', 32, false);
+$reauth = reauthenticate_user($db, $current_user_id, $current_password, 'admin_reauth_user', $mfa_code);
 if ($reauth !== ReauthResult::Allowed) {
     $db->close();
     opng_error_redirect(reauth_error_key($reauth), '../error.php');

@@ -20,6 +20,7 @@ $error_message = "";
 $success_message = "";
 $show_form = false;
 $simulation_enabled = password_reset_simulation_enabled();
+$reset_available = password_reset_available();
 
 header('Referrer-Policy: no-referrer');
 header('Cache-Control: no-store, private, max-age=0');
@@ -28,7 +29,7 @@ if ($_SERVER["REQUEST_METHOD"] === "GET" && !empty($_SESSION['reset_password_suc
     unset($_SESSION['reset_password_success']);
     password_reset_session_clear();
     $success_message = "Password updated. You can now sign in.";
-} elseif (!$simulation_enabled) {
+} elseif (!$reset_available) {
     $error_message = "Password resets are unavailable for this installation. Please contact the administrator.";
 } elseif ($_SERVER["REQUEST_METHOD"] === "GET") {
     $candidate = http_string_parameter($_GET, 'token', 64, false);

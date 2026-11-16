@@ -28,13 +28,20 @@ Open Pastebin NG is **free software** released under the **[GNU GPL license](LIC
 - 🧾 Administrative audit log for destructive actions and backup downloads
 - 🧭 Admin panel with compact action cards, centred confirmation dialogs, a storage progress chart and a collapsible audit log
 - 🧵 Threaded replies with a **History** tab: chronological related entries and an accessible branch graph, with a 32-level depth limit and preserved replies when a parent is deleted
+- 📧 Real account recovery through SMTP, local `sendmail` or a development log transport, with localized templates and short-lived reset links
+- 🔐 TOTP two-factor authentication for administrators, one-time recovery codes and MFA-confirmed destructive actions
+- 🗑️ Thread-aware trash with a configurable retention window, restore and a scheduled purge
+- 🔑 Personal read-only API tokens (`/api/v1/entries`) with scopes, expiry, revocation and per-token rate limits
+- 👁️ Public, unlisted and private pastes with optional expiry and password protection; replies inherit their parent's access policy
+- 🧾 Audit-log viewer with filters, rate-limit/quota observability and structured JSON logs with request IDs
+- 💾 Off-host backups to a mounted directory or any S3-compatible endpoint, with checksums, retention, optional encryption and restore verification
 - 📂 Entries are stored in a **MySQL database**
 
 ### Local syntax-highlighting asset
 
 The browser uses a locally bundled, language-scoped build of **Highlight.js 11.12.0** (Bash, C, C++, Java, Pascal, PHP, Python and Ruby). It is served from `src/assets/vendor/` and does not contact a CDN. The upstream BSD-3-Clause license is included in [`src/assets/vendor/HIGHLIGHT-LICENSE.txt`](src/assets/vendor/HIGHLIGHT-LICENSE.txt). Clipboard access requires a secure context (HTTPS or localhost).
 
-The shared interface uses a strict same-origin Content Security Policy. Keep scripts and styles in local assets; do not add inline handlers or inline styles, which the shipped Apache and Nginx policies intentionally block.
+The shared interface uses a strict same-origin Content Security Policy. Keep scripts and styles in local assets; do not add inline handlers or inline styles, which the shipped Apache and Nginx policies intentionally block. Large pastes are highlighted in a Web Worker (`worker-src 'self'`); if the worker cannot start, the page falls back to the in-page bundle. Line numbers are virtualized above 1,000 lines, and the manual highlight control remains available for pastes above the automatic threshold.
 
 ---
 
@@ -61,7 +68,7 @@ The shared interface uses a strict same-origin Content Security Policy. Keep scr
 To run Open Pastebin NG, you need:
 
 - **PHP 8.2.35**, **8.3.36**, **8.4.27** or **8.5.12** or later within that major/minor branch. These are the minimum patched versions currently enforced by `composer.json`; keep the runtime on the latest patch of a supported branch.
-- **PHP extensions:** `mysqli` (database), `gd` (CAPTCHA image), `dom` (`rules.xml` parsing) and `ctype` (input validation)
+- **PHP extensions:** `mysqli` (database), `gd` (CAPTCHA image), `dom` (`rules.xml` parsing), `ctype` (input validation) and `openssl` (MFA and backup encryption). `sodium` is not required.
 - **MySQL 5.7** or MariaDB
 - A web server (**Apache, Nginx or similar**)
 
@@ -174,6 +181,10 @@ The topic search uses a MySQL/MariaDB FULLTEXT index and requires all entered wo
 - [ ] Configure private server/application logs, confirm visitors receive generic errors, and ensure the log path is writable only by the service account and administrators.
 - [ ] After installation or upgrade, verify the expected schema/indexes, create and view a test paste, search and paginate, and confirm the HTTP error log has no database/configuration leaks. Run `php tools/doctor.php --strict` and fix every reported failure before serving traffic.
 - [ ] Test a database backup restore before relying on the deployment; a backup that has never been restored is not a verified recovery plan.
+- [ ] Configure account recovery before relying on it: set `OPNG_MAIL_TRANSPORT` (`smtp`, `sendmail` or `log`) and the matching `OPNG_MAIL_*` variables, then confirm `php tools/doctor.php --strict` accepts the transport. The `log` transport never contacts a network service and is for development only.
+- [ ] Enable administrator MFA from **Account security** after setting `OPNG_MFA_KEY` to a base64-encoded 32-byte secret. The lowest-id administrator must enroll on the next login; the doctor fails while MFA is active without the key. Store the key outside the database backup and keep a copy in your secret manager.
+- [ ] Configure `OPNG_BACKUP_TARGET=local` with an absolute `OPNG_BACKUP_DIR`, or `OPNG_BACKUP_TARGET=s3` with `OPNG_BACKUP_S3_*`; set `OPNG_BACKUP_RETENTION_DAYS`, and optionally `OPNG_BACKUP_KEY` for local AES-256-GCM encryption. Schedule `php tools/backup_external.php` and verify a restore into a disposable schema.
+- [ ] Set `OPNG_TRASH_RETENTION_DAYS` (default 7) and schedule `php tools/trash_purge.php` from cron so trashed threads are physically removed after the retention window.
 
 ---
 
@@ -181,14 +192,18 @@ The topic search uses a MySQL/MariaDB FULLTEXT index and requires all entered wo
 From the homepage you can:
 
 - 📝 **Create a new paste**: Enter your text or code, select a language and submit. The create, edit and reply editors show a small remaining-length meter (MB and progress bar) below the textarea.
-- 🔍 **View, edit and reply to a paste**: Click on the topic you want to view. The view page uses tabs — **View** (code), **Edit** (author or admin only), **Reply** (creates a real threaded reply) and **History** (when the entry is part of a thread). Includes syntax highlighting, line numbers (hidden with a notice above 5,000 lines so huge pastes stay light) and one-click copy. Pastes larger than 200 KiB skip automatic highlighting and offer a **Highlight** button with progress and error states, so the initial render stays responsive.
+- 🔍 **View, edit and reply to a paste**: Click on the topic you want to view. The view page uses tabs — **View** (code), **Edit** (author or admin only), **Reply** (creates a real threaded reply) and **History** (when the entry is part of a thread). Includes syntax highlighting, line numbers (virtualized above 1,000 lines and hidden with a notice above 5,000 lines so huge pastes stay light) and one-click copy. Pastes larger than 200 KiB skip automatic highlighting and offer a **Highlight** button with progress and error states, so the initial render stays responsive. Authors can mark a paste **public**, **unlisted** or **private**, choose an optional expiry and add a password; replies inherit the parent's visibility, expiry and protection, and editing a thread root propagates those fields to the whole thread. Private pastes are visible only to their author and administrators; protected threads ask for the password once per session.
 
   The **History** tab lists related entries in chronological order with topic, date, author and an *Ancestor*/*Current*/*Descendant* badge, followed by a semantic nested branch graph that works without JavaScript. Threads are capped at 32 levels and 500 rendered entries per page (`Load more` pages with `date, id` cursors); deleting a parent keeps its replies and shows a notice, and deleting a thread root keeps the subtree findable through `root_id`. Reply editors start with the parent paste text so you can quote or trim it, and the relationship is stored in the database rather than inferred from the `RE: ` prefix.
 
   Legacy pastes that only look like replies are never linked heuristically. From the repository root, review candidates with `php tools/link_legacy_replies.php --dry-run` and apply a reviewed pair with `php tools/link_legacy_replies.php --apply --reply=REPLY_ID --parent=PARENT_ID`. The tool validates the `RE: <topic>` prefix, dates and depth, recalculates the subtree, refuses already-linked entries and writes each applied link to `audit_log`.
 - 🔑 **Change your password**: Signed-in accounts can open the key icon in the header (`auth/change_password.php`), enter the current password plus the new one twice, and rotate it without an administrator. The action is CSRF-protected and rate-limited, applies the 12–72 byte policy, invalidates pending reset tokens and regenerates the session ID.
-- 🛠️ **Manage the application (Admin panel)**: Log in to `admin/admin.php` to search entries and users, remove entries, change user roles, delete accounts, and review paste/user totals, language distribution, the five most active users, stored paste-text bytes, and the global storage quota as a progress bar below the language and user charts. Dashboard totals come from the storage counters and are cached in MySQL for five minutes; destructive admin actions invalidate the cache, and `php tools/metrics_refresh.php` can warm it from cron. Entry and user result lists page with keyset cursors; entry topic search uses the FULLTEXT index, while author/username/email search keeps prefix matching. Entry deletion, role changes and account deletion open centred confirmation dialogs that ask for the current password and an explicit confirmation checkbox; database actions use compact cards with their own dialogs. The audit-log table is a collapsible card showing the latest 20 entries for entry deletion, database emptying, role changes, account deletion, backup downloads, sign-in successes/failures/rate limits, password-reset requests/completions and password changes. Emails in the audit target are stored as SHA-256 hashes, never in clear text. Old rows are pruned one bounded batch opportunistically, or in full with `php tools/audit_prune.php [days]` (`OPNG_AUDIT_RETENTION_DAYS`, default 90). When deleting an account, choose whether to preserve its pastes as anonymous or delete them too.
+- 🔐 **Secure your account**: The **Account security** page (`auth/security.php`) shows MFA status, enrolls TOTP authenticators, displays one-time recovery codes and regenerates them after password + MFA confirmation. The lowest-id administrator must enroll on the next login; other administrators may enable MFA voluntarily. Destructive administrator actions require both the current password and, when enabled, a TOTP or recovery code.
+- 🗑️ **Trash and restore**: Deleting a paste moves its whole thread (root and replies) to the trash. Authors see their own trashed threads under **Trash**; administrators see every trashed thread and can restore or purge one immediately. Storage and quota counters stay charged until the purge, and `tools/trash_purge.php` removes threads older than `OPNG_TRASH_RETENTION_DAYS` (default 7).
+- 🔑 **API tokens**: Create personal tokens under **Account security → API tokens** (`auth/tokens.php`). Tokens use the `read`/`write` scopes, can expire, are shown only once, and are stored as SHA-256 hashes. The read-only v1 API exposes `GET /api/v1/entries` (optional `?topic=`), `GET /api/v1/entries/{id}` and `GET /api/v1/me` with `Authorization: Bearer opng_...`; only public, live entries are returned. Administrators can review and revoke every token from **Admin → API tokens**.
+- 🛠️ **Manage the application (Admin panel)**: Log in to `admin/admin.php` to search entries and users, remove entries, change user roles, delete accounts, and review paste/user totals, language distribution, the five most active users, stored paste-text bytes, and the global storage quota as a progress bar below the language and user charts. Dashboard totals come from the storage counters and are cached in MySQL for five minutes; destructive admin actions invalidate the cache, and `php tools/metrics_refresh.php` can warm it from cron. Entry and user result lists page with keyset cursors; entry topic search uses the FULLTEXT index, while author/username/email search keeps prefix matching. Entry deletion, role changes and account deletion open centred confirmation dialogs that ask for the current password and an explicit confirmation checkbox; database actions use compact cards with their own dialogs. The audit-log table is a collapsible card showing the latest 20 entries for entry deletion, database emptying, role changes, account deletion, backup downloads, sign-in successes/failures/rate limits, password-reset requests/completions and password changes. Emails in the audit target are stored as SHA-256 hashes, never in clear text. Old rows are pruned one bounded batch opportunistically, or in full with `php tools/audit_prune.php [days]` (`OPNG_AUDIT_RETENTION_DAYS`, default 90). When deleting an account, choose whether to preserve its pastes as anonymous or delete them too. The **Audit log** card links to `admin/audit.php`, which filters by action, actor and date and shows rate-limit outcomes plus global/account quota observability; application logs are single-line JSON objects with a request ID echoed in the `X-Request-ID` response header. **Admin → Trash** lists trashed threads, and **Admin → API tokens** reviews or revokes personal tokens.
 - 💾 **Download a database backup**: Administrators can open **Database Actions → Download backup**, enter their current password in the confirmation dialog and download a SQL backup. The dialog submits a CSRF-protected POST and records the download in the audit log. The dump is bounded to **300 seconds** and **512 MiB** by default; raise `OPNG_BACKUP_MAX_SECONDS` or `OPNG_BACKUP_MAX_BYTES` for larger databases. Rows are written in bounded multi-row `INSERT` batches (200 rows or 1 MiB per statement) to keep the file compact and the restore fast; a failed dump rolls its snapshot back before reporting the error. The file contains account password hashes and password-reset tokens, so store it securely. Importing the backup drops and recreates the listed tables, but the dump deliberately does not hard-code a database name, so choose the target explicitly: `mysql opng_restore < backup.sql`. Test restoration only against a disposable database. For scheduled backups, use the same bounded dump from the CLI: `php tools/backup.php backup.sql` (or `-` for stdout).
+- 🌐 **External backups**: `admin/external_backup.php` shows the configured off-host target and the local backup list. `php tools/backup_external.php` writes a dump to `OPNG_BACKUP_DIR` or uploads it to an S3-compatible bucket using native SigV4 signing, records a SHA-256 sidecar/checksum and applies `OPNG_BACKUP_RETENTION_DAYS`. Local backups can be encrypted with AES-256-GCM using `OPNG_BACKUP_KEY`. The **Verify** action re-imports a backup into a disposable schema and compares the table list; the runtime account needs `CREATE`/`DROP` for that check. S3 payloads are uploaded as-is, so enable bucket-side encryption or use a private bucket with restricted credentials.
 - ⚠️ **Delete the database**: This remains a manual operation in MAMP's database administration tool. The web runtime account intentionally has no `DROP` permission, and the admin panel only provides the guarded instructions in a confirmation dialog.
 
 For security reasons, access to **admin features** is restricted to administrators.
@@ -197,21 +212,26 @@ For security reasons, access to **admin features** is restricted to administrato
 
 ## 🔒 User Roles & Permissions
 👤 Guest
-- Can view public pastes
+- Can view public pastes and unlisted pastes reached by link
+- Can unlock password-protected pastes with the password
 - Can create pastes (anonymous pastes)
 - Cannot delete any pastes
 - Cannot edit any pastes
 
 📝 Registered User
 - Can create and manage their own pastes
+- Can mark own pastes public, unlisted or private, set an expiry and add password protection
+- Can restore or permanently delete their own trashed threads
+- Can create and revoke personal API tokens
 - Can edit and delete only their own pastes
 - Cannot access the admin panel
 
 🛠️ Administrator
 - Can manage entries, user accounts and roles through the admin panel
-- Can edit or delete any paste (even from other users)
+- Must enroll TOTP MFA when it is the lowest-id administrator; other administrators may enable it voluntarily
+- Can edit or delete any paste (even from other users), review the audit log, restore or purge trashed threads, and review/revoke API tokens
 - Can empty all pastes via the admin panel after confirming with the current password and the confirmation checkbox (user accounts are preserved)
-- Can download a SQL backup; deleting the whole database must be done manually in MAMP
+- Can download a SQL backup and run/verify external backups; deleting the whole database must be done manually in MAMP
 
 ---
 
@@ -246,13 +266,21 @@ For security reasons, access to **admin features** is restricted to administrato
 
   `src/config.php` is excluded from analysis. The PHPStan job needs no local configuration; the lint job creates a throwaway example config only for its isolated database-connection failure test.
 
-- **MySQL/MariaDB integration tests** — the installation and query-plan tests write temporary rows (the plan test inserts 5,000 listing fixtures plus a 500-node thread) and require a disposable database. CI runs the installer, backup/restore, thread and schema-drift suites against both MySQL 8.0 and MariaDB 11, creating an isolated schema and explicitly opting in; do not run these tests against the live MAMP database. `tests/performance_query_plan_test.php` is MySQL-only because its `EXPLAIN` assertions encode MySQL's optimizer choices; MariaDB receives the same indexes and is covered by the schema drift test instead. The backup/restore test (`tests/backup_restore_test.php`) additionally creates and drops two throwaway `opng_backup_*` databases; the thread integration test (`tests/thread_integration_test.php`) creates one `opng_thread_*` database; the storage-counter test (`tests/storage_counters_integration_test.php`) creates one `opng_counters_*` database and verifies recount, signed deltas, clamping and reset; the schema drift test (`tests/schema_drift_test.php`) creates two `opng_drift_*` databases and compares `database/schema.sql` with `src/install.php` using `SHOW CREATE TABLE`. Opt in with `OPNG_TEST_ALLOW_DATABASE_FIXTURES=1` and provide `OPNG_TEST_DB_HOST`, `OPNG_TEST_DB_PORT`, `OPNG_TEST_DB_USER` and `OPNG_TEST_DB_PASS` for an account with `CREATE`/`DROP` privileges. The restore test verifies a portable dump restores every row, account hash, paste byte, threaded relation and foreign key into a differently named database; the thread test covers root/reply/nested creation, chronological history, depth 32, parent/root deletion, admin `delete_entries`/`preserve` and `empty.php`.
+- **MySQL/MariaDB integration tests** — the installation and query-plan tests write temporary rows (the plan test inserts 5,000 listing fixtures plus a 500-node thread) and require a disposable database. CI runs the installer, backup/restore, thread and schema-drift suites against both MySQL 8.0 and MariaDB 11, creating an isolated schema and explicitly opting in; do not run these tests against the live MAMP database. `tests/performance_query_plan_test.php` is MySQL-only because its `EXPLAIN` assertions encode MySQL's optimizer choices; MariaDB receives the same indexes and is covered by the schema drift test instead. The backup/restore test (`tests/backup_restore_test.php`) additionally creates and drops two throwaway `opng_backup_*` databases; the thread integration test (`tests/thread_integration_test.php`) creates one `opng_thread_*` database; the storage-counter test (`tests/storage_counters_integration_test.php`) creates one `opng_counters_*` database and verifies recount, signed deltas, clamping and reset; the schema drift test (`tests/schema_drift_test.php`) creates two `opng_drift_*` databases and compares `database/schema.sql` with `src/install.php` using `SHOW CREATE TABLE`; the trash test (`tests/trash_integration_test.php`) creates one `opng_trash_*` database and verifies whole-thread soft delete, restore, the live-purge guard, retention and counters; the API token test (`tests/api_token_integration_test.php`) creates one `opng_tokens_*` database and covers issuance, hashing, scopes, expiry, revocation and ownership. Opt in with `OPNG_TEST_ALLOW_DATABASE_FIXTURES=1` and provide `OPNG_TEST_DB_HOST`, `OPNG_TEST_DB_PORT`, `OPNG_TEST_DB_USER` and `OPNG_TEST_DB_PASS` for an account with `CREATE`/`DROP` privileges. The restore test verifies a portable dump restores every row, account hash, paste byte, threaded relation and foreign key into a differently named database; the thread test covers root/reply/nested creation, chronological history, depth 32, parent/root deletion, admin `delete_entries`/`preserve` and `empty.php`.
 
 - **Rate limiting** — persisted in the `rate_limits` table (created by `install.php`) and keyed by a SHA-256 hash of IP, account or both. Login uses three limits (IP+account 5/10 min, IP-wide 30/10 min, account-wide 10/10 min) and shows an adaptive CAPTCHA after three session failures. Paste creation allows 20/min for authenticated users and 5/min for guests, who must also solve the CAPTCHA. Registration and password-reset requests remain at 5/hour. The guest and reset rate limits are recorded **before** the CAPTCHA is validated, so a wrong answer consumes the same budget instead of allowing unlimited challenge rotation. A database failure while checking a limit returns HTTP 503 instead of pretending the limit was reached.
 
-- **Password reset** — real password-reset email delivery is not configured, so public reset requests are disabled by default and the login page hides the *Forgot your password?* link while the reset flow is unavailable. For local development only, set `OPNG_DEV_RESET=1` in the PHP process environment. The simulation also requires the request to come from `127.0.0.1` or `::1` with a `localhost`/loopback Host; it shows a one-time reset link as a simulated email, never a password. Do not set this flag in a shared or production environment. Reset tokens are stored as SHA-256 hashes, expire after 10 minutes, and are consumed once.
+- **Password reset and mail** — real delivery uses a pluggable transport: `OPNG_MAIL_TRANSPORT=smtp` with `OPNG_MAIL_SMTP_HOST`, `OPNG_MAIL_SMTP_PORT`, `OPNG_MAIL_SMTP_ENCRYPTION` (`tls`, `ssl` or `none`) and optional `OPNG_MAIL_SMTP_USER`/`OPNG_MAIL_SMTP_PASS`; `sendmail` hands the message to PHP `mail()`; `log` writes it to the application log or `OPNG_MAIL_LOG` and never contacts a network service. Set `OPNG_MAIL_FROM` and `OPNG_MAIL_FROM_NAME`; `OPNG_PUBLIC_URL` makes the reset link absolute behind a proxy. Public reset requests are enabled only when the selected transport validates and can deliver, so the login page hides *Forgot your password?* otherwise. For local development only, set `OPNG_DEV_RESET=1`; the simulation also requires a loopback client and a `localhost`/loopback Host, and shows a one-time reset link instead of sending mail. Do not set this flag in a shared or production environment. Reset tokens are stored as SHA-256 hashes, expire after 10 minutes, and are consumed once.
 
 - **Password reset guard test** — run `php tests/password_reset_security_test.php` to verify the default-off behavior, loopback/Host checks and token hashing.
+- **MFA, visibility, backup and API contract tests** — `php tests/mfa_test.php`, `php tests/entry_visibility_test.php`, `php tests/external_backup_test.php`, `php tests/api_contract_test.php` and `php tests/frontend_phase13_test.php` cover RFC 6238 vectors, encrypted secrets and recovery codes, access inheritance, backup configuration/encryption/retention, token scopes and the read-only API, and the worker/CSP/line-gutter contracts without touching the database.
+
+- **Trash and external-backup tools** — `php tools/trash_purge.php` physically removes trashed threads older than `OPNG_TRASH_RETENTION_DAYS` (default 7) and releases their counters; `php tools/backup_external.php` runs one off-host backup to `OPNG_BACKUP_DIR` or the configured S3-compatible target. Both are CLI-only and suitable for cron.
+
+  ```bash
+  php tools/trash_purge.php
+  php tools/backup_external.php
+  ```
 
 - **Local regression tests** — the following tests do not alter the database and can be run with the PHP CLI:
 
@@ -264,6 +292,11 @@ For security reasons, access to **admin features** is restricted to administrato
   php tests/sql_backup_test.php
   php tests/thread_test.php
   php tests/frontend_contract_test.php
+  php tests/frontend_phase13_test.php
+  php tests/mfa_test.php
+  php tests/entry_visibility_test.php
+  php tests/external_backup_test.php
+  php tests/api_contract_test.php
   php tests/release_contract_test.php
   php tests/container_contract_test.php
   php tests/doctor_test.php
@@ -295,9 +328,7 @@ Your pastes are stored in a **MySQL database** on your web server. Security depe
 - Proper use of **server permissions**
 - Whether you enable **HTTPS** for secure connections
 
-By default, **pastes are public** and **Open Pastebin NG does not support password-protected pastes** at the moment.
-If this is an essential feature, consider submitting a **feature request**.
-However, **registered users** can manage and delete their own pastes.
+By default, **new pastes are public**, but authors can choose **unlisted** or **private** visibility, set an expiry and add password protection. Private pastes are readable only by their author and administrators; unlisted pastes are reachable by link but never listed. Replies inherit the parent's access policy, so a reply cannot expose a private or protected thread. However, **registered users** can manage and delete their own pastes, and administrators can see every paste when moderation requires it.
 
 ### 🔷 Is Open Pastebin NG available in more languages?
 Yes! Open Pastebin NG supports multiple languages.

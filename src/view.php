@@ -13,6 +13,7 @@ require("includes/account_role.php");
 require("includes/error_messages.php");
 require("includes/assets.php");
 require("includes/thread.php");
+require_once("includes/entry_access.php");
 require_once("includes/pagination_cursor.php");
 require_once("includes/i18n.php");
 
@@ -47,8 +48,14 @@ $array = null;
 try {
     $stmt = $db->prepare(
         "SELECT e.id, e.user_id, e.language, e.text, e.topic, e.date,
-                e.parent_id, e.root_id, e.depth,
-                EXISTS(SELECT 1 FROM entries c WHERE c.parent_id = e.id) AS has_children
+                e.parent_id, e.root_id, e.depth, e.deleted_at, e.expires_at,
+                e.visibility, e.protection_hash,
+                EXISTS(
+                    SELECT 1 FROM entries c
+                    WHERE c.parent_id = e.id
+                      AND c.deleted_at IS NULL
+                      AND (c.expires_at IS NULL OR c.expires_at > NOW())
+                ) AS has_children
          FROM entries e
          WHERE e.id = ?"
     );
@@ -77,6 +84,23 @@ if (!$array) {
     opng_error_redirect('error_entry_not_found');
 }
 
+// Visibility, expiry and password protection are enforced before any content
+// is rendered. A hidden entry answers exactly like a missing one so a private
+// id cannot be confirmed by probing (10.5).
+if (
+    entry_is_deleted($array)
+    || entry_is_expired($array)
+    || !entry_visibility_allows($array, $user_id, (string) $role)
+) {
+    $db->close();
+    opng_error_redirect('error_entry_not_found');
+}
+if (entry_requires_unlock($array) && !entry_is_unlocked(entry_thread_root_id($array))) {
+    $db->close();
+    header('Location: unlock.php?id=' . urlencode($id));
+    exit;
+}
+
 // Fetch and normalize the language
 $language = trim($array['language']);
 
@@ -101,6 +125,15 @@ $current_user_id = $user_id;
 $owner_id = $array['user_id'] !== null ? (int) $array['user_id'] : null;
 $can_edit = paste_owner_can_manage($current_user_id, (string) $role, $owner_id);
 $can_delete = $can_edit;
+$is_thread_root = (int) ($array['depth'] ?? 0) === 0;
+$visibility_value = entry_visibility_valid($array['visibility'] ?? null)
+    ? (string) $array['visibility']
+    : 'public';
+$visibility_key = 'visibility_' . $visibility_value;
+$expires_at_value = is_string($array['expires_at'] ?? null) && $array['expires_at'] !== ''
+    ? $array['expires_at']
+    : null;
+$has_protection = entry_requires_unlock($array);
 
 $csrf_token = csrf_token();
 $lang_attr = 'en';
@@ -262,6 +295,13 @@ require(__DIR__ . "/includes/layout_header.php");
                 <div><dt data-i18n="language:">Language:</dt><dd><?php echo htmlspecialchars($language, ENT_QUOTES, 'UTF-8'); ?></dd></div>
                 <div><dt data-i18n="date">Date:</dt><dd><?php echo opng_datetime_html((string) $array['date']); ?></dd></div>
                 <div><dt data-i18n="id">ID:</dt><dd><?php echo htmlspecialchars($array['id'], ENT_QUOTES, 'UTF-8'); ?></dd></div>
+                <div><dt data-i18n="visibility_label">Visibility:</dt><dd data-i18n="<?php echo htmlspecialchars($visibility_key, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars(ucfirst($visibility_value), ENT_QUOTES, 'UTF-8'); ?></dd></div>
+                <?php if ($expires_at_value !== null): ?>
+                <div><dt data-i18n="expiry_label">Expires:</dt><dd><?php echo opng_datetime_html($expires_at_value); ?></dd></div>
+                <?php endif; ?>
+                <?php if ($has_protection): ?>
+                <div><dt data-i18n="protection_status_label">Protection:</dt><dd data-i18n="protection_status_enabled">Password protected</dd></div>
+                <?php endif; ?>
             </dl>
             <div class="code-view<?php echo $show_line_numbers ? '' : ' no-line-numbers'; ?>">
                 <?php if ($show_line_numbers): ?>
@@ -304,10 +344,12 @@ require(__DIR__ . "/includes/layout_header.php");
                     <div class="delete-paste-reauth">
                         <label for="delete_current_password" data-i18n="reauth_password">Current password:</label>
                         <input id="delete_current_password" type="password" name="current_password" maxlength="72" autocomplete="current-password" required>
+                        <label for="delete_mfa_code" data-i18n="mfa_code_optional">Authentication code (if enabled):</label>
+                        <input id="delete_mfa_code" type="text" name="mfa_code" maxlength="32" inputmode="numeric" autocomplete="one-time-code">
                     </div>
                     <label class="confirm-check">
                         <input id="delete_confirm" type="checkbox" name="confirm_delete" value="yes" required>
-                        <span data-i18n="delete_confirm">Are you sure you want to delete this paste? This action cannot be undone.</span>
+                        <span data-i18n="delete_confirm_trash">The whole thread will move to the trash and can be restored later.</span>
                     </label>
                     <div class="delete-paste-dialog-actions">
                         <button type="button" class="delete-paste-cancel" data-delete-paste-close data-i18n="cancel">Cancel</button>
@@ -337,6 +379,38 @@ require(__DIR__ . "/includes/layout_header.php");
                         </option>
                     <?php endforeach; ?>
                 </select>
+                <?php if ($is_thread_root): ?>
+                <fieldset class="access-options">
+                    <legend data-i18n="access_options">Access and lifetime</legend>
+                    <label for="edit_visibility" data-i18n="visibility_label">Visibility:</label>
+                    <select id="edit_visibility" name="visibility">
+                        <?php foreach (entry_visibility_options() as $value => $label_key): ?>
+                        <option value="<?php echo htmlspecialchars($value, ENT_QUOTES, 'UTF-8'); ?>" data-i18n="<?php echo htmlspecialchars($label_key, ENT_QUOTES, 'UTF-8'); ?>"<?php echo $value === $visibility_value ? ' selected' : ''; ?>>
+                            <?php echo htmlspecialchars(ucfirst($value), ENT_QUOTES, 'UTF-8'); ?>
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <label for="edit_expiry" data-i18n="expiry_label">Expires:</label>
+                    <select id="edit_expiry" name="expiry">
+                        <?php foreach (entry_expiry_options() as $value => $label_key): ?>
+                        <option value="<?php echo htmlspecialchars($value, ENT_QUOTES, 'UTF-8'); ?>" data-i18n="<?php echo htmlspecialchars($label_key, ENT_QUOTES, 'UTF-8'); ?>"<?php echo $value === entry_expiry_option_for($expires_at_value) ? ' selected' : ''; ?>>
+                            <?php echo htmlspecialchars($value === 'never' ? 'Never' : $value, ENT_QUOTES, 'UTF-8'); ?>
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <label for="edit_protection_password" data-i18n="protection_password_replace_label">New protection password (optional):</label>
+                    <input id="edit_protection_password" type="password" name="protection_password" maxlength="72" autocomplete="new-password">
+                    <p class="form-help" data-i18n="protection_password_keep_help">Leave blank to keep the current protection. Changing it applies to every reply in the thread.</p>
+                    <?php if ($has_protection): ?>
+                    <label class="confirm-check">
+                        <input type="checkbox" name="remove_protection" value="yes">
+                        <span data-i18n="protection_remove">Remove password protection</span>
+                    </label>
+                    <?php endif; ?>
+                </fieldset>
+                <?php else: ?>
+                <p class="form-help" data-i18n="reply_inherits_access">Replies inherit the thread's visibility, expiry and password protection.</p>
+                <?php endif; ?>
                 <label for="edit_text" data-i18n="text">Enter your text here</label>
                 <textarea id="edit_text" name="input_text" maxlength="1048576" rows="<?php echo $textarea_rows; ?>" cols="80" required><?php echo htmlspecialchars($array['text'], ENT_QUOTES, 'UTF-8'); ?></textarea>
                 <div class="length-meter" data-length-meter-for="edit_text" data-max-bytes="1048576">
@@ -353,6 +427,7 @@ require(__DIR__ . "/includes/layout_header.php");
             <form method="post" action="submit.php" class="editor-form">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
                 <input type="hidden" name="parent_id" value="<?php echo htmlspecialchars($array['id'], ENT_QUOTES, 'UTF-8'); ?>">
+                <p class="form-help" data-i18n="reply_inherits_access">Replies inherit the thread's visibility, expiry and password protection.</p>
                 <label for="reply_topic" data-i18n="topic:">Topic:</label>
                 <input id="reply_topic" type="text" name="input_topic" maxlength="255" value="RE: <?php echo htmlspecialchars($array['topic'], ENT_QUOTES, 'UTF-8'); ?>" required>
                 <label data-i18n="select_language:" for="input_language">Select language:</label>
@@ -518,6 +593,9 @@ require(__DIR__ . "/includes/layout_header.php");
     <script src="assets/vendor/highlight.min.js?v=<?php echo $asset_version; ?>" defer></script>
     <?php endif; ?>
     <script src="assets/js/copy.js?v=<?php echo $asset_version; ?>" defer></script>
+    <?php if ($show_line_numbers): ?>
+    <script src="assets/js/line-gutter.js?v=<?php echo $asset_version; ?>" defer></script>
+    <?php endif; ?>
     <?php if ($can_delete): ?>
     <script src="assets/js/delete-paste-dialog.js?v=<?php echo $asset_version; ?>" defer></script>
     <?php endif; ?>

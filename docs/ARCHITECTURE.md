@@ -22,9 +22,10 @@ an edit, an admin deletion or an account-role change.
 |---|---|
 | `src/submit.php` | global counter → account (if signed in) → parent entry (if reply) → insert |
 | `src/update.php` | global counter → paste owner (if any) → entry `FOR UPDATE` → update |
-| `src/admin/drop_id.php` | global counter → entry owner (if any) → entry `FOR UPDATE` → delete |
+| `src/admin/drop_id.php` | global counter → entry owner (if any) → entry `FOR UPDATE` → soft-delete the whole thread |
 | `src/admin/user_action.php` | global counter → target user → administrator rows (`ORDER BY id`) → entries |
 | `src/admin/empty.php` | global counter → every `users` counter → entries (batched delete) |
+| `src/includes/trash.php` purge | global counter → affected users (`ORDER BY id`) → trashed entries (batched delete) |
 
 Rules for new code:
 
@@ -122,6 +123,11 @@ rely on `idx_audit_created (created_at, id)`.
 - `0005_storage_counters` backfills `users.used_bytes` and
   `storage_counters.used_entries`; `0006_entry_author_label` backfills
   `entries.author_label` from `users.username`.
+- `0007_admin_mfa` adds the encrypted TOTP secret, enrollment timestamp and
+  recovery-code table; `0008_entry_retention` adds visibility, expiry,
+  protection and soft-delete columns plus their indexes; `0009_api_tokens` adds
+  the hashed personal-token table. All three check `information_schema` first and
+  are safe to replay.
 - `DELIMITER` is a native-client command, not SQL. Do not put stored routines
   with embedded semicolons in a migration file; apply those with `mysql` or
   `mariadb` and document the manual step.
@@ -134,6 +140,39 @@ non-responsive MySQL server from exhausting the PHP-FPM worker pool (ROB-19).
 `OPNG_DB_READ_TIMEOUT` optionally bounds an individual query (range 1–3600);
 leave it unset unless it is above the slowest expected operation, such as a
 large admin backup.
+
+## Phase 13 components
+
+- **Mail and recovery** (`includes/mailer.php`, `mail_templates.php`,
+  `password_reset.php`): a native SMTP client with STARTTLS/implicit TLS and
+  AUTH, PHP `mail()` for local sendmail, and a development log transport. The
+  doctor validates the selected transport before the login page advertises
+  recovery. Reset tokens are hashed and short-lived; the local simulation is
+  loopback-only.
+- **MFA** (`includes/mfa.php`, `auth/mfa.php`, `auth/mfa_enroll.php`): RFC 6238
+  TOTP, AES-256-GCM secret storage under `OPNG_MFA_KEY`, hashed one-time
+  recovery codes, mandatory enrollment for the lowest-id administrator and an
+  MFA challenge folded into destructive reauthentication. Enrollment, disable
+  and recovery-code replacement run in transactions.
+- **Trash and retention** (`includes/trash.php`, `auth/trash*.php`,
+  `admin/trash*.php`, `tools/trash_purge.php`): whole-thread soft delete,
+  restore, an immediate administrator purge that refuses live rows, and a
+  scheduled purge that releases the global/account counters only after the rows
+  are deleted. Counters stay charged while a thread is in the trash.
+- **Visibility and protection** (`includes/entry_access.php`, `src/unlock.php`):
+  server-side public/unlisted/private checks, absolute expiry, Argon2id password
+  protection and session unlock per thread root. Replies copy the parent's
+  access fields; editing a root propagates them to the thread.
+- **API tokens** (`includes/api_tokens.php`, `src/api/v1/`): SHA-256 token
+  storage, `read`/`write` scopes, expiry, revocation, per-token rate limits and
+  a read-only v1 router that reuses the public visibility filter.
+- **Observability** (`includes/logging.php`, `admin/audit.php`): single-line JSON
+  logs with request IDs, an audit viewer with filters and a rate-limit/quota
+  panel.
+- **External backups** (`includes/external_backup.php`,
+  `admin/external_backup*.php`, `tools/backup_external.php`): local or
+  S3-compatible targets, SHA-256 checksums, retention, optional local
+  AES-256-GCM encryption and disposable-schema restore verification.
 
 ## Regression coverage
 
@@ -149,3 +188,9 @@ large admin backup.
 - `tests/database_timeout_test.php`: timeout parsing and documentation.
 - `tests/thread_integration_test.php` and the other disposable-database tests
   exercise the real schema and deletion rules.
+- `tests/mfa_test.php`, `tests/entry_visibility_test.php`,
+  `tests/external_backup_test.php`, `tests/api_contract_test.php` and
+  `tests/frontend_phase13_test.php` cover the Phase 13 helpers and frontend
+  contracts without a database.
+- `tests/trash_integration_test.php` and `tests/api_token_integration_test.php`
+  exercise the trash/counter and token lifecycles on disposable schemas.

@@ -155,7 +155,7 @@ $login_source = (string) file_get_contents(__DIR__ . '/../src/auth/login.php');
 assert_same(
     true,
     str_contains($login_source, 'require_once("../includes/password_reset.php")')
-        && str_contains($login_source, 'password_reset_simulation_enabled()'),
+        && str_contains($login_source, 'password_reset_available()'),
     'the login page checks whether password resets are available'
 );
 $reset_guard_position = strpos($login_source, 'if ($reset_available)');

@@ -94,16 +94,57 @@ should upgrade using [UPGRADING.md](UPGRADING.md).
   backup downloads with hashed IPs and hashed email targets. Review it during
   incident response; prune it with `tools/audit_prune.php`
   (`OPNG_AUDIT_RETENTION_DAYS`, default 90). Request-time pruning is limited to
-  one 1,000-row batch and runs after the business transaction commits.
+  one 1,000-row batch and runs after the business transaction commits. The
+  administrator viewer (`admin/audit.php`) filters by action, actor and date and
+  shows rate-limit outcomes and quota usage. Application logs are single-line
+  JSON with a request ID; the same ID is returned in `X-Request-ID`.
+- Set `OPNG_MAIL_TRANSPORT` to `smtp`, `sendmail` or `log` before enabling
+  account recovery. SMTP uses STARTTLS/implicit TLS and optional AUTH; verify
+  certificates in production (`OPNG_MAIL_SMTP_VERIFY_PEER=1`). The `log`
+  transport writes message bodies to the application log and is for development
+  only. Set `OPNG_PUBLIC_URL` behind a reverse proxy so reset links are absolute.
+  `tools/doctor.php --strict` rejects an invalid transport, sender or SMTP
+  configuration.
+- Administrator MFA uses TOTP (RFC 6238) and one-time recovery codes. The TOTP
+  secret is encrypted at rest with AES-256-GCM under `OPNG_MFA_KEY` (base64,
+  exactly 32 bytes); recovery codes are stored as SHA-256 hashes. Keep the key
+  outside database backups and rotate it only with a planned re-enrollment. The
+  lowest-id administrator must enroll on the next login; the doctor fails while
+  MFA is active without a valid key. Destructive actions require the password and
+  a TOTP/recovery code when MFA is enabled.
+- Visibility is enforced server-side: `private` entries are readable only by the
+  author and administrators, `unlisted` entries are reachable by link but never
+  listed, and expired entries disappear from listings and direct views. Replies
+  inherit the parent's visibility, absolute expiry and protection hash; editing a
+  thread root propagates those fields to the whole thread. Protection passwords
+  use Argon2id when available and are never stored in clear.
+- Deleting a paste moves the whole thread to the trash. Authors see their own
+  trashed threads; administrators can restore or purge any trashed thread. Purge
+  refuses live rows, keeps the `storage_counters → users → entries` lock order
+  and releases counters only after the rows are physically deleted. Set
+  `OPNG_TRASH_RETENTION_DAYS` and schedule `tools/trash_purge.php`.
+- API tokens are shown once and stored as SHA-256 hashes. The v1 API requires
+  the `read` scope, returns only public live entries, applies a per-token rate
+  limit and never accepts methods other than `GET`. Revocation is immediate and
+  keeps the row for audit. Create, list and revoke tokens from the account
+  security page; administrators can review and revoke every token.
 
 ### Backups
 
 - Back up daily, verify checksums and test a restore regularly.
-- Backups contain password hashes, reset tokens and audit data. Encrypt them at
-  rest, restrict permissions, keep copies off the host and never put them in
-  the document root.
+- Backups contain password hashes, reset tokens, encrypted MFA secrets and audit
+  data. Encrypt them at rest, restrict permissions, keep copies off the host and
+  never put them in the document root. The MFA key is not part of the database
+  backup; losing it makes enrolled TOTP secrets unreadable.
 - The restore tool refuses dumps with `CREATE DATABASE`/`USE` unless explicitly
   allowed, verifies checksums and requires interactive confirmation.
+- `tools/backup_external.php` writes to `OPNG_BACKUP_DIR` or uploads to an
+  S3-compatible endpoint with native SigV4 signing. Local files can be encrypted
+  with AES-256-GCM under `OPNG_BACKUP_KEY`; S3 objects are uploaded as-is, so use
+  a private bucket and bucket-side encryption. Every backup has a SHA-256
+  checksum and retention is controlled by `OPNG_BACKUP_RETENTION_DAYS`. Restore
+  verification creates and drops a disposable schema, so grant `CREATE`/`DROP`
+  only to the account that runs verification.
 
 ## Container hardening
 
@@ -122,7 +163,9 @@ should upgrade using [UPGRADING.md](UPGRADING.md).
 ## Known limitations
 
 - There is no multi-tenant isolation: all administrators are trusted.
-- There is no built-in WAF, IDS, malware scanning or email delivery.
+- There is no built-in WAF, IDS or malware scanning.
+- MFA is available to administrators only. Registered users rely on password
+  authentication and rate limiting; WebAuthn is not implemented in v1.2.
 - The CAPTCHA is a local image challenge with an explicit, rate-limited
   arithmetic/audio alternative, not a hosted anti-bot service. The text
   alternative is inherently automatable; the controls that matter are the
