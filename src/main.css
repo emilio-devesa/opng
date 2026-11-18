@@ -1945,6 +1945,9 @@ legend {
 }
 
 #SiteHeader .header-nav .logout-form button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     width: 2.75rem;
     height: 2.75rem;
     padding: 0.35rem;
@@ -1954,6 +1957,7 @@ legend {
     border: 1px solid var(--control-border);
     box-shadow: var(--control-shadow);
     font-size: 1rem;
+    line-height: 1;
 }
 
 #SiteHeader .header-nav .logout-form button:hover {
@@ -2031,9 +2035,13 @@ legend {
 }
 
 #SiteHeader .header-search button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     min-width: 2.75rem;
     min-height: 2.75rem;
     padding: 0.35rem;
+    line-height: 1;
 }
 
 #SiteHeader .header-search button[type="submit"] {
