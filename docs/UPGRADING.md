@@ -94,6 +94,65 @@ php tools/link_legacy_replies.php --apply --reply=REPLY_ID --parent=PARENT_ID
 
 Each applied pair is written to the audit log.
 
+### From 1.1.x to 1.2
+
+- `0005_storage_counters` adds `users.used_bytes` and
+  `storage_counters.used_entries`, then backfills both from `entries`. After the
+  upgrade, per-account quota checks and the dashboard totals are O(1) instead of
+  scanning the account's pastes or the whole table.
+- `0006_entry_author_label` adds `entries.author_label` and
+  `idx_entries_author (author_label, id)`, backfilling existing rows from
+  `users.username` (`Guest` for anonymous pastes). Author sorting no longer
+  joins `users`.
+- `0007_admin_mfa` adds `users.mfa_secret`, `mfa_enabled` and `mfa_enrolled_at`,
+  plus the `mfa_recovery_codes` table. Set `OPNG_MFA_KEY` to a base64-encoded
+  32-byte secret **before** the first administrator enrolls. The key is not in
+  the database dump; keep it in your secret store.
+- `0008_entry_retention` adds `entries.visibility`, `expires_at`,
+  `protection_hash` and `deleted_at` with their indexes. Existing rows remain
+  public and never expire.
+- `0009_api_tokens` adds the `api_tokens` table for hashed personal tokens.
+- All six migrations are idempotent and safe to re-run if a previous attempt was
+  interrupted.
+
+Configure the Phase 13 services before enabling them:
+
+- Mail: `OPNG_MAIL_TRANSPORT` (`smtp`, `sendmail` or `log`) and the matching
+  `OPNG_MAIL_*` values. `php tools/doctor.php --strict` must accept them before
+  the login page offers account recovery.
+- MFA: `OPNG_MFA_KEY` as described above. The lowest-id administrator must
+  enroll on the next login; other administrators may enroll from the security
+  page.
+- Identifiers: set `OPNG_HASH_KEY` to 32+ raw bytes or base64 (`openssl rand
+  -base64 32`). Audit targets, client IPs and rate-limit keys switch to
+  HMAC-SHA-256; existing unkeyed rows keep working, and the doctor warns while
+  the key is missing.
+- Bootstrap: entry points now load `src/bootstrap.php` instead of repeating the
+  foundation requires. The redundant `src/database.php` wrapper was removed;
+  custom integrations should require `src/includes/db.php` and call
+  `database_connect()`.
+- Pagination: cursors produced before this release are rejected when they lack
+  the current sort/date fields. Users simply restart pagination; no data
+  changes.
+- Trash: `OPNG_TRASH_RETENTION_DAYS` (default 7) and a cron entry for
+  `php tools/trash_purge.php`.
+- External backups: `OPNG_BACKUP_TARGET`, `OPNG_BACKUP_DIR` or
+  `OPNG_BACKUP_S3_*`, `OPNG_BACKUP_RETENTION_DAYS` and optionally
+  `OPNG_BACKUP_KEY` for local AES-256-GCM encryption.
+
+After any manual import, bulk insert or restore that bypassed the application,
+rebuild and verify the counters:
+
+```bash
+php tools/recount_storage.php
+php tools/recount_storage.php --check
+```
+
+`--check` changes nothing and exits non-zero when a counter differs from the
+authoritative data. Schedule `tools/metrics_refresh.php` if you want the admin
+dashboard cache warmed before its five-minute TTL; the dashboard still computes
+the values on demand when the cache is empty.
+
 ## 5. Run the doctor and smoke test
 
 ```bash
@@ -102,13 +161,21 @@ OPNG_PUBLIC_URL=https://paste.example.com php tools/doctor.php
 
 Fix every failure. Then verify:
 
-1. Sign in as an administrator.
+1. Sign in as an administrator; enroll MFA if this is the lowest-id
+   administrator.
 2. Load an existing paste and its **History** tab.
-3. Create a paste, reply, edit and delete a reply.
-4. Download an admin backup.
-5. `curl -fsS https://paste.example.com/healthz.php` returns `200` and the
-   expected schema version.
-6. Check the PHP error log and the admin audit log.
+3. Create a paste, reply, edit and delete a reply; restore it from the trash.
+4. Mark a paste unlisted/private, set an expiry and a password, and confirm the
+   unlock flow.
+5. Download an admin backup, run `php tools/backup_external.php`, and verify a
+   backup into a disposable schema.
+6. Create an API token and call `GET /api/v1/entries` with it.
+7. `curl -fsS https://paste.example.com/healthz.php` returns `200` and
+   `{"status":"ok"}`. The schema version is only returned when the request
+   sends the optional `OPNG_HEALTHZ_DETAIL_TOKEN` as a bearer token; the
+   container healthcheck intentionally does not need it.
+8. Check the PHP error log, the structured application log and the admin audit
+   viewer.
 
 ## 6. Rollback
 

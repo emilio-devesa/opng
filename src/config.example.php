@@ -30,10 +30,23 @@
  *                                 rate limiting; leave empty otherwise.
  *     OPNG_STORAGE_QUOTA_BYTES    Global paste-text quota in bytes
  *                                 (default: 10 GiB).
+ *     OPNG_DB_CONNECT_TIMEOUT     MySQL connection timeout in seconds
+ *                                 (default: 5; accepted range 1-60).
+ *     OPNG_DB_READ_TIMEOUT        Optional MySQL read timeout in seconds
+ *                                 (unset by default; range 1-3600). Set it
+ *                                 above the slowest expected query.
  *     OPNG_BACKUP_MAX_SECONDS     Maximum duration of an admin backup
  *                                 (default: 300 seconds).
  *     OPNG_BACKUP_MAX_BYTES       Maximum size of an admin backup
  *                                 (default: 512 MiB).
+ *     OPNG_HASH_KEY               Secret used to derive HMAC-SHA-256 audit and
+ *                                 rate-limit identifiers. Use 32+ raw bytes or
+ *                                 a base64 value that decodes to 32+ bytes
+ *                                 (for example `openssl rand -base64 32`).
+ *                                 Without it the fallback is an unkeyed
+ *                                 SHA-256, which the doctor reports as a
+ *                                 warning because IPs and emails are
+ *                                 low-entropy values.
  *
  * Production credentials must be unique: set a non-empty OPNG_DB_PASS (or
  * $mysql_password) and never reuse the local MAMP/development example values.

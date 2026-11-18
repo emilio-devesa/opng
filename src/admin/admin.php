@@ -1,17 +1,13 @@
 <?php
+
+require_once __DIR__ . '/../bootstrap.php';
 // Administration panel.
-require("../includes/session.php");
 session_start_secured();
-require("../includes/csrf.php");
-require("../database.php");
-require("../includes/http_input.php");
 require("../includes/admin_guard.php");
 require("../includes/topic_search.php");
 require("../includes/pagination_cursor.php");
 require("../includes/admin_metrics.php");
 require("../includes/user_quota.php");
-require("../includes/assets.php");
-
 $asset_version = opng_asset_version();
 
 $db = database_connect();
@@ -162,10 +158,13 @@ if ($entry_search_submitted && $entry_search_error === '') {
                 array_push($params, ...$cursor_condition['params']);
             }
             $query_order = $entry_direction === 'newer' ? 'ASC' : 'DESC';
+            // The deleted filter is mandatory and the search form requires at
+            // least one condition, so $filters is never empty here.
+            $where_sql = 'entries.deleted_at IS NULL AND ' . implode(' AND ', $filters);
             $sql = 'SELECT entries.id, entries.topic, COALESCE(users.username, \'Guest\') AS author, entries.date
                     FROM entries
                     LEFT JOIN users ON entries.user_id = users.id
-                    WHERE ' . implode(' AND ', $filters) . "
+                    WHERE ' . $where_sql . "
                     ORDER BY entries.date {$query_order}, entries.id {$query_order}
                     LIMIT 21";
             $stmt = $db->prepare($sql);
@@ -436,6 +435,12 @@ $base = '../';
 require(__DIR__ . "/../includes/layout_header.php");
 ?>
     <h1 data-i18n="admin_title">Admin Panel</h1>
+    <nav class="admin-tools-nav" aria-label="Administration tools" data-i18n-aria-label="admin_tools_nav">
+        <a href="trash.php" data-i18n="trash_admin_title">Trash</a>
+        <a href="audit.php" data-i18n="audit_viewer_title">Audit log</a>
+        <a href="tokens.php" data-i18n="admin_tokens_title">API tokens</a>
+        <a href="external_backup.php" data-i18n="external_backup_title">External backups</a>
+    </nav>
     <?php if ($message_key !== ''): ?>
         <p class="flash-message" role="status" data-i18n="<?php echo htmlspecialchars($message_key, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($message_text, ENT_QUOTES, 'UTF-8'); ?></p>
     <?php endif; ?>
@@ -560,6 +565,8 @@ require(__DIR__ . "/../includes/layout_header.php");
                 <button class="admin-field-clear" type="button" aria-label="Clear field" title="Clear field" data-i18n-aria-label="admin_clear_field" data-i18n-title="admin_clear_field" hidden>×</button>
             </div>
             <button type="submit" name="search_entries" value="1" data-i18n="admin_search_entries">Search entries</button>
+            <button type="button" class="admin-action-trigger danger admin-entry-delete-trigger" data-admin-dialog-open aria-haspopup="dialog" aria-controls="admin-entry-delete-dialog" data-i18n="drop_entry">Drop Entry</button>
+            <p class="form-help admin-entry-delete-help" data-i18n="admin_entry_delete_help">Delete a paste by ID. You will need your current password.</p>
         </form>
         <?php if ($entry_search_error !== ''): ?>
             <p class="admin-search-error" role="alert" data-i18n="<?php echo htmlspecialchars($entry_search_error, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($search_error_text($entry_search_error), ENT_QUOTES, 'UTF-8'); ?></p>
@@ -602,8 +609,6 @@ require(__DIR__ . "/../includes/layout_header.php");
         <hr class="admin-actions-divider">
         <form method="post" action="drop_id.php" class="admin-entry-delete-form" autocomplete="off">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
-            <button type="button" class="admin-action-trigger danger" data-admin-dialog-open aria-haspopup="dialog" aria-controls="admin-entry-delete-dialog" data-i18n="drop_entry">Drop Entry</button>
-            <p class="form-help" data-i18n="admin_entry_delete_help">Delete a paste by ID. You will need your current password.</p>
             <dialog id="admin-entry-delete-dialog" class="admin-action-dialog" aria-labelledby="admin-entry-delete-title">
                 <h2 id="admin-entry-delete-title" data-i18n="drop_entry">Drop Entry</h2>
                 <label for="input_ID" data-i18n="id_to_remove">ID to remove:</label>
@@ -614,10 +619,12 @@ require(__DIR__ . "/../includes/layout_header.php");
                 <div class="admin-dialog-field">
                     <label for="drop_current_password" data-i18n="reauth_password">Current password:</label>
                     <input id="drop_current_password" type="password" name="current_password" maxlength="72" autocomplete="current-password" required>
+                    <label for="drop_mfa_code" data-i18n="mfa_code_optional">Authentication code (if enabled):</label>
+                    <input id="drop_mfa_code" type="text" name="mfa_code" maxlength="32" inputmode="numeric" autocomplete="one-time-code">
                 </div>
                 <label class="confirm-check">
                     <input id="drop_confirm" type="checkbox" name="confirm_delete" value="yes" required>
-                    <span data-i18n="drop_confirm">Are you sure you want to drop this entry? This action cannot be undone.</span>
+                    <span data-i18n="delete_confirm_trash">The whole thread will move to the trash and can be restored later.</span>
                 </label>
                 <div class="admin-dialog-actions">
                     <button type="button" data-admin-dialog-close data-i18n="cancel">Cancel</button>
@@ -704,6 +711,8 @@ require(__DIR__ . "/../includes/layout_header.php");
                 <div class="admin-dialog-field">
                     <label for="user_action_current_password" data-i18n="reauth_password">Current password:</label>
                     <input id="user_action_current_password" type="password" name="current_password" maxlength="72" autocomplete="current-password" required>
+                    <label for="user_action_mfa_code" data-i18n="mfa_code_optional">Authentication code (if enabled):</label>
+                    <input id="user_action_mfa_code" type="text" name="mfa_code" maxlength="32" inputmode="numeric" autocomplete="one-time-code">
                 </div>
                 <label class="confirm-check">
                     <input id="role_confirm" type="checkbox" name="confirm_action" value="yes" required>
@@ -740,6 +749,8 @@ require(__DIR__ . "/../includes/layout_header.php");
                 <div class="admin-dialog-field">
                     <label for="delete_user_current_password" data-i18n="reauth_password">Current password:</label>
                     <input id="delete_user_current_password" type="password" name="current_password" maxlength="72" autocomplete="current-password" required>
+                    <label for="delete_user_mfa_code" data-i18n="mfa_code_optional">Authentication code (if enabled):</label>
+                    <input id="delete_user_mfa_code" type="text" name="mfa_code" maxlength="32" inputmode="numeric" autocomplete="one-time-code">
                 </div>
                 <label class="confirm-check">
                     <input id="delete_user_confirm" type="checkbox" name="confirm_action" value="yes" required>
@@ -786,6 +797,8 @@ require(__DIR__ . "/../includes/layout_header.php");
                         <div class="admin-dialog-field">
                             <label for="backup_current_password" data-i18n="reauth_password">Current password:</label>
                             <input id="backup_current_password" type="password" name="current_password" maxlength="72" autocomplete="current-password" required>
+                            <label for="backup_mfa_code" data-i18n="mfa_code_optional">Authentication code (if enabled):</label>
+                            <input id="backup_mfa_code" type="text" name="mfa_code" maxlength="32" inputmode="numeric" autocomplete="one-time-code">
                         </div>
                         <div class="admin-dialog-actions">
                             <button type="button" data-admin-dialog-close data-i18n="cancel">Cancel</button>
@@ -808,6 +821,8 @@ require(__DIR__ . "/../includes/layout_header.php");
                         <div class="admin-dialog-field">
                             <label for="empty_current_password" data-i18n="reauth_password">Current password:</label>
                             <input id="empty_current_password" type="password" name="current_password" maxlength="72" autocomplete="current-password" required>
+                            <label for="empty_mfa_code" data-i18n="mfa_code_optional">Authentication code (if enabled):</label>
+                            <input id="empty_mfa_code" type="text" name="mfa_code" maxlength="32" inputmode="numeric" autocomplete="one-time-code">
                         </div>
                         <label class="confirm-check">
                             <input id="empty_confirm" type="checkbox" name="confirm_empty" value="yes" required>

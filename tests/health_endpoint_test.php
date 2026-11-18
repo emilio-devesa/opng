@@ -1,5 +1,7 @@
 <?php
 
+require __DIR__ . '/../src/includes/healthz.php';
+
 $root = dirname(__DIR__);
 $source = file_get_contents($root . '/src/healthz.php');
 $failures = [];
@@ -22,9 +24,10 @@ if (is_string($source)) {
         $failures
     );
     expect_health(
-        str_contains($source, "'status' => 'ok'")
-            && str_contains($source, "'schema' => \$schema"),
-        'a healthy response reports only status and schema version',
+        str_contains($source, "\$payload = ['status' => 'ok']")
+            && str_contains($source, 'healthz_detail_authorized(')
+            && str_contains($source, "\$payload['schema'] = \$schema"),
+        'the public response is status-only and the schema version is gated',
         $failures
     );
     expect_health(
@@ -43,6 +46,13 @@ if (is_string($source)) {
         $failures
     );
     expect_health(
+        str_contains($source, 'Permissions-Policy')
+            && str_contains($source, 'Cross-Origin-Opener-Policy: same-origin')
+            && str_contains($source, 'Cross-Origin-Resource-Policy: same-origin'),
+        'health responses send the hardening headers used by the rest of the app',
+        $failures
+    );
+    expect_health(
         !str_contains($source, 'mysqli_get_server_info')
             && !str_contains($source, '$mysql_password')
             && !str_contains($source, 'display_errors'),
@@ -50,13 +60,40 @@ if (is_string($source)) {
         $failures
     );
     expect_health(
-        str_contains($source, "require(__DIR__ . '/includes/db.php')")
+        str_contains($source, "require_once __DIR__ . '/bootstrap.php'")
             && str_contains($source, "require(__DIR__ . '/includes/user_quota.php')")
             && !str_contains($source, 'admin_guard'),
-        'the endpoint is unauthenticated and independent from admin guards',
+        'the endpoint is unauthenticated, uses the shared bootstrap and stays independent from admin guards',
         $failures
     );
 }
+
+expect_health(
+    healthz_detail_authorized('secret-token', 'Bearer secret-token'),
+    'a matching bearer token enables the detailed payload',
+    $failures
+);
+expect_health(
+    healthz_detail_authorized('secret-token', 'bearer secret-token'),
+    'the bearer scheme is case-insensitive',
+    $failures
+);
+expect_health(
+    !healthz_detail_authorized('secret-token', 'Bearer wrong-token')
+        && !healthz_detail_authorized('secret-token', 'Basic secret-token')
+        && !healthz_detail_authorized(null, 'Bearer secret-token')
+        && !healthz_detail_authorized('', 'Bearer secret-token')
+        && !healthz_detail_authorized('secret-token', null),
+    'a wrong scheme, wrong token or missing configuration keeps the detail hidden',
+    $failures
+);
+expect_health(
+    healthz_authorization_header(['HTTP_AUTHORIZATION' => 'Bearer abc']) === 'Bearer abc'
+        && healthz_authorization_header(['REDIRECT_HTTP_AUTHORIZATION' => 'Bearer def']) === 'Bearer def'
+        && healthz_authorization_header([]) === null,
+    'the endpoint reads Authorization and its rewrite fallback',
+    $failures
+);
 
 $nginx = file_get_contents($root . '/deploy/nginx/opng.conf');
 expect_health(

@@ -20,6 +20,9 @@ function install_fail(string $message, ?string $detail = null): never
     exit(1);
 }
 
+/**
+ * @return list<string>
+ */
 function install_table_names(mysqli $conn): array
 {
     $result = $conn->query(
@@ -83,6 +86,9 @@ function normalize_table_name(mysqli $conn, string $target, string $legacy): boo
     return true;
 }
 
+/**
+ * @return array<string, mixed>|null
+ */
 function install_column_info(mysqli $conn, string $table, string $column): ?array
 {
     $stmt = $conn->prepare(
@@ -98,6 +104,10 @@ function install_column_info(mysqli $conn, string $table, string $column): ?arra
     return is_array($row) ? $row : null;
 }
 
+/**
+ * @param list<string> $report
+ * @return array<string, mixed>
+ */
 function install_ensure_column(
     mysqli $conn,
     string $table,
@@ -138,6 +148,9 @@ function install_index_exists(mysqli $conn, string $table, string $index_name): 
     return $exists;
 }
 
+/**
+ * @param list<string> $report
+ */
 function install_ensure_unique_column_index(
     mysqli $conn,
     string $table,
@@ -235,7 +248,8 @@ try {
             role ENUM('admin', 'user') NOT NULL DEFAULT 'user',
             session_version INT UNSIGNED NOT NULL DEFAULT 0,
             reset_token VARCHAR(255) NULL,
-            reset_token_expires DATETIME NULL
+            reset_token_expires DATETIME NULL,
+            used_bytes BIGINT UNSIGNED NOT NULL DEFAULT 0
         ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
     ");
     echo "OK: table users\n";
@@ -334,6 +348,7 @@ try {
         CREATE TABLE IF NOT EXISTS entries (
             id VARCHAR(255) PRIMARY KEY,
             user_id INT,
+            author_label VARCHAR(50) NOT NULL DEFAULT 'Guest',
             date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             language VARCHAR(20) NOT NULL DEFAULT '',
             text MEDIUMTEXT,
@@ -516,12 +531,13 @@ try {
     $conn->query("
         CREATE TABLE IF NOT EXISTS storage_counters (
             counter_key VARCHAR(32) NOT NULL PRIMARY KEY,
-            used_bytes BIGINT UNSIGNED NOT NULL DEFAULT 0
+            used_bytes BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            used_entries BIGINT UNSIGNED NOT NULL DEFAULT 0
         ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
     ");
     $conn->query(
-        "INSERT IGNORE INTO storage_counters (counter_key, used_bytes)
-         SELECT 'global', COALESCE(SUM(OCTET_LENGTH(text)), 0) FROM entries"
+        "INSERT IGNORE INTO storage_counters (counter_key, used_bytes, used_entries)
+         SELECT 'global', COALESCE(SUM(OCTET_LENGTH(text)), 0), COUNT(*) FROM entries"
     );
     echo "OK: table storage_counters\n";
 

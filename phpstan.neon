@@ -1,5 +1,5 @@
 parameters:
-    level: 5
+    level: 6
     paths:
         - src
         - tools
@@ -11,4 +11,4 @@ parameters:
         # versiona. Se declaran aquí para que el análisis sea idéntico
         # con y sin config.php presente.
         - '#Variable \$(mysql_server|mysql_username|mysql_password|mysql_dbname) might not be defined\.#'
-    reportUnmatchedIgnoredErrors: false
+    reportUnmatchedIgnoredErrors: true

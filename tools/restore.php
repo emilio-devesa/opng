@@ -23,6 +23,7 @@ if (PHP_SAPI !== 'cli') {
 require __DIR__ . '/../src/config.php';
 
 /**
+ * @param list<string> $argv
  * @return array<string, string|bool>
  */
 function restore_options(array $argv): array

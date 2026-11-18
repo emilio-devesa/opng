@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/mailer.php';
+require_once __DIR__ . '/i18n.php';
+
 function password_reset_simulation_enabled(): bool
 {
     if (getenv('OPNG_DEV_RESET') !== '1') {
@@ -30,8 +33,60 @@ function password_reset_token_hash(string $token): ?string
     return hash('sha256', $token);
 }
 
-// The reset link is exchanged for this short-lived session record so the token
-// disappears from the address bar, history and Referer (SEC-08).
+/**
+ * Whether this installation can deliver a reset link to the account owner.
+ * The local development simulation counts as available because it renders the
+ * link on localhost only.
+ */
+function password_reset_available(): bool
+{
+    if (password_reset_simulation_enabled()) {
+        return true;
+    }
+
+    return opng_mail_is_deliverable() && opng_mail_validate_config() === [];
+}
+
+/**
+ * Absolute base URL used in recovery mail. OPNG_PUBLIC_URL is authoritative;
+ * otherwise the current request scheme/host is used (safe because the link is
+ * only ever sent to the account owner).
+ */
+function password_reset_public_base_url(): string
+{
+    $configured = getenv('OPNG_PUBLIC_URL');
+    if (is_string($configured) && $configured !== '') {
+        $configured = rtrim($configured, '/');
+        if (
+            filter_var($configured, FILTER_VALIDATE_URL) !== false
+            && preg_match('/[\r\n]/', $configured) !== 1
+        ) {
+            return $configured;
+        }
+    }
+
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    if (!is_string($host) || preg_match('/[\r\n\/]/', $host) === 1) {
+        $host = 'localhost';
+    }
+    $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || ((string) ($_SERVER['SERVER_PORT'] ?? '') === '443')
+        || getenv('OPNG_FORCE_HTTPS') === '1';
+    $script = $_SERVER['SCRIPT_NAME'] ?? '/auth/request_reset.php';
+    $script = is_string($script) ? $script : '/auth/request_reset.php';
+    $basePath = rtrim(dirname(dirname($script)), '/');
+
+    return ($https ? 'https' : 'http') . '://' . $host . $basePath;
+}
+
+/**
+ * Build the absolute reset link for one clear token.
+ */
+function password_reset_link(string $token): string
+{
+    return password_reset_public_base_url()
+        . '/auth/reset_password.php?token=' . rawurlencode($token);
+}
 const OPNG_RESET_SESSION_TTL = 600;
 
 /**

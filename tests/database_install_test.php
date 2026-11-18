@@ -13,8 +13,14 @@ $db = new mysqli($mysql_server, $mysql_username, $mysql_password, $mysql_dbname)
 $db->set_charset('utf8mb4');
 
 $settings = $db->query('SELECT @@lower_case_table_names AS case_mode')->fetch_assoc();
-if ((int) $settings['case_mode'] !== 0) {
-    throw new RuntimeException('This integration test requires case-sensitive table names.');
+$case_mode = (int) ($settings['case_mode'] ?? -1);
+if ($case_mode !== 0) {
+    // The assertions below verify that the installer never creates mixed-case
+    // duplicates, which is only observable on a case-sensitive server. MAMP
+    // and other macOS installs use lower_case_table_names=2; skip instead of
+    // failing an environment the CI MySQL job already covers.
+    echo "SKIP: database_install_test requires lower_case_table_names=0; this server reports {$case_mode}.\n";
+    exit(0);
 }
 
 $result = $db->query(
@@ -39,7 +45,14 @@ while ($migration_row = $migration_result->fetch_assoc()) {
     $migration_versions[] = $migration_row['version'];
 }
 $migration_result->free();
-foreach (['0001_baseline', '0002_foreign_keys', '0003_admin_metrics_expires_bigint', '0004_entry_threads'] as $expected_migration) {
+foreach ([
+    '0001_baseline',
+    '0002_foreign_keys',
+    '0003_admin_metrics_expires_bigint',
+    '0004_entry_threads',
+    '0005_storage_counters',
+    '0006_entry_author_label',
+] as $expected_migration) {
     if (!in_array($expected_migration, $migration_versions, true)) {
         throw new RuntimeException("The installer did not record migration {$expected_migration}.");
     }
@@ -108,6 +121,7 @@ $expected_user_columns = [
     'reset_token_expires',
     'role',
     'session_version',
+    'used_bytes',
     'username',
 ];
 if ($user_columns !== $expected_user_columns) {
@@ -243,7 +257,14 @@ if ($index === null) {
     throw new RuntimeException('The entries date index is missing.');
 }
 
-foreach (['idx_entries_cursor', 'idx_entries_user', 'idx_entries_topic', 'idx_entries_language', 'ft_entries_topic'] as $required_index) {
+foreach ([
+    'idx_entries_cursor',
+    'idx_entries_user',
+    'idx_entries_topic',
+    'idx_entries_language',
+    'idx_entries_author',
+    'ft_entries_topic',
+] as $required_index) {
     $stmt = $db->prepare(
         "SELECT INDEX_TYPE FROM information_schema.STATISTICS
          WHERE TABLE_SCHEMA = DATABASE()
@@ -285,7 +306,51 @@ if (
 }
 echo "PASS: migration 0004 added parent_id, root_id and depth to the upgraded table\n";
 
-foreach (['idx_entries_parent', 'idx_entries_root'] as $thread_index) {
+$author_column = $db->query(
+    "SELECT DATA_TYPE, IS_NULLABLE, COLUMN_DEFAULT, CHARACTER_MAXIMUM_LENGTH
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'entries'
+       AND COLUMN_NAME = 'author_label'"
+)->fetch_assoc();
+if (
+    $author_column === null
+    || $author_column['DATA_TYPE'] !== 'varchar'
+    || (int) $author_column['CHARACTER_MAXIMUM_LENGTH'] !== 50
+    || $author_column['IS_NULLABLE'] !== 'NO'
+    || $author_column['COLUMN_DEFAULT'] !== 'Guest'
+) {
+    throw new RuntimeException('Migration 0006 did not add entries.author_label.');
+}
+$legacy_label = $db->query(
+    "SELECT author_label FROM entries WHERE id = 'legacy'"
+)->fetch_assoc();
+if ($legacy_label === null || $legacy_label['author_label'] !== 'Guest') {
+    throw new RuntimeException('Migration 0006 did not backfill anonymous author labels as Guest.');
+}
+echo "PASS: migration 0006 added and backfilled entries.author_label\n";
+
+$counter_columns = [];
+$counter_result = $db->query(
+    "SELECT COLUMN_NAME, DATA_TYPE
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'storage_counters'"
+);
+while ($counter_row = $counter_result->fetch_assoc()) {
+    $counter_columns[$counter_row['COLUMN_NAME']] = $counter_row['DATA_TYPE'];
+}
+$counter_result->free();
+if (
+    !isset($counter_columns['used_bytes'], $counter_columns['used_entries'])
+    || $counter_columns['used_bytes'] !== 'bigint'
+    || $counter_columns['used_entries'] !== 'bigint'
+) {
+    throw new RuntimeException('Migration 0005 did not add storage_counters.used_entries.');
+}
+echo "PASS: migration 0005 added storage_counters.used_entries\n";
+
+foreach (['idx_entries_parent', 'idx_entries_root', 'idx_entries_author'] as $thread_index) {
     $thread_index_result = $db->query(
         "SELECT INDEX_NAME FROM information_schema.STATISTICS
          WHERE TABLE_SCHEMA = DATABASE()
@@ -370,14 +435,27 @@ $stmt = $db->prepare(
 $stmt->bind_param('si', $quota_probe, $legacy_user_id);
 $stmt->execute();
 $stmt->close();
+// The quota helper reads the denormalized counter, so reconcile it after this
+// direct fixture insert, exactly as tools/recount_storage.php would.
+if (!user_quota_recount($db)) {
+    throw new RuntimeException('The account storage counters could not be rebuilt.');
+}
 $db->begin_transaction();
 $usage = lock_user_quota($db, $legacy_user_id);
-if ($usage === null || $usage['used_bytes'] < 5 || !user_quota_allows($usage, 5, 5)) {
+if (
+    $usage === null
+    || $usage['used_bytes'] < 5
+    || $usage['username'] !== 'legacy'
+    || !user_quota_allows($usage, 5, 5)
+) {
     throw new RuntimeException('The account quota helper did not include stored paste bytes.');
 }
 $db->commit();
 $db->query("DELETE FROM entries WHERE id = 'runtime-quota-probe'");
-echo "PASS: runtime credentials can lock accounts and calculate quota usage\n";
+if (!user_quota_recount($db)) {
+    throw new RuntimeException('The account storage counters could not be reverted.');
+}
+echo "PASS: runtime credentials can lock accounts and calculate quota usage from the counter\n";
 
 $cursor_entries = [
     ['runtime-cursor-probe-a', '2001-01-01 00:00:00'],

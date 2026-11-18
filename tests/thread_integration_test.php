@@ -65,19 +65,31 @@ function thread_integration_insert(
     string $date
 ): void {
     $position = thread_position($parent, $id);
+    $author_label = 'Guest';
+    if ($user_id !== null) {
+        $lookup = $db->prepare('SELECT username FROM users WHERE id = ?');
+        $lookup->bind_param('i', $user_id);
+        $lookup->execute();
+        $lookup_row = $lookup->get_result()->fetch_assoc();
+        $lookup->close();
+        if (is_array($lookup_row) && is_string($lookup_row['username'] ?? null)) {
+            $author_label = $lookup_row['username'];
+        }
+    }
     $stmt = $db->prepare(
-        'INSERT INTO entries (id, parent_id, root_id, depth, user_id, date, language, text, topic)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO entries (id, parent_id, root_id, depth, user_id, author_label, date, language, text, topic)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     $text = 'thread fixture text';
     $language = 'text';
     $stmt->bind_param(
-        'sssisssss',
+        'sssiisssss',
         $id,
         $position['parent_id'],
         $position['root_id'],
         $position['depth'],
         $user_id,
+        $author_label,
         $date,
         $language,
         $text,
@@ -175,11 +187,14 @@ try {
     if (
         $page['nodes'][0]['username'] !== $author
         || $page['nodes'][1]['username'] !== $second
-        || $page['nodes'][2]['username'] !== null
+        || $page['nodes'][2]['username'] !== 'Guest'
+        || $page['nodes'][0]['guest'] !== false
+        || $page['nodes'][1]['guest'] !== false
+        || $page['nodes'][2]['guest'] !== true
     ) {
-        thread_integration_fail('the thread page did not join the expected authors');
+        thread_integration_fail('the thread page did not return the expected author labels');
     }
-    thread_integration_pass('history lists root, reply and nested reply chronologically with authors');
+    thread_integration_pass('history lists root, reply and nested reply chronologically with authors and guest flags');
 
     $grouped = thread_group($page['nodes']);
     $ancestors = thread_ancestor_ids($page['nodes'], 'thread-nested');
@@ -381,30 +396,49 @@ try {
     thread_integration_pass('admin delete_entries preserves replies owned by other users');
 
     // Same SQL as user_action.php preserve: relations survive anonymisation.
-    $stmt = $db->prepare('UPDATE entries SET user_id = NULL WHERE user_id = ?');
+    $stmt = $db->prepare("UPDATE entries SET user_id = NULL, author_label = 'Guest' WHERE user_id = ?");
     $stmt->bind_param('i', $second_id);
     $stmt->execute();
     $stmt->close();
     $preserved = $db->query(
-        "SELECT parent_id, root_id, user_id FROM entries WHERE id = 'thread-owner-reply'"
+        "SELECT parent_id, root_id, user_id, author_label FROM entries WHERE id = 'thread-owner-reply'"
     )->fetch_assoc();
     if (
         $preserved === null
         || $preserved['parent_id'] !== null
         || $preserved['root_id'] !== $owner_root
         || $preserved['user_id'] !== null
+        || $preserved['author_label'] !== 'Guest'
     ) {
         thread_integration_fail('preserve did not anonymise the reply while keeping thread metadata');
     }
     thread_integration_pass('admin preserve keeps thread metadata after anonymisation');
 
-    // Same statement as admin/empty.php.
-    $db->query('DELETE FROM entries');
-    $remaining = (int) $db->query('SELECT COUNT(*) AS total FROM entries')->fetch_assoc()['total'];
-    if ($remaining !== 0) {
-        thread_integration_fail('DELETE FROM entries left rows behind with the self foreign key');
+    // Same batched statement as admin/empty.php (ROB-16): 1,000 rows per
+    // DELETE, repeated until the table is empty.
+    $bulk = $db->prepare(
+        "INSERT INTO entries (id, language, text, topic) VALUES (?, 'text', 'batch fixture', 'Batch fixture')"
+    );
+    for ($index = 0; $index < 1005; $index++) {
+        $bulk_id = 'thread-batch-' . $index;
+        $bulk->bind_param('s', $bulk_id);
+        $bulk->execute();
     }
-    thread_integration_pass('empty.php DELETE FROM entries works with the self-referencing foreign key');
+    $bulk->close();
+    $total_before = (int) $db->query('SELECT COUNT(*) AS total FROM entries')->fetch_assoc()['total'];
+    $deleted_total = 0;
+    $batches = 0;
+    do {
+        $db->query('DELETE FROM entries ORDER BY id LIMIT 1000');
+        $deleted_batch = max(0, $db->affected_rows);
+        $deleted_total += $deleted_batch;
+        $batches++;
+    } while ($deleted_batch === 1000);
+    $remaining = (int) $db->query('SELECT COUNT(*) AS total FROM entries')->fetch_assoc()['total'];
+    if ($remaining !== 0 || $deleted_total !== $total_before || $batches < 2) {
+        thread_integration_fail('batched DELETE FROM entries did not empty the self-referencing table');
+    }
+    thread_integration_pass('empty.php batched DELETE works with the self-referencing foreign key');
 
     $db->close();
     $admin->query("DROP DATABASE `{$name}`");

@@ -9,6 +9,11 @@ class SqlBackupLimitException extends RuntimeException
 {
 }
 
+// Rows are grouped into multi-row INSERT statements to keep the dump compact
+// and the restore fast without risking an unbounded statement or memory spike.
+const OPNG_BACKUP_BATCH_ROWS = 200;
+const OPNG_BACKUP_BATCH_BYTES = 1048576;
+
 /**
  * Read the backup time limit from the environment.
  */
@@ -87,86 +92,125 @@ function sql_backup_dump(
 
     $db->begin_transaction(MYSQLI_TRANS_START_READ_ONLY | MYSQLI_TRANS_START_WITH_CONSISTENT_SNAPSHOT);
 
-    $database_result = $db->query('SELECT DATABASE() AS database_name');
-    $database_row = $database_result->fetch_assoc();
-    $database_result->free();
-    $database_name = is_array($database_row) && is_string($database_row['database_name'] ?? null)
-        ? $database_row['database_name']
-        : '';
-    if ($database_name === '') {
-        throw new RuntimeException('Current database name is unavailable.');
-    }
-
-    $tables_result = $db->query(
-        "SELECT TABLE_NAME
-         FROM information_schema.TABLES
-         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE'
-         ORDER BY TABLE_NAME"
-    );
-    $tables = [];
-    while ($table_row = $tables_result->fetch_assoc()) {
-        if (!is_string($table_row['TABLE_NAME'] ?? null)) {
-            throw new RuntimeException('Invalid table name in database metadata.');
-        }
-        $tables[] = $table_row['TABLE_NAME'];
-    }
-    $tables_result->free();
-    if ($tables === []) {
-        throw new RuntimeException('No database tables are available for backup.');
-    }
-
-    $safe_database_name = str_replace(["\r", "\n"], ' ', $database_name);
-    $write(
-        $stream,
-        "-- Open Pastebin NG SQL backup\n"
-        . '-- Source database: ' . $safe_database_name . "\n"
-        . '-- Created: ' . gmdate('Y-m-d H:i:s') . " UTC\n"
-        . "-- Contains database structure and rows, including password hashes and reset tokens.\n"
-        . "-- Store this file securely. Import it into a chosen database, for example:\n"
-        . "--   mysql <target-database> < backup.sql\n"
-        . "-- Importing it drops and recreates the listed tables.\n\n"
-        . "SET NAMES utf8mb4;\n"
-        . "SET FOREIGN_KEY_CHECKS=0;\n\n"
-    );
-
-    foreach ($tables as $table_name) {
-        $quoted_table = '`' . str_replace('`', '``', $table_name) . '`';
-        $schema_result = $db->query('SHOW CREATE TABLE ' . $quoted_table);
-        $schema_row = $schema_result->fetch_assoc();
-        $schema_result->free();
-        $create_statement = is_array($schema_row) && is_string($schema_row['Create Table'] ?? null)
-            ? $schema_row['Create Table']
-            : null;
-        if ($create_statement === null) {
-            throw new RuntimeException('Table schema is unavailable for backup.');
+    try {
+        $database_result = $db->query('SELECT DATABASE() AS database_name');
+        $database_row = $database_result->fetch_assoc();
+        $database_result->free();
+        $database_name = is_array($database_row) && is_string($database_row['database_name'] ?? null)
+            ? $database_row['database_name']
+            : '';
+        if ($database_name === '') {
+            throw new RuntimeException('Current database name is unavailable.');
         }
 
-        $write($stream, "DROP TABLE IF EXISTS {$quoted_table};\n{$create_statement};\n\n");
-        $result = $db->query('SELECT * FROM ' . $quoted_table, MYSQLI_USE_RESULT);
-        $fields = $result->fetch_fields();
-        $quoted_columns = array_map(
-            static fn ($field): string => '`' . str_replace('`', '``', $field->name) . '`',
-            $fields
+        $tables_result = $db->query(
+            "SELECT TABLE_NAME
+             FROM information_schema.TABLES
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE'
+             ORDER BY TABLE_NAME"
         );
-        $column_list = implode(', ', $quoted_columns);
-
-        while ($row = $result->fetch_assoc()) {
-            $values = [];
-            foreach ($fields as $field) {
-                $values[] = sql_backup_value($row[$field->name] ?? null, $field->type);
+        $tables = [];
+        while ($table_row = $tables_result->fetch_assoc()) {
+            if (!is_string($table_row['TABLE_NAME'] ?? null)) {
+                throw new RuntimeException('Invalid table name in database metadata.');
             }
-            $write(
-                $stream,
-                'INSERT INTO ' . $quoted_table . ' (' . $column_list . ') VALUES ('
-                . implode(', ', $values) . ");\n"
-            );
+            $tables[] = $table_row['TABLE_NAME'];
         }
-        $result->free();
-        $write($stream, "\n");
-    }
+        $tables_result->free();
+        if ($tables === []) {
+            throw new RuntimeException('No database tables are available for backup.');
+        }
 
-    $write($stream, "SET FOREIGN_KEY_CHECKS=1;\n");
-    $db->commit();
+        $safe_database_name = str_replace(["\r", "\n"], ' ', $database_name);
+        $write(
+            $stream,
+            "-- Open Pastebin NG SQL backup\n"
+            . '-- Source database: ' . $safe_database_name . "\n"
+            . '-- Created: ' . gmdate('Y-m-d H:i:s') . " UTC\n"
+            . "-- Contains database structure and rows, including password hashes.\n"
+            . "-- Password-reset tokens are exported as NULL and must be reissued.\n"
+            . "-- Store this file securely. Import it into a chosen database, for example:\n"
+            . "--   mysql <target-database> < backup.sql\n"
+            . "-- Importing it drops and recreates the listed tables.\n\n"
+            . "SET NAMES utf8mb4;\n"
+            . "SET FOREIGN_KEY_CHECKS=0;\n\n"
+        );
+
+        // Password-reset tokens are bearer credentials: a restored backup must
+        // not keep working reset links alive (SEC-15). They are nullable, so
+        // replacing them with NULL is valid for every supported schema.
+        $redacted_columns = ['reset_token' => true, 'reset_token_expires' => true];
+
+        foreach ($tables as $table_name) {
+            $quoted_table = '`' . str_replace('`', '``', $table_name) . '`';
+            $schema_result = $db->query('SHOW CREATE TABLE ' . $quoted_table);
+            $schema_row = $schema_result->fetch_assoc();
+            $schema_result->free();
+            $create_statement = is_array($schema_row) && is_string($schema_row['Create Table'] ?? null)
+                ? $schema_row['Create Table']
+                : null;
+            if ($create_statement === null) {
+                throw new RuntimeException('Table schema is unavailable for backup.');
+            }
+
+            $write($stream, "DROP TABLE IF EXISTS {$quoted_table};\n{$create_statement};\n\n");
+            $result = $db->query('SELECT * FROM ' . $quoted_table, MYSQLI_USE_RESULT);
+            $fields = $result->fetch_fields();
+            $quoted_columns = array_map(
+                static fn ($field): string => '`' . str_replace('`', '``', $field->name) . '`',
+                $fields
+            );
+            $column_list = implode(', ', $quoted_columns);
+
+            $batch_rows = [];
+            $batch_bytes = 0;
+            while ($row = $result->fetch_assoc()) {
+                $values = [];
+                foreach ($fields as $field) {
+                    $column_name = $field->name;
+                    $cell = isset($redacted_columns[$column_name])
+                        ? null
+                        : ($row[$column_name] ?? null);
+                    $values[] = sql_backup_value($cell, $field->type);
+                }
+                $tuple = '(' . implode(', ', $values) . ')';
+                $batch_rows[] = $tuple;
+                $batch_bytes += strlen($tuple) + 2;
+                if (
+                    count($batch_rows) >= OPNG_BACKUP_BATCH_ROWS
+                    || $batch_bytes >= OPNG_BACKUP_BATCH_BYTES
+                ) {
+                    $write(
+                        $stream,
+                        'INSERT INTO ' . $quoted_table . ' (' . $column_list . ") VALUES\n"
+                        . implode(",\n", $batch_rows) . ";\n"
+                    );
+                    $batch_rows = [];
+                    $batch_bytes = 0;
+                }
+            }
+            if ($batch_rows !== []) {
+                $write(
+                    $stream,
+                    'INSERT INTO ' . $quoted_table . ' (' . $column_list . ") VALUES\n"
+                    . implode(",\n", $batch_rows) . ";\n"
+                );
+            }
+            $result->free();
+            $write($stream, "\n");
+        }
+
+        $write($stream, "SET FOREIGN_KEY_CHECKS=1;\n");
+        $db->commit();
+    } catch (Throwable $exception) {
+        try {
+            $db->rollback();
+        } catch (Throwable $rollback_exception) {
+            error_log('OPNG sql_backup.php: rollback failed: ' . $rollback_exception->getMessage());
+        }
+
+        throw $exception;
+    }
 
     return $database_name;
 }

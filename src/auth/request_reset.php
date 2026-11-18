@@ -1,16 +1,12 @@
 <?php
-require("../includes/session.php");
+
+require_once __DIR__ . '/../bootstrap.php';
 session_start_secured();
-require("../includes/csrf.php");
 require("../includes/ratelimit.php");
 require_once("../includes/password_reset.php");
-require("../includes/http_input.php");
-require("../includes/error_messages.php");
-require("../includes/assets.php");
+require_once("../includes/mail_templates.php");
 require_once("../includes/captcha.php");
 require_once("../includes/audit_log.php");
-require("../database.php");
-
 $asset_version = opng_asset_version();
 $service_unavailable_message = opng_error_text('error_service_unavailable');
 
@@ -24,9 +20,10 @@ $message = "";
 $reset_link = null;
 $response_status = 200;
 $simulation_enabled = password_reset_simulation_enabled();
+$reset_available = password_reset_available();
 $posted_email = http_string_parameter($_POST, 'email', 100) ?? '';
 
-if (!$simulation_enabled) {
+if (!$reset_available) {
     $message = "Password resets are unavailable for this installation. Please contact the administrator.";
 } elseif ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (!csrf_valid($_POST['csrf_token'] ?? null)) {
@@ -39,10 +36,8 @@ if (!$simulation_enabled) {
     } else {
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $message = "Please enter a valid email address.";
-        } elseif (!captcha_validate($captcha_answer)) {
-            $message = "Incorrect CAPTCHA. Please try again.";
         } else {
-            $message = "If an account exists for this address, a reset link has been generated.";
+            $message = "If an account exists for this address, a reset link has been sent.";
             $db = database_connect();
 
             if (!$db) {
@@ -68,13 +63,17 @@ if (!$simulation_enabled) {
                     $ip_result === RateLimitResult::Limited
                     || $account_result === RateLimitResult::Limited
                 ) {
-                    $message = "If an account exists for this address, a reset link has been generated.";
+                    $message = "If an account exists for this address, a reset link has been sent.";
+                } elseif (!captcha_validate($captcha_answer)) {
+                    // Both rate limits are recorded before the CAPTCHA, so a
+                    // wrong answer consumes the request budget (SEC-19).
+                    $message = "Incorrect CAPTCHA. Please try again.";
                 } else {
                     audit_log_record($db, null, 'auth.reset_requested', audit_log_email_target($email));
                     $stmt = null;
                     $update = null;
                     try {
-                        $stmt = $db->prepare("SELECT id FROM users WHERE email = ?");
+                        $stmt = $db->prepare("SELECT id, email FROM users WHERE email = ?");
                         $stmt->bind_param("s", $email);
                         $stmt->execute();
                         $result = $stmt->get_result();
@@ -96,7 +95,29 @@ if (!$simulation_enabled) {
                                 error_log("OPNG request_reset.php: " . $update->error);
                                 $message = "The password reset service is temporarily unavailable.";
                             } elseif ($update->affected_rows === 1) {
-                                $reset_link = "reset_password.php?token=" . urlencode($token);
+                                $link = password_reset_link($token);
+                                if ($simulation_enabled) {
+                                    // Local development keeps the link on the
+                                    // page; nothing is sent to a real mailbox.
+                                    $reset_link = "reset_password.php?token=" . urlencode($token);
+                                } else {
+                                    $mail = opng_mail_password_reset_message(
+                                        $link,
+                                        opng_current_locale()
+                                    );
+                                    $delivered = opng_mail_send(
+                                        (string) ($user['email'] ?? $email),
+                                        $mail['subject'],
+                                        $mail['text'],
+                                        $mail['html']
+                                    );
+                                    audit_log_record(
+                                        $db,
+                                        null,
+                                        $delivered ? 'auth.reset_delivered' : 'auth.reset_delivery_failed',
+                                        audit_log_email_target((string) ($user['email'] ?? $email))
+                                    );
+                                }
                             }
                             $update->close();
                             $update = null;
@@ -143,7 +164,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 if (isset($_SESSION['reset_request_flash'])) {
     $request_flash = $_SESSION['reset_request_flash'];
     unset($_SESSION['reset_request_flash']);
-    if ($simulation_enabled && is_array($request_flash)) {
+    if ($reset_available && is_array($request_flash)) {
         if (isset($request_flash['message']) && is_string($request_flash['message'])) {
             $message = $request_flash['message'];
         }
@@ -169,6 +190,7 @@ $message_key = match ($message) {
     "Please enter a valid email address and CAPTCHA." => 'reset_email_captcha_required',
     "Please enter a valid email address." => 'email_invalid',
     "Incorrect CAPTCHA. Please try again." => 'captcha_incorrect',
+    "If an account exists for this address, a reset link has been sent." => 'reset_requested_sent',
     "If an account exists for this address, a reset link has been generated." => 'reset_requested',
     "The password reset service is temporarily unavailable." => 'reset_service_unavailable',
     $service_unavailable_message => 'error_service_unavailable',
@@ -214,7 +236,7 @@ require(__DIR__ . '/../includes/layout_header.php');
         </section>
     <?php endif; ?>
 
-    <?php if ($simulation_enabled): ?>
+    <?php if ($reset_available): ?>
         <form method="post" id="reset-form" class="auth-form">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
             <p>

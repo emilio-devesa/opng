@@ -128,6 +128,13 @@ body.dark-mode {
     box-sizing: border-box;
 }
 
+/* The HTML hidden attribute must win over component display rules such as
+   `button { display: inline-block }`; otherwise hidden controls stay visible
+   and uninitialised (for example the manual highlight button). */
+[hidden] {
+    display: none !important;
+}
+
 html,
 body {
     margin: 0;
@@ -509,6 +516,31 @@ form.search-form button {
     color: var(--muted);
     font-size: 0.8rem;
     text-align: right;
+}
+
+.highlight-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+    margin: 0.75rem 0 0;
+}
+
+.highlight-notice {
+    flex: 1 1 18rem;
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+.highlight-status {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+.highlight-status-error {
+    color: var(--danger);
 }
 
 /* ========================= */
@@ -941,7 +973,7 @@ textarea[name="input_text"] {
 }
 
 .captcha-field .refresh-captcha {
-    align-self: flex-start;
+    align-self: center;
 }
 
 .captcha-text-alternative {
@@ -969,6 +1001,17 @@ textarea[name="input_text"] {
 
 .captcha-listen {
     margin-top: 0.25rem;
+}
+
+.captcha-mode-link {
+    align-self: flex-start;
+    font-size: 0.9rem;
+}
+
+.captcha-text-alternative .refresh-captcha {
+    display: block;
+    width: max-content;
+    margin: 0.5rem auto 0;
 }
 
 .field-help {
@@ -1123,17 +1166,49 @@ legend {
     color: var(--text);
 }
 
+.access-options {
+    margin-top: 1rem;
+}
+
+.admin-tools-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0 0 1.25rem;
+}
+
+.admin-tools-nav a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.25rem;
+    padding: 0.35rem 0.85rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text);
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.admin-tools-nav a:hover,
+.admin-tools-nav a:focus-visible {
+    background: var(--surface-2);
+    color: var(--accent);
+    text-decoration: none;
+}
+
 .admin-search-form {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
     align-items: end;
-    gap: 0.35rem 0.75rem;
+    gap: 0.35rem 0.5rem;
     margin-bottom: 1.25rem !important;
 }
 
 .admin-search-form {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.5rem 1rem;
+    gap: 0.35rem 0.5rem;
 }
 
 .admin-search-form label {
@@ -1146,6 +1221,26 @@ legend {
 
 .admin-search-form > button[type="submit"] {
     grid-row: 3;
+    margin-top: 0.35rem;
+}
+
+.admin-search-form > .admin-entry-delete-trigger {
+    grid-row: 3;
+    justify-self: start;
+    margin-top: 0.35rem;
+}
+
+.admin-search-form > .admin-entry-delete-help {
+    grid-row: 4;
+    grid-column: 1 / -1;
+    align-self: start;
+    margin: 0 !important;
+}
+
+.admin-search-form > .admin-change-role-trigger,
+.admin-search-form > .admin-delete-user-trigger {
+    grid-row: 3;
+    justify-self: start;
     margin-top: 0.35rem;
 }
 
@@ -1715,8 +1810,13 @@ legend {
 
     .admin-search-form label,
     .admin-search-form > .admin-input-wrap,
-    .admin-search-form > button[type="submit"] {
+    .admin-search-form > button[type="submit"],
+    .admin-search-form > .admin-entry-delete-trigger,
+    .admin-search-form > .admin-entry-delete-help,
+    .admin-search-form > .admin-change-role-trigger,
+    .admin-search-form > .admin-delete-user-trigger {
         grid-row: auto;
+        grid-column: auto;
     }
 
     .admin-choice-actions {
@@ -1757,14 +1857,18 @@ legend {
 /* CONTROLES DE TEMA / IDIOMA */
 /* ========================= */
 #theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     min-width: 2.75rem;
     min-height: 2.75rem;
-    padding: 0.35rem;
+    padding: 0;
     border-radius: 999px;
     background: var(--control-bg);
     color: var(--text);
     border: 1px solid var(--control-border);
     box-shadow: var(--control-shadow);
+    line-height: 1;
 }
 
 #theme-toggle:hover {
@@ -1873,6 +1977,9 @@ legend {
 }
 
 #SiteHeader .header-nav .logout-form button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     width: 2.75rem;
     height: 2.75rem;
     padding: 0.35rem;
@@ -1882,6 +1989,7 @@ legend {
     border: 1px solid var(--control-border);
     box-shadow: var(--control-shadow);
     font-size: 1rem;
+    line-height: 1;
 }
 
 #SiteHeader .header-nav .logout-form button:hover {
@@ -1959,9 +2067,13 @@ legend {
 }
 
 #SiteHeader .header-search button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     min-width: 2.75rem;
     min-height: 2.75rem;
     padding: 0.35rem;
+    line-height: 1;
 }
 
 #SiteHeader .header-search button[type="submit"] {
@@ -1996,8 +2108,10 @@ legend {
     color: var(--action-text);
     border: 1px solid var(--action-border);
     border-radius: 10px;
+    font-family: var(--font-sans);
     font-weight: 600;
-    font-size: 1.25rem;
+    font-size: 1.6rem;
+    line-height: 1;
     text-decoration: none;
 }
 
@@ -2397,6 +2511,67 @@ footer .back-to-top:hover {
 }
 
 /* ========================= */
+/* ICONOS SVG (UX-08) */
+/* ========================= */
+.icon {
+    width: 1.25em;
+    height: 1.25em;
+    flex: none;
+    vertical-align: -0.15em;
+}
+
+#theme-toggle .theme-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 0;
+}
+
+#theme-toggle .theme-icon-light {
+    display: none;
+}
+
+body.dark-mode #theme-toggle .theme-icon-dark {
+    display: none;
+}
+
+body.dark-mode #theme-toggle .theme-icon-light {
+    display: inline-flex;
+}
+
+/* ========================= */
+/* TAMAÑO DEL CÓDIGO (UX-10) */
+/* ========================= */
+.code-font-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0.75rem 0 0;
+}
+
+.code-font-label {
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+.code-font-controls button {
+    min-width: 2.25rem;
+    min-height: 2.25rem;
+    padding: 0.2rem 0.5rem;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+}
+
+html.code-font-small .code-view pre {
+    font-size: 0.72rem;
+}
+
+html.code-font-large .code-view pre {
+    font-size: 1.05rem;
+}
+
+/* ========================= */
 /* ACCESIBILIDAD */
 /* ========================= */
 @media (prefers-reduced-motion: reduce) {
@@ -2407,3 +2582,59 @@ footer .back-to-top:hover {
         animation: none !important;
     }
 }
+
+/* ========================= */
+/* IMPRESIÓN (UX-10) */
+/* ========================= */
+@media print {
+    #SiteHeader,
+    footer,
+    .skip-link,
+    .search-form,
+    .paste-actions,
+    .highlight-controls,
+    .code-font-controls,
+    .history-back,
+    dialog,
+    .back-to-top {
+        display: none !important;
+    }
+
+    body {
+        background: #fff !important;
+        color: #000 !important;
+    }
+
+    main,
+    .box,
+    .code-view {
+        border-color: #999 !important;
+        box-shadow: none !important;
+    }
+
+    .code-view {
+        display: block !important;
+    }
+
+    .code-view .line-numbers {
+        display: none !important;
+    }
+
+    .code-view pre {
+        overflow: visible !important;
+        white-space: pre-wrap !important;
+        overflow-wrap: anywhere;
+        font-size: 10pt !important;
+    }
+
+    a {
+        color: #000 !important;
+        text-decoration: underline;
+    }
+
+    a[href^="http"]::after {
+        content: " (" attr(href) ")";
+        font-size: 0.8em;
+    }
+}
+

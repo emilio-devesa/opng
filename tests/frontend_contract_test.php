@@ -143,6 +143,9 @@ foreach ([$root . '/src/.htaccess', $root . '/deploy/nginx/opng.conf'] as $polic
     if (preg_match("/Content-Security-Policy[^\\r\\n]*style-src 'self'; script-src 'self'/", $policy) !== 1) {
         $failures[] = "CSP is missing same-origin style/script restrictions: {$policy_file}";
     }
+    if (!str_contains($policy, "worker-src 'self'")) {
+        $failures[] = "CSP does not allow same-origin workers: {$policy_file}";
+    }
     if (
         !str_contains($policy, "frame-ancestors 'none'")
         || !str_contains($policy, 'X-Frame-Options "DENY"')
@@ -154,6 +157,9 @@ foreach ([$root . '/src/.htaccess', $root . '/deploy/nginx/opng.conf'] as $polic
 $layout = file_get_contents($root . '/src/includes/layout_header.php');
 if (!is_string($layout) || preg_match('/Content-Security-Policy:[^"]*style-src \'self\'; script-src \'self\'/', $layout) !== 1) {
     $failures[] = 'Shared application layout is missing the strict same-origin CSP';
+}
+if (!is_string($layout) || !str_contains($layout, "worker-src 'self'")) {
+    $failures[] = 'Shared application layout does not allow same-origin workers';
 }
 if (
     !is_string($layout)
@@ -483,6 +489,23 @@ if (!is_string($admin_page)) {
     ) {
         $failures[] = 'Entry and user deletion controls are not positioned beside their related fields/options';
     }
+    $entry_search_button = strpos($admin_page, 'name="search_entries"');
+    $entry_delete_trigger = strpos($admin_page, 'admin-entry-delete-trigger');
+    $entry_delete_help = strpos($admin_page, 'admin-entry-delete-help');
+    $entry_actions_divider = strpos($admin_page, 'admin-actions-divider');
+    if (
+        $entry_search_button === false
+        || $entry_delete_trigger === false
+        || $entry_delete_help === false
+        || $entry_actions_divider === false
+        || $entry_delete_trigger < $entry_search_button
+        || $entry_delete_trigger > $entry_actions_divider
+        || $entry_delete_help < $entry_search_button
+        || $entry_delete_help > $entry_actions_divider
+        || substr_count($admin_page, 'data-i18n="admin_entry_delete_help"') !== 1
+    ) {
+        $failures[] = 'The entry delete trigger and its help text must live in the entries search form';
+    }
     $admin_dialog_ids = [
         'admin-entry-delete-dialog',
         'admin-role-dialog',
@@ -532,6 +555,7 @@ if (
     || !str_contains($metrics_source, 'admin_metrics_rest')
     || str_contains($metrics_source, 'style=')
     || !is_string($metrics_include)
+    || !str_contains($metrics_include, 'storage_counters')
     || !str_contains($metrics_include, 'SUM(OCTET_LENGTH(text))')
     || !str_contains($metrics_include, 'LIMIT 5')
     || !str_contains($metrics_include, 'admin_metrics_cache')
@@ -677,6 +701,57 @@ if (
 ) {
     $failures[] = 'Line-number cap styles are missing from the stylesheet';
 }
+$copy_script = file_get_contents($root . '/src/assets/js/copy.js');
+if (
+    !is_string($copy_script)
+    || !str_contains($copy_script, 'MAX_AUTO_HIGHLIGHT_BYTES')
+    || !str_contains($copy_script, 'highlight-button')
+    || !str_contains($copy_script, 'requestAnimationFrame')
+    || !str_contains($copy_script, 'highlight-error-message')
+) {
+    $failures[] = 'Large-paste highlighting lacks the size threshold, manual control, or progress/error state';
+}
+if (
+    !is_string($view_page)
+    || !str_contains($view_page, 'OPNG_MAX_AUTO_HIGHLIGHT_BYTES')
+    || !str_contains($view_page, 'highlight-controls')
+    || !str_contains($view_page, 'highlight_large_notice')
+    || !str_contains($view_page, 'highlight-button')
+    || !str_contains($view_page, "\$highlight_enabled")
+) {
+    $failures[] = 'View page does not expose the manual highlight control for large pastes';
+}
+if (
+    !is_string($admin_styles)
+    || !str_contains($admin_styles, '.highlight-controls')
+    || !str_contains($admin_styles, '.highlight-status-error')
+    || !str_contains($admin_styles, "[hidden] {\n    display: none !important;\n}")
+) {
+    $failures[] = 'Highlight control styles or the global hidden rule are missing from the stylesheet';
+}
+if (
+    !is_string($length_script)
+    || !str_contains($length_script, 'UPDATE_DELAY_MS')
+    || !str_contains($length_script, 'clearTimeout')
+) {
+    $failures[] = 'The paste length meter must debounce input measurement';
+}
+$dark_mode_script = file_get_contents($root . '/src/assets/js/dark-mode.js');
+if (
+    !is_string($dark_mode_script)
+    || !str_contains($dark_mode_script, 'window.opngLanguageCatalog')
+    || str_contains($dark_mode_script, 'fetch(')
+) {
+    $failures[] = 'Dark mode must reuse the shared language catalog instead of fetching it again';
+}
+if (
+    !is_string($language_script)
+    || !str_contains($language_script, 'window.opngLanguageCatalog')
+    || !str_contains($language_script, 'CustomEvent("languageChanged"')
+    || !str_contains($language_script, 'detail: { lang: lang, catalog: data }')
+) {
+    $failures[] = 'Language switching must share its catalog through the change event';
+}
 
 $rate_limit_source = file_get_contents($root . '/src/includes/ratelimit.php');
 if (
@@ -688,6 +763,99 @@ if (
     || !str_contains($rate_limit_source, 'RateLimitResult::Unavailable')
 ) {
     $failures[] = 'Rate limiting must record a hit with a single upsert and distinguish DB failures from limits';
+}
+
+$index_source = file_get_contents($root . '/src/index.php');
+if (
+    !is_string($index_source)
+    || !str_contains($index_source, "\$sort === 'date' ? 'desc' : 'asc'")
+) {
+    $failures[] = 'An explicit ?sort=date must default to descending order without ?order=';
+}
+if (
+    !is_string($index_source)
+    || !str_contains($index_source, '<span aria-hidden="true">+</span>')
+    || str_contains($index_source, '➕')
+) {
+    $failures[] = 'The create link must use a color-inheriting plus glyph, not an emoji';
+}
+
+$layout_header_source = file_get_contents($root . '/src/includes/layout_header.php');
+$icons_source = file_get_contents($root . '/src/includes/icons.php');
+if (
+    !is_string($layout_header_source)
+    || !str_contains($layout_header_source, 'opng_icon(')
+    || str_contains($layout_header_source, '🏠')
+    || str_contains($layout_header_source, '🌙')
+    || str_contains($layout_header_source, '🔒')
+    || str_contains($layout_header_source, '🔑')
+    || str_contains($layout_header_source, '🚪')
+    || str_contains($layout_header_source, '🔐')
+    || str_contains($layout_header_source, '📝')
+    || str_contains($layout_header_source, '🔎')
+    || str_contains($layout_header_source, 'ⓘ')
+) {
+    $failures[] = 'Header actions must use inline SVG icons instead of emoji (UX-08)';
+}
+if (
+    !is_string($icons_source)
+    || !str_contains($icons_source, 'aria-hidden="true"')
+    || !str_contains($icons_source, 'focusable="false"')
+    || !str_contains($icons_source, 'stroke="currentColor"')
+) {
+    $failures[] = 'Inline icons must be decorative, non-focusable and inherit the text color (UX-08)';
+}
+if (
+    !is_string($dark_mode_script)
+    || str_contains($dark_mode_script, '☀️')
+    || str_contains($dark_mode_script, '🌙')
+    || str_contains($dark_mode_script, 'themeToggle.textContent')
+) {
+    $failures[] = 'The theme toggle must swap SVG icons through CSS, not rewrite emoji text (UX-08)';
+}
+
+$catalog_dark_labels = [];
+foreach (glob($root . '/src/assets/lang/*.json') ?: [] as $catalog_file) {
+    $catalog = json_decode((string) file_get_contents($catalog_file), true);
+    if (is_array($catalog)) {
+        $catalog_dark_labels[] = (string) ($catalog['dark_mode'] ?? '');
+        $catalog_dark_labels[] = (string) ($catalog['light_mode'] ?? '');
+    }
+}
+if (
+    $catalog_dark_labels === []
+    || preg_match('/[\x{1F300}-\x{1FAFF}]/u', implode(' ', $catalog_dark_labels)) === 1
+) {
+    $failures[] = 'Theme labels must not depend on emoji to convey state (UX-08)';
+}
+
+$styles = file_get_contents($root . '/src/main.css');
+if (
+    !is_string($styles)
+    || !str_contains($styles, '@media print')
+    || !str_contains($styles, 'html.code-font-small .code-view pre')
+    || !str_contains($styles, 'html.code-font-large .code-view pre')
+    || !str_contains($styles, '#theme-toggle .theme-icon-light')
+) {
+    $failures[] = 'Print styles and code font-size classes are missing from the stylesheet (UX-10)';
+}
+$code_font_script = file_get_contents($root . '/src/assets/js/code-font-size.js');
+if (
+    !is_string($code_font_script)
+    || !str_contains($code_font_script, 'localStorage')
+    || !str_contains($code_font_script, 'code-font-')
+    || !str_contains($code_font_script, 'classList')
+) {
+    $failures[] = 'The code font-size control must persist a CSS class without inline styles (UX-10)';
+}
+$view_source = file_get_contents($root . '/src/view.php');
+if (
+    !is_string($view_source)
+    || !str_contains($view_source, 'code-font-controls')
+    || !str_contains($view_source, 'code-font-size.js')
+    || str_contains($view_source, '🗑️')
+) {
+    $failures[] = 'The view must expose the code font-size control and use SVG trash icons (UX-08/UX-10)';
 }
 
 $version_source = file_get_contents($root . '/src/includes/version.php');

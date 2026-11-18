@@ -43,6 +43,7 @@ $connected = false;
 $server_info = '';
 $current_schema = null;
 $applied = [];
+$mfa_active_admins = 0;
 
 try {
     $db = new mysqli($mysql_server, $mysql_username, $mysql_password, $mysql_dbname);
@@ -63,6 +64,20 @@ try {
         // A missing schema_migrations table is reported by the schema check.
         $current_schema = null;
         $applied = [];
+    }
+
+    try {
+        $result = $db->query(
+            "SELECT COUNT(*) AS total FROM users WHERE role = 'admin' AND mfa_enabled = 1"
+        );
+        $row = $result ? $result->fetch_assoc() : null;
+        $mfa_active_admins = is_array($row) ? (int) ($row['total'] ?? 0) : 0;
+        if ($result instanceof mysqli_result) {
+            $result->free();
+        }
+    } catch (mysqli_sql_exception $exception) {
+        // An older schema without the MFA columns is reported separately.
+        $mfa_active_admins = 0;
     }
 
     $db->close();
@@ -91,6 +106,7 @@ $context = [
     'dev_reset' => getenv('OPNG_DEV_RESET') === false ? null : (string) getenv('OPNG_DEV_RESET'),
     'install_creds' => $install_creds,
     'https' => opng_doctor_https_state(getenv('OPNG_PUBLIC_URL') ?: null),
+    'mfa_active_admins' => $mfa_active_admins,
 ];
 
 $results = opng_doctor_checks($context);

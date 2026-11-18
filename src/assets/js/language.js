@@ -54,7 +54,7 @@
         function loadTranslations(lang) {
             const cachedTranslations = translationCache.get(lang);
             if (cachedTranslations) {
-                applyTranslations(cachedTranslations);
+                applyTranslations(cachedTranslations, lang);
                 return;
             }
 
@@ -65,12 +65,12 @@
                 })
                 .then(data => {
                     translationCache.set(lang, data);
-                    applyTranslations(data);
+                    applyTranslations(data, lang);
                 })
                 .catch(error => console.error("Error cargando traducciones:", error));
         }
 
-        function applyTranslations(data) {
+        function applyTranslations(data, lang) {
             // Reemplazar textos en la página usando data del JSON.
             // textContent (no innerHTML): las traducciones son texto plano.
             document.querySelectorAll("[data-i18n]").forEach(el => {
@@ -89,7 +89,12 @@
                     }
                 });
             });
-            document.dispatchEvent(new Event("languageChanged"));
+            // Share the catalog with dark-mode.js and any other listener so
+            // they do not fetch the same file again.
+            window.opngLanguageCatalog = { lang: lang, data: data };
+            document.dispatchEvent(new CustomEvent("languageChanged", {
+                detail: { lang: lang, catalog: data }
+            }));
         }
 
         // Aplicar traducciones al cargar la página

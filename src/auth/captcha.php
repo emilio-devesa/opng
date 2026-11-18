@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../bootstrap.php';
 // auth/captcha.php
 // Local CAPTCHA generated with GD (S7).
 //
@@ -12,16 +14,69 @@
 // Requires no external services or keys. When a TTF font is available
 // (DejaVu on Linux, Arial on macOS) it is used to rotate the characters;
 // otherwise the scaled GD bitmap font is used instead.
-
-require(__DIR__ . '/../includes/session.php');
 session_start_secured();
 require_once(__DIR__ . '/../includes/captcha.php');
 require_once(__DIR__ . '/../includes/ratelimit.php');
-require_once(__DIR__ . '/../database.php');
-
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     http_response_code(405);
     header('Allow: GET');
+    exit;
+}
+
+/**
+ * Return to the page that requested the mode switch. Only local absolute
+ * paths are accepted, so the endpoint cannot be used as an open redirect.
+ */
+function captcha_redirect_target(): string
+{
+    $return = $_GET['return'] ?? null;
+    if (
+        is_string($return)
+        && $return !== ''
+        && $return[0] === '/'
+        && !str_starts_with($return, '//')
+        && preg_match('/[\x00-\x1F\x7F\\\\]/', $return) !== 1
+    ) {
+        return $return;
+    }
+
+    return '../index.php';
+}
+
+// Explicit accessible mode. The image stays the default challenge; the text
+// challenge is only activated by this opt-in and is rate-limited separately.
+$mode = $_GET['mode'] ?? null;
+if ($mode === 'text' || $mode === 'image') {
+    if ($mode === 'text') {
+        $db = database_connect();
+        if (!$db) {
+            http_response_code(503);
+            header('Retry-After: 30');
+            exit;
+        }
+        $limit = rate_limit_hit($db, 'captcha_text', client_ip(), 30, 300);
+        $db->close();
+        if ($limit === RateLimitResult::Unavailable) {
+            http_response_code(503);
+            header('Retry-After: 30');
+            exit;
+        }
+        if ($limit === RateLimitResult::Limited) {
+            http_response_code(429);
+            header('Retry-After: 300');
+            exit;
+        }
+
+        captcha_enable_text_mode();
+        if (($_GET['refresh'] ?? null) === '1') {
+            captcha_clear();
+        }
+        captcha_text_challenge();
+    } else {
+        captcha_disable_text_mode();
+    }
+
+    header('Location: ' . captcha_redirect_target(), true, 303);
     exit;
 }
 
@@ -46,13 +101,21 @@ if ($limit === RateLimitResult::Limited) {
 }
 
 // --- Random code ------------------------------------------------------------
-// No ambiguous characters (I, O, 0, 1) to reduce human errors.
-$alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-$code = '';
-for ($i = 0; $i < 5; $i++) {
-    $code .= $alphabet[random_int(0, strlen($alphabet) - 1)];
+// No ambiguous characters (I, O, 0, 1) to reduce human errors. Reuse the
+// current challenge unless the user asked for a refresh, so the attempt budget
+// applies to the same code across a failed submission and the form reload.
+$refresh = ($_GET['refresh'] ?? null) === '1';
+$existing_code = $_SESSION['captcha'] ?? null;
+if (!$refresh && is_string($existing_code) && captcha_image_challenge_available()) {
+    $code = $existing_code;
+} else {
+    $alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    $code = '';
+    for ($i = 0; $i < 5; $i++) {
+        $code .= $alphabet[random_int(0, strlen($alphabet) - 1)];
+    }
+    captcha_issue_image($code);
 }
-captcha_issue_image($code);
 
 // --- Headers ----------------------------------------------------------------
 header('Content-Type: image/png');

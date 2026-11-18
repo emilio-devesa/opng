@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 /**
  * Read a bounded string parameter without coercing arrays or other types.
+ *
+ * @param array<string, mixed> $source
  */
 function http_string_parameter(array $source, string $key, int $maxBytes, bool $trim = true): ?string
 {

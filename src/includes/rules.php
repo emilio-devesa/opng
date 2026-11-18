@@ -6,6 +6,9 @@ declare(strict_types=1);
 // Loads the allowed language list from rules.xml.
 // Centralizes the lookup that used to be duplicated in pastebin.php, submit.php and view.php.
 
+/**
+ * @return array<string, true>
+ */
 function load_rules(): array
 {
     $dom = new DOMDocument();

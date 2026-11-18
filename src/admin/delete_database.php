@@ -1,11 +1,8 @@
 <?php
-require_once('../includes/session.php');
-session_start_secured();
-require_once('../includes/http_input.php');
-require_once('../includes/admin_guard.php');
-require_once('../database.php');
-require_once("../includes/error_messages.php");
 
+require_once __DIR__ . '/../bootstrap.php';
+session_start_secured();
+require_once('../includes/admin_guard.php');
 $db = database_connect();
 if (!$db) {
     opng_error_redirect('error_database_unavailable', '../error.php');

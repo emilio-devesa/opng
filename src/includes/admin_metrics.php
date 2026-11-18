@@ -175,34 +175,64 @@ function admin_metrics_is_valid(mixed $metrics): bool
  */
 function admin_metrics_compute(mysqli $db): array
 {
+    // The global counters are maintained inside every write transaction, so a
+    // dashboard refresh no longer scans entries for COUNT/SUM (PERF-17). The
+    // fallback only covers a missing counter row, for example after a manually
+    // truncated table; the authoritative query stays available for recovery.
     $summary_result = $db->query(
-        'SELECT
-            (SELECT COUNT(*) FROM entries) AS total_entries,
-            (SELECT COUNT(*) FROM users) AS total_users,
-            (SELECT COALESCE(SUM(OCTET_LENGTH(text)), 0) FROM entries) AS paste_bytes'
+        "SELECT used_bytes, used_entries
+         FROM storage_counters
+         WHERE counter_key = 'global'"
     );
-    if (!$summary_result) {
-        throw new RuntimeException('Admin metrics summary is unavailable.');
+    $summary_row = $summary_result ? $summary_result->fetch_assoc() : null;
+    if ($summary_result instanceof mysqli_result) {
+        $summary_result->free();
     }
-    $summary_row = $summary_result->fetch_assoc();
-    $summary_result->free();
-    if (!is_array($summary_row)) {
-        throw new RuntimeException('Admin metrics summary is unavailable.');
+
+    if (is_array($summary_row)) {
+        $total_entries = (int) ($summary_row['used_entries'] ?? 0);
+        $paste_bytes = (int) ($summary_row['used_bytes'] ?? 0);
+    } else {
+        $fallback_result = $db->query(
+            'SELECT COUNT(*) AS total_entries,
+                    COALESCE(SUM(OCTET_LENGTH(text)), 0) AS paste_bytes
+             FROM entries'
+        );
+        $fallback_row = $fallback_result ? $fallback_result->fetch_assoc() : null;
+        if ($fallback_result instanceof mysqli_result) {
+            $fallback_result->free();
+        }
+        if (!is_array($fallback_row)) {
+            throw new RuntimeException('Admin metrics summary is unavailable.');
+        }
+        $total_entries = (int) ($fallback_row['total_entries'] ?? 0);
+        $paste_bytes = (int) ($fallback_row['paste_bytes'] ?? 0);
+    }
+
+    $users_result = $db->query('SELECT COUNT(*) AS total_users FROM users');
+    $users_row = $users_result ? $users_result->fetch_assoc() : null;
+    if ($users_result instanceof mysqli_result) {
+        $users_result->free();
+    }
+    if (!is_array($users_row)) {
+        throw new RuntimeException('Admin user total is unavailable.');
     }
 
     $metrics = [
-        'total_entries' => (int) $summary_row['total_entries'],
-        'total_users' => (int) $summary_row['total_users'],
-        'paste_bytes' => (int) $summary_row['paste_bytes'],
+        'total_entries' => $total_entries,
+        'total_users' => (int) ($users_row['total_users'] ?? 0),
+        'paste_bytes' => $paste_bytes,
         'languages' => [],
         'active_users' => [],
     ];
 
+    // language is NOT NULL, so the bare column lets idx_entries_language
+    // (language, id) cover the grouping instead of an expression index scan.
     $language_result = $db->query(
-        "SELECT COALESCE(NULLIF(language, ''), '') AS language, COUNT(*) AS paste_count
+        'SELECT language, COUNT(*) AS paste_count
          FROM entries
-         GROUP BY COALESCE(NULLIF(language, ''), '')
-         ORDER BY paste_count DESC, language ASC"
+         GROUP BY language
+         ORDER BY paste_count DESC, language ASC'
     );
     if (!$language_result) {
         throw new RuntimeException('Admin language metrics are unavailable.');
@@ -223,7 +253,7 @@ function admin_metrics_compute(mysqli $db): array
         'SELECT users.username, COUNT(*) AS paste_count
          FROM entries
          INNER JOIN users ON entries.user_id = users.id
-         GROUP BY users.id, users.username
+         GROUP BY entries.user_id, users.username
          ORDER BY paste_count DESC, users.username ASC
          LIMIT 5'
     );

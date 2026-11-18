@@ -39,7 +39,14 @@ Edit `deploy/apple-container/opng.env`:
   Set it to `1` only when a TLS proxy terminates HTTPS in front of the app;
   otherwise the session cookie is marked `Secure` and login fails.
 - Set `OPNG_PUBLIC_URL` to the URL users actually open.
-- `OPNG_AUTO_MIGRATE=1` runs the idempotent installer on start: it creates the\n  baseline schema on a fresh volume and applies pending migrations on later\n  boots. Set a separate `OPNG_INSTALL_DB_*` account if you do not want the\n  application account to keep DDL privileges.
+- `OPNG_AUTO_MIGRATE=1` runs the idempotent installer on start: it creates the
+  baseline schema on a fresh volume and applies pending migrations on later
+  boots. Set a separate `OPNG_INSTALL_DB_USER`/`OPNG_INSTALL_DB_PASS` account if
+  you do not want the application account to keep DDL privileges. When those
+  variables are missing, the entrypoint logs a warning and reuses the runtime
+  account for the migration.
+- Set `OPNG_HASH_KEY` (`openssl rand -base64 32`) so audit and rate-limit
+  identifiers use HMAC-SHA-256. The doctor warns while it is missing.
 
 The file contains secrets. It is excluded from the image context
 (`.containerignore`/`.dockerignore`) and must never be committed. Remove
@@ -82,9 +89,11 @@ container logs opng-app
 container logs opng-db
 ```
 
-The health endpoint returns `200 {"status":"ok","schema":"0004_entry_threads"}`
-when the database, schema and storage headroom are usable. It returns `503`
-without leaking credentials or internals.
+The health endpoint returns `200 {"status":"ok"}` when the database, schema
+and storage headroom are usable. It returns `503` without leaking credentials
+or internals. The schema version is only included when the request sends the
+optional `OPNG_HEALTHZ_DETAIL_TOKEN` as a bearer token; the container
+healthcheck does not need it.
 
 On plain `http://127.0.0.1:8080`, `php tools/doctor.php` intentionally reports
 the HTTPS check as a failure because TLS is not terminated yet. Re-run it with
@@ -116,7 +125,9 @@ container exec -it opng-app php tools/create_admin.php
 ```
 
 `tools/create_admin.php` refuses to add another administrator unless `--force`
-is explicit. `--if-empty` is idempotent and used by the entrypoint.
+is explicit. `--if-empty` is idempotent and used by the entrypoint. Prefer
+`OPNG_ADMIN_PASSWORD` or the interactive prompt; `--password=` is rejected
+unless `--allow-argv-password` is explicit.
 
 ## 5. Backups and restores
 

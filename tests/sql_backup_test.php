@@ -83,6 +83,46 @@ assert_backup_true(
     $failures
 );
 
+// SEC-15: password-reset tokens are bearer credentials and must never survive
+// in a downloadable dump.
+assert_backup_true(
+    is_string($library)
+        && str_contains($library, "\$redacted_columns = ['reset_token' => true, 'reset_token_expires' => true];")
+        && str_contains($library, 'isset($redacted_columns[$column_name])')
+        && str_contains($library, 'Password-reset tokens are exported as NULL')
+        && str_contains($library, 'must be reissued'),
+    'the dump redacts password-reset tokens and documents that they must be reissued',
+    $failures
+);
+
+assert_backup_true(
+    defined('OPNG_BACKUP_BATCH_ROWS')
+        && defined('OPNG_BACKUP_BATCH_BYTES')
+        && OPNG_BACKUP_BATCH_ROWS > 1
+        && OPNG_BACKUP_BATCH_BYTES > 0,
+    'the dump batches have bounded row and byte limits',
+    $failures
+);
+
+assert_backup_true(
+    is_string($library)
+        && str_contains($library, 'count($batch_rows) >= OPNG_BACKUP_BATCH_ROWS')
+        && str_contains($library, '$batch_bytes >= OPNG_BACKUP_BATCH_BYTES')
+        && str_contains($library, 'implode(",\n", $batch_rows)')
+        && substr_count($library, " VALUES\\n") > 0,
+    'rows are written as multi-row VALUES statements bounded by rows and bytes',
+    $failures
+);
+
+assert_backup_true(
+    is_string($library)
+        && str_contains($library, 'catch (Throwable $exception)')
+        && str_contains($library, '$db->rollback();')
+        && str_contains($library, 'throw $exception;'),
+    'a failed dump rolls the read-only snapshot back and rethrows',
+    $failures
+);
+
 $tool = file_get_contents($root . '/tools/backup.php');
 assert_backup_true(
     is_string($tool)

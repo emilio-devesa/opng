@@ -1,14 +1,12 @@
 <?php
-require("../includes/session.php");
-session_start_secured();
-require("../includes/csrf.php");
-require("../includes/ratelimit.php");
-require("../includes/http_input.php");
-require_once("../includes/captcha.php");
 
-require("../database.php");
-require("../includes/error_messages.php");
-require("../includes/assets.php");
+require_once __DIR__ . '/../bootstrap.php';
+session_start_secured();
+require("../includes/ratelimit.php");
+require_once("../includes/captcha.php");
+require_once("../includes/password_reset.php");
+require_once("../includes/auth.php");
+require_once("../includes/mfa.php");
 require_once("../includes/audit_log.php");
 
 $asset_version = opng_asset_version();
@@ -77,6 +75,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $captcha_required
         && !captcha_validate(http_string_parameter($_POST, 'captcha_answer', 5))
     ) {
+        // A failed CAPTCHA is a failed authentication attempt too: count it so
+        // it cannot be used to probe the form without consuming the adaptive
+        // threshold (SEC-19).
+        $_SESSION["login_attempts"]++;
+        $_SESSION["last_attempt_time"] = time();
         $form_error_key = 'captcha_incorrect';
         $form_error_field = 'captcha';
     }
@@ -115,7 +118,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         // Look up the user
         $stmt = null;
         try {
-            $stmt = $db->prepare("SELECT id, username, password_hash, role, session_version FROM users WHERE email = ?");
+            $stmt = $db->prepare("SELECT id, username, password_hash, role, session_version, mfa_enabled FROM users WHERE email = ?");
             $stmt->bind_param("s", $email);
             $stmt->execute();
             $result = $stmt->get_result();
@@ -170,23 +173,35 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             rate_limit_clear($db, 'login', client_ip() . '|' . $normalized_email, 600);
             rate_limit_clear($db, 'login_account', $normalized_email, 600);
             audit_log_record($db, (int) $user['id'], 'auth.login', '');
+
+            // Administrators must present a second factor. The first (lowest
+            // id) administrator is forced to enroll on the next login; the
+            // remaining administrators may opt in from the security page.
+            $mfa_challenge = false;
+            $mfa_enroll = false;
+            if ((string) ($user['role'] ?? '') === 'admin') {
+                if ((int) ($user['mfa_enabled'] ?? 0) === 1) {
+                    $mfa_challenge = true;
+                } elseif (mfa_is_first_admin($db, (int) $user['id'])) {
+                    $mfa_challenge = true;
+                    $mfa_enroll = true;
+                }
+            }
+
+            if ($mfa_challenge) {
+                auth_begin_mfa($user, $mfa_enroll, $redirect_url);
+                $db->close();
+                header('Location: ' . ($mfa_enroll ? 'mfa_enroll.php' : 'mfa.php'));
+                exit;
+            }
+
             $db->close();
 
-            // (S10) Regenerate the session ID to prevent session fixation
-            session_regenerate_id(true);
-
-            $_SESSION["user_id"] = $user['id'];
-            $_SESSION["username"] = $user['username'];
-            $_SESSION["role"] = $user['role'];
-            $_SESSION["session_version"] = (int) ($user['session_version'] ?? 0);
-            $_SESSION["opng_authenticated_at"] = time();
-            // The pre-login page token must not remain valid after authentication.
-            csrf_rotate();
+            // (S10) Establish the session only after every factor has passed.
+            auth_login_user($user);
 
             // Redirect the user to the original page after login
             header("Location: " . $redirect_url);
-
-            unset($_SESSION['redirect_after_login']); // Remove the session variable
             exit;
         }
 
@@ -209,6 +224,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $captcha_required = $_SESSION["login_attempts"] >= 3;
 }
 
+    // Password resets are advertised only when a real transport (or the local
+    // development simulation) can deliver the link (SEC-18/10.1).
+    $reset_available = password_reset_available();
     $notice = http_string_parameter($_GET, 'msg', 128) ?? '';
     $notice_key = $notice === 'Registration successful. Please sign in.' ? 'registration_success' : '';
     $notice = $notice_key !== '' ? $notice : '';
@@ -244,7 +262,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             <?php endif; ?>
             <button type="submit" data-i18n="login">Sign in</button>
         </form>
+        <?php if ($reset_available): ?>
         <p><a href="request_reset.php" data-i18n="forgot_password">Forgot your password?</a></p>
+        <?php endif; ?>
         <p><a href="register.php" data-i18n="no_account">No account? Register here</a></p>
     </section>
     <?php if ($captcha_required): ?>

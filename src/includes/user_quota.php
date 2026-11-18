@@ -75,8 +75,8 @@ function global_quota_lock(mysqli $db): ?int
     if ($row === null) {
         // Seed once. INSERT IGNORE keeps two concurrent first writes safe.
         $db->query(
-            "INSERT IGNORE INTO storage_counters (counter_key, used_bytes)
-             SELECT 'global', COALESCE(SUM(OCTET_LENGTH(text)), 0) FROM entries"
+            "INSERT IGNORE INTO storage_counters (counter_key, used_bytes, used_entries)
+             SELECT 'global', COALESCE(SUM(OCTET_LENGTH(text)), 0), COUNT(*) FROM entries"
         );
         $row = $read($db, $key);
     }
@@ -106,24 +106,64 @@ function global_quota_consume(mysqli $db, int $delta): bool
 }
 
 /**
- * Reset the global counter to zero after deleting every entry.
+ * Current number of stored entries, or null when the query fails.
+ */
+function global_entry_usage(mysqli $db): ?int
+{
+    $result = $db->query('SELECT COUNT(*) AS used_entries FROM entries');
+    if (!$result) {
+        return null;
+    }
+
+    $row = $result->fetch_assoc();
+    $result->free();
+
+    return is_array($row) ? (int) ($row['used_entries'] ?? 0) : null;
+}
+
+/**
+ * Apply a signed delta to the locked global entry counter. Negative deltas are
+ * clamped at zero. Must run inside the same transaction as the entry write.
+ */
+function global_entry_consume(mysqli $db, int $delta): bool
+{
+    $stmt = $db->prepare(
+        "UPDATE storage_counters
+         SET used_entries = GREATEST(CAST(used_entries AS SIGNED) + ?, 0)
+         WHERE counter_key = 'global'"
+    );
+    if (!$stmt) {
+        return false;
+    }
+    $stmt->bind_param('i', $delta);
+    $ok = $stmt->execute();
+    $stmt->close();
+
+    return $ok;
+}
+
+/**
+ * Reset the global counters to zero after deleting every entry.
  */
 function global_quota_zero(mysqli $db): bool
 {
-    $result = $db->query("UPDATE storage_counters SET used_bytes = 0 WHERE counter_key = 'global'");
+    $result = $db->query(
+        "UPDATE storage_counters SET used_bytes = 0, used_entries = 0 WHERE counter_key = 'global'"
+    );
 
     return $result !== false;
 }
 
 /**
- * Rebuild the counter from the authoritative SUM(). Used by maintenance tools
+ * Rebuild the counters from the authoritative data. Used by maintenance tools
  * and after bulk data imports that bypass the application.
  */
 function global_quota_recount(mysqli $db): bool
 {
     $result = $db->query(
         "UPDATE storage_counters
-         SET used_bytes = (SELECT COALESCE(SUM(OCTET_LENGTH(text)), 0) FROM entries)
+         SET used_bytes = (SELECT COALESCE(SUM(OCTET_LENGTH(text)), 0) FROM entries),
+             used_entries = (SELECT COUNT(*) FROM entries)
          WHERE counter_key = 'global'"
     );
 
@@ -144,11 +184,15 @@ function global_quota_allows(int $usedBytes, int $newBytes, ?int $quotaBytes = n
 /**
  * Lock the account row so concurrent paste writes cannot exceed its quota.
  *
- * @return array{role: string, used_bytes: int}|null
+ * The byte usage comes from the `users.used_bytes` counter maintained by the
+ * same transaction as each write, so locking an account no longer scans its
+ * entries (PERF-10). The username is returned for the entry author label.
+ *
+ * @return array{role: string, used_bytes: int, username: string}|null
  */
 function lock_user_quota(mysqli $db, int $userId): ?array
 {
-    $stmt = $db->prepare('SELECT role FROM users WHERE id = ? FOR UPDATE');
+    $stmt = $db->prepare('SELECT role, used_bytes, username FROM users WHERE id = ? FOR UPDATE');
     try {
         $stmt->bind_param('i', $userId);
         if (!$stmt->execute()) {
@@ -168,36 +212,62 @@ function lock_user_quota(mysqli $db, int $userId): ?array
         return null;
     }
 
-    $role = (string) $account['role'];
-    if ($role === 'admin') {
-        return ['role' => $role, 'used_bytes' => 0];
-    }
-    if ($role !== 'user') {
-        return ['role' => $role, 'used_bytes' => 0];
-    }
-
-    $stmt = $db->prepare(
-        'SELECT COALESCE(SUM(OCTET_LENGTH(text)), 0) AS used_bytes FROM entries WHERE user_id = ?'
-    );
-    try {
-        $stmt->bind_param('i', $userId);
-        if (!$stmt->execute()) {
-            throw new mysqli_sql_exception('Account usage lookup failed.');
-        }
-        $result = $stmt->get_result();
-        if (!$result) {
-            throw new mysqli_sql_exception('Account usage result is unavailable.');
-        }
-        $usage = $result->fetch_assoc();
-        $result->free();
-    } finally {
-        $stmt->close();
-    }
-
     return [
-        'role' => $role,
-        'used_bytes' => (int) ($usage['used_bytes'] ?? 0),
+        'role' => (string) $account['role'],
+        'used_bytes' => (int) ($account['used_bytes'] ?? 0),
+        'username' => is_string($account['username'] ?? null) ? $account['username'] : 'Guest',
     ];
+}
+
+/**
+ * Apply a signed byte delta to a locked account counter. Negative deltas are
+ * clamped at zero. Must run inside the same transaction as the entry write and
+ * after the account row has been locked by lock_user_quota().
+ */
+function user_quota_consume(mysqli $db, int $userId, int $delta): bool
+{
+    $stmt = $db->prepare(
+        'UPDATE users
+         SET used_bytes = GREATEST(CAST(used_bytes AS SIGNED) + ?, 0)
+         WHERE id = ?'
+    );
+    if (!$stmt) {
+        return false;
+    }
+    $stmt->bind_param('ii', $delta, $userId);
+    $ok = $stmt->execute();
+    $stmt->close();
+
+    return $ok;
+}
+
+/**
+ * Reset every account counter after deleting all entries.
+ */
+function user_quota_zero_all(mysqli $db): bool
+{
+    $result = $db->query('UPDATE users SET used_bytes = 0');
+
+    return $result !== false;
+}
+
+/**
+ * Rebuild every account counter from the authoritative SUM().
+ */
+function user_quota_recount(mysqli $db): bool
+{
+    $result = $db->query(
+        'UPDATE users u
+         LEFT JOIN (
+             SELECT user_id, COALESCE(SUM(OCTET_LENGTH(text)), 0) AS used_bytes
+             FROM entries
+             WHERE user_id IS NOT NULL
+             GROUP BY user_id
+         ) AS entry_usage ON entry_usage.user_id = u.id
+         SET u.used_bytes = COALESCE(entry_usage.used_bytes, 0)'
+    );
+
+    return $result !== false;
 }
 
 /**

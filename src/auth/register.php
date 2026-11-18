@@ -1,15 +1,11 @@
 <?php
-require("../includes/session.php");
+
+require_once __DIR__ . '/../bootstrap.php';
 session_start_secured();
-require("../includes/csrf.php");
 require("../includes/ratelimit.php");
 require("../includes/password_validation.php");
-require("../includes/http_input.php");
-require("../includes/error_messages.php");
-require("../includes/assets.php");
+require("../includes/admin_metrics.php");
 require_once("../includes/captcha.php");
-require("../database.php");
-
 if (!in_array($_SERVER["REQUEST_METHOD"], ["GET", "POST"], true)) {
     http_response_code(405);
     header("Allow: GET, POST");
@@ -94,6 +90,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                             $form_error_key = 'error_registration';
                         } else {
                             $stmt->close();
+                            // total_users changed; do not wait for the metrics TTL.
+                            admin_metrics_invalidate($db);
                             $db->close();
                             header("Location: login.php?msg=" . urlencode("Registration successful. Please sign in."));
                             exit;

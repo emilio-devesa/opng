@@ -75,6 +75,10 @@ while ! MYSQL_PWD="$OPNG_DB_PASS" mariadb-admin ping \
 done
 
 if [ "$OPNG_AUTO_MIGRATE" = "1" ]; then
+    if [ -z "${OPNG_INSTALL_DB_USER:-}" ] || [ -z "${OPNG_INSTALL_DB_PASS:-}" ]; then
+        log "WARNING: OPNG_AUTO_MIGRATE=1 without OPNG_INSTALL_DB_USER/OPNG_INSTALL_DB_PASS."
+        log "WARNING: the runtime account will keep DDL on its own database; set a dedicated migration account in production."
+    fi
     log "applying schema bootstrap and pending migrations"
     # A fresh MariaDB volume has no tables, and 0001_baseline is only a marker.
     # src/install.php is idempotent, so it installs the baseline on first boot

@@ -7,6 +7,7 @@
     "use strict";
 
     const BYTES_PER_MB = 1024 * 1024;
+    const UPDATE_DELAY_MS = 120;
 
     function utf8ByteLength(value) {
         if (window.TextEncoder) {
@@ -42,8 +43,18 @@
             if (!(textarea instanceof HTMLTextAreaElement)) return;
 
             updateMeter(meter, textarea);
+
+            // Encoding a 1 MiB value on every keystroke makes typing janky.
+            // Debounce the measurement; the final value is always rendered.
+            let pendingUpdate = null;
             textarea.addEventListener("input", function () {
-                updateMeter(meter, textarea);
+                if (pendingUpdate !== null) {
+                    window.clearTimeout(pendingUpdate);
+                }
+                pendingUpdate = window.setTimeout(function () {
+                    pendingUpdate = null;
+                    updateMeter(meter, textarea);
+                }, UPDATE_DELAY_MS);
             });
         });
     });

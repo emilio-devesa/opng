@@ -17,21 +17,37 @@ function expect_reauth(bool $condition, string $message, array &$failures): void
 
 $db = mysqli_init();
 expect_reauth(
-    !reauthenticate_user($db, 1, null, 'test_reauth'),
+    reauthenticate_user($db, 1, null, 'test_reauth') === ReauthResult::InvalidPassword,
     'a missing password is rejected before any database work',
     $failures
 );
 expect_reauth(
-    !reauthenticate_user($db, 1, '', 'test_reauth'),
+    reauthenticate_user($db, 1, '', 'test_reauth') === ReauthResult::InvalidPassword,
     'an empty password is rejected before any database work',
     $failures
 );
+$reauth_source = (string) file_get_contents($root . '/src/includes/reauth.php');
 expect_reauth(
     function_exists('reauthenticate_user')
-        && str_contains((string) file_get_contents($root . '/src/includes/reauth.php'), 'OPNG_REAUTH_LIMIT')
-        && str_contains((string) file_get_contents($root . '/src/includes/reauth.php'), 'password_verify($password, $hash)')
-        && str_contains((string) file_get_contents($root . '/src/includes/reauth.php'), 'rate_limit_hit('),
+        && str_contains($reauth_source, 'OPNG_REAUTH_LIMIT')
+        && str_contains($reauth_source, 'password_verify($password, $hash)')
+        && str_contains($reauth_source, 'rate_limit_hit('),
     'confirmation verifies the current password and limits failed attempts',
+    $failures
+);
+expect_reauth(
+    str_contains($reauth_source, 'enum ReauthResult')
+        && str_contains($reauth_source, 'case Unavailable;')
+        && str_contains($reauth_source, 'return ReauthResult::Unavailable;')
+        && reauth_error_key(ReauthResult::Unavailable) === 'error_service_unavailable'
+        && reauth_error_key(ReauthResult::InvalidPassword) === 'error_reauth'
+        && reauth_error_key(ReauthResult::RateLimited) === 'error_reauth',
+    'infrastructure failures are distinguishable from invalid credentials and mapped to 503',
+    $failures
+);
+expect_reauth(
+    reauthenticate_user($db, 1, 'not-used', '') === ReauthResult::Unavailable,
+    'an unavailable rate-limit store fails closed as Unavailable',
     $failures
 );
 
@@ -47,9 +63,10 @@ foreach ([
             && str_contains($source, "require_once('../includes/reauth.php')")
             && str_contains($source, 'reauthenticate_user($db')
             && str_contains($source, "'{$action}'")
-            && str_contains($source, "opng_error_redirect('error_reauth'")
+            && str_contains($source, 'ReauthResult::Allowed')
+            && str_contains($source, 'reauth_error_key($reauth)')
             && str_contains($source, 'csrf_valid('),
-        "{$path} requires CSRF and password confirmation before acting",
+        "{$path} requires CSRF, password confirmation and maps service failures",
         $failures
     );
 }

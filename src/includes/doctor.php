@@ -12,6 +12,12 @@ declare(strict_types=1);
 // Checks are intentionally report-only: a failed check prints a clear action
 // and makes the command exit non-zero, but the doctor never rewrites config.
 
+require_once __DIR__ . '/requirements.php';
+require_once __DIR__ . '/mailer.php';
+require_once __DIR__ . '/mfa.php';
+require_once __DIR__ . '/external_backup.php';
+require_once __DIR__ . '/hashing.php';
+
 const OPNG_DOCTOR_OK = 'ok';
 const OPNG_DOCTOR_WARN = 'warn';
 const OPNG_DOCTOR_FAIL = 'fail';
@@ -82,6 +88,7 @@ function opng_doctor_https_state(?string $public_url): ?bool
  * Run every deployment check.
  *
  * Context keys:
+ *   php_version       string   runtime PHP version (defaults to PHP_VERSION)
  *   config_path       ?string  absolute path to config.php
  *   config_password   string   runtime database password (never printed)
  *   database          array    connected, server_info, current_schema, applied
@@ -99,6 +106,20 @@ function opng_doctor_checks(array $context): array
 {
     $results = [];
     $sapi = is_string($context['sapi'] ?? null) ? $context['sapi'] : PHP_SAPI;
+
+    // The runtime must be inside the supported patch range (HYG-12).
+    $php_version = is_string($context['php_version'] ?? null)
+        ? $context['php_version']
+        : PHP_VERSION;
+    $php_supported = opng_php_version_supported($php_version);
+    $results[] = opng_doctor_result(
+        'php_version',
+        'PHP version',
+        $php_supported ? OPNG_DOCTOR_OK : OPNG_DOCTOR_FAIL,
+        $php_supported
+            ? "PHP {$php_version} is supported."
+            : "PHP {$php_version} is outside the supported range " . OPNG_PHP_REQUIREMENT . '.'
+    );
 
     // Configuration file: present, readable, and not writable by the web user.
     $config_path = $context['config_path'] ?? null;
@@ -237,6 +258,114 @@ function opng_doctor_checks(array $context): array
         $https_detail = 'TLS could not be inferred; set OPNG_PUBLIC_URL=https://... for a definitive check.';
     }
     $results[] = opng_doctor_result('https', 'HTTPS', $https_status, $https_detail);
+
+    // Mail transport (10.1): validate the selected transport at startup. The
+    // `log` transport is valid for development and never reaches a mailbox.
+    $mail_config = opng_mail_config();
+    $mail_errors = opng_mail_validate_config($mail_config);
+    if ($mail_errors !== []) {
+        $results[] = opng_doctor_result(
+            'mail_transport',
+            'Mail transport',
+            OPNG_DOCTOR_FAIL,
+            implode(' ', $mail_errors)
+        );
+    } else {
+        $mail_detail = $mail_config['transport'] === 'log'
+            ? 'The log transport is active; password reset emails are written to the application log.'
+            : 'The ' . $mail_config['transport'] . ' transport is configured.';
+        $results[] = opng_doctor_result('mail_transport', 'Mail transport', OPNG_DOCTOR_OK, $mail_detail);
+    }
+
+    // MFA (10.2): an active enrollment without the encryption key must fail
+    // closed. The count is supplied by the caller because the doctor does not
+    // open its own database connection.
+    $mfa_active = (int) ($context['mfa_active_admins'] ?? 0);
+    $mfa_key = mfa_key();
+    $mfa_env = getenv('OPNG_MFA_KEY');
+    $mfa_key_present = is_string($mfa_env) && trim($mfa_env) !== '';
+    if ($mfa_key_present && $mfa_key === null) {
+        $results[] = opng_doctor_result(
+            'mfa_key',
+            'MFA encryption key',
+            OPNG_DOCTOR_FAIL,
+            'OPNG_MFA_KEY is set but is not 32 bytes encoded as base64.'
+        );
+    } elseif ($mfa_key === null && $mfa_active > 0) {
+        $results[] = opng_doctor_result(
+            'mfa_key',
+            'MFA encryption key',
+            OPNG_DOCTOR_FAIL,
+            'Administrators have MFA enabled but OPNG_MFA_KEY is missing; their secrets cannot be decrypted.'
+        );
+    } elseif ($mfa_key === null) {
+        $results[] = opng_doctor_result(
+            'mfa_key',
+            'MFA encryption key',
+            OPNG_DOCTOR_OK,
+            'MFA is not configured; set OPNG_MFA_KEY to let administrators enroll.'
+        );
+    } else {
+        $results[] = opng_doctor_result(
+            'mfa_key',
+            'MFA encryption key',
+            OPNG_DOCTOR_OK,
+            $mfa_active . ' administrator(s) currently have MFA enabled.'
+        );
+    }
+
+    // Pseudonymous identifiers (SEC-21): audit targets, client IPs and
+    // rate-limit keys are stored as digests. Without a key the fallback is a
+    // plain SHA-256, which is reversible for low-entropy values.
+    $hash_key_raw = array_key_exists('hash_key', $context)
+        ? $context['hash_key']
+        : getenv('OPNG_HASH_KEY');
+    $hash_key_valid = opng_hash_decode_key($hash_key_raw) !== null;
+    $hash_key_present = is_string($hash_key_raw) && trim($hash_key_raw) !== '';
+    if ($hash_key_present && !$hash_key_valid) {
+        $results[] = opng_doctor_result(
+            'hash_key',
+            'Hashing key',
+            OPNG_DOCTOR_FAIL,
+            'OPNG_HASH_KEY is set but does not provide at least 32 bytes (raw or base64).'
+        );
+    } elseif (!$hash_key_valid) {
+        $results[] = opng_doctor_result(
+            'hash_key',
+            'Hashing key',
+            OPNG_DOCTOR_WARN,
+            'OPNG_HASH_KEY is not set; audit and rate-limit identifiers use an unkeyed SHA-256 that can be reversed for IP addresses and emails.'
+        );
+    } else {
+        $results[] = opng_doctor_result(
+            'hash_key',
+            'Hashing key',
+            OPNG_DOCTOR_OK,
+            'Audit and rate-limit identifiers use a keyed HMAC-SHA-256 digest.'
+        );
+    }
+
+    // External backups (10.7): disabled is a valid state; a configured target
+    // must be complete and writable.
+    $backup_config = external_backup_config();
+    if ($backup_config['target'] === 'none') {
+        $results[] = opng_doctor_result(
+            'external_backup',
+            'External backups',
+            OPNG_DOCTOR_OK,
+            'No off-host backup target is configured.'
+        );
+    } else {
+        $backup_errors = external_backup_validate_config($backup_config);
+        $results[] = opng_doctor_result(
+            'external_backup',
+            'External backups',
+            $backup_errors === [] ? OPNG_DOCTOR_OK : OPNG_DOCTOR_FAIL,
+            $backup_errors === []
+                ? 'The ' . $backup_config['target'] . ' backup target is ready.'
+                : implode(' ', $backup_errors)
+        );
+    }
 
     return $results;
 }

@@ -1,6 +1,151 @@
 # Open Pastebin NG - Changelog
 ============================
 
+## Version 1.2.0 (in development)
+
+### Phase 8 — Security and UX fixes
+#### 🔐 Authentication and anti-abuse
+- **SEC-18:** the login page hides *Forgot your password?* when the reset flow is unavailable (`OPNG_DEV_RESET` simulation off), so it no longer advertises a flow that ends in an "unavailable" page.
+- **SEC-19:** guest paste creation and password-reset requests now record the rate limit **before** validating the CAPTCHA. The image is the default challenge; the accessible arithmetic challenge requires an explicit opt-in through `auth/captcha.php?mode=text`, is rate-limited separately, and each challenge allows three attempts before it is discarded. The image endpoint reuses the current challenge unless the refresh control requests a new code, so the attempt budget applies across form reloads. A failed login CAPTCHA also counts as a failed authentication attempt. The refresh control is centered below the challenge in both image and text modes. The text alternative remains inherently automatable, so the finding is marked **partially resolved**: the rate limit and attempt budget are the effective controls.
+- **SEC-20:** `db_connect()` now fails closed when the session cannot be validated against the database: it drops the authenticated identity with `session_forget_account()` instead of keeping stale privileges. Public pages keep working.
+- **SEC-22:** audit log IP hashes now use `client_ip()`, so they honour `OPNG_TRUSTED_PROXIES` and match the rate-limit address behind a proxy.
+
+#### 🛠️ Operations and hardening
+- **SEC-23:** `tools/create_admin.php` rejects `--password=` unless `--allow-argv-password` is explicit; the environment variable and hidden prompt remain the recommended paths. `--print-sql` now warns on stderr that its output contains a reusable password hash.
+- **SEC-24:** added `form-action 'self'` to the CSP and the `Permissions-Policy`, `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Resource-Policy: same-origin` headers in PHP, the Apache configurations, both Nginx examples and `healthz.php`.
+- **UX-11:** an explicit `?sort=date` without `?order=` now defaults to descending order, matching the default listing; other columns still default to ascending.
+- The `+` create-entry control now uses a color-inheriting text glyph instead of an emoji, so it keeps the action colors' contrast in both themes.
+- The admin entry delete trigger and its help text now sit beside *Search entries* in the Manage Entries search form.
+- Updated the README, security guide, classic and container install guides, i18n catalogs and contract tests for the new behaviour.
+
+### Phase 9 — Transactional integrity and concurrency
+#### 🔒 Lock order and transactions
+- **ROB-15:** all write flows now follow one documented order: `storage_counters → users → entries`. `submit.php`, `update.php`, `drop_id.php`, `user_action.php` and `empty.php` lock the global counter first; `update.php` and `drop_id.php` re-read the entry with `FOR UPDATE` after locking its owner. Administrator rows are locked with `ORDER BY id`.
+- **ROB-16:** `admin/empty.php` deletes entries in batches of 1,000 (`DELETE ... ORDER BY id LIMIT 1000`) inside one transaction while holding the global counter, so the operation stays atomic without one table-wide statement.
+- **ROB-20:** administrative audit events are written after `commit()`. `audit_log_prune()` deletes one bounded batch (`ORDER BY id LIMIT 1000`) and `audit_log_prune_all()` drains the backlog from `tools/audit_prune.php`, keeping opportunistic pruning outside business transactions.
+- Added [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) with the lock order, transaction boundaries, audit retention and migration rules. Added `tests/lock_order_test.php` and `tests/lock_order_integration_test.php`.
+
+#### 🧱 Schema and connection robustness
+- **ROB-17:** the reset form now accepts only the short-lived token already exchanged in the session; a token posted by a legacy form is rejected instead of being stored before validation.
+- **ROB-18:** `schema_split_sql()` now respects single/double-quoted strings, backtick identifiers, line comments and block comments, so a semicolon inside a literal or identifier no longer splits a migration. Migration `0004_entry_threads.sql` checks `information_schema` before adding each column, index and foreign key, so an interrupted run can be replayed safely.
+- **ROB-19:** `db_connect()` applies `MYSQLI_OPT_CONNECT_TIMEOUT` from `OPNG_DB_CONNECT_TIMEOUT` (default 5 seconds) and an optional `OPNG_DB_READ_TIMEOUT`, preventing a down database from exhausting PHP-FPM workers.
+- Added `tests/database_timeout_test.php`, extended `tests/migration_system_test.php`, `tests/audit_log_test.php`, `tests/password_reset_security_test.php` and `tests/thread_integration_test.php`, and wired the new concurrency test into both CI database jobs.
+
+### Phase 10 — Rendering, storage and query efficiency
+#### ⚡ Storage and listing
+- **PERF-10:** account quota checks read the denormalized `users.used_bytes` counter instead of running `SUM(OCTET_LENGTH(text))` over the account's entries on every create or edit. The counter is updated in the same transaction as the write, and `tools/recount_storage.php` can rebuild it.
+- **PERF-11:** a successful registration invalidates the dashboard cache, so the user total is not stale for up to the five-minute TTL.
+- **PERF-12:** `entries.author_label` stores the displayed author (username or `Guest`) and `idx_entries_author (author_label, id)` serves `?sort=author` without joining `users` or filesorting. The label is written on insert/edit, backfilled by migration `0006_entry_author_label`, and reset to `Guest` when an account is preserved after deletion.
+- **PERF-17:** `storage_counters.used_entries` joins the existing global byte counter, so the dashboard reads total pastes and paste bytes in O(1) instead of scanning `entries`. The authoritative query remains as a recovery fallback when the counter row is missing, and `tools/metrics_refresh.php` warms the cache from cron.
+- Migration `0005_storage_counters` adds `users.used_bytes` and `storage_counters.used_entries` and backfills both. Both new migrations are idempotent.
+- `tools/seed.php` now writes `author_label` and reconciles every counter after its direct inserts.
+
+#### 🧵 History and i18n
+- **PERF-13:** `thread_page_query()` builds the history SQL as `UNION ALL` of the `root_id` branch and the legacy-root branch (`id = ? AND (root_id IS NULL OR root_id <> ?)`). Each branch uses its own index instead of an index-merge plan, while preserving roots with `root_id = NULL` and excluding the normal case so no row is duplicated. The page also exposes a `guest` flag from `user_id`, so the history keeps rendering the translatable **Guest** label instead of the raw `author_label`.
+- **PERF-14:** the server-side translator temporarily replaces `<pre>` and `<textarea>` payloads before the `DOMDocument` pass and restores them afterwards, so translating a page no longer parses or serializes a 1 MiB paste. The protected-block scanner locates the closing tag with `stripos()` instead of a lazy-dot pattern over the payload.
+
+#### 🎨 Frontend behaviour
+- **PERF-15 / UX-13:** pastes up to 200 KiB keep automatic syntax highlighting; larger pastes show a translated notice and a **Highlight** button with progress and error states, giving the browser a frame to paint before highlight.js runs.
+- The manual **Highlight** control only appears when it is usable: a global `[hidden]` rule stops the base `button { display: inline-block }` style from overriding the HTML attribute, and the button is hidden again after highlighting a large paste.
+- **PERF-16:** `dark-mode.js` reuses the catalog already fetched by `language.js` through `window.opngLanguageCatalog` and the `languageChanged` event, removing a duplicate request.
+- **UX-12:** the line-number notice now states that numbers are hidden above 5,000 lines to keep the page responsive.
+- The paste length meter debounces input measurement with a 120 ms timer, keeping typing responsive for 1 MiB pastes.
+- `language.js` now exposes the loaded catalog and dispatches a `CustomEvent` with `lang`/`catalog` details, and the new highlight strings were added to all six catalogs.
+
+#### 🧪 Tests and docs
+- **HYG-15:** `tests/performance_query_plan_test.php` now EXPLAINs the exact `thread_page_query()` SQL and covers the `author` listing index; it also checks that the quota and dashboard lookups are primary-key reads instead of aggregates.
+- Added `tests/storage_counters_integration_test.php` (disposable database: recount, signed deltas, clamping and bulk reset) and wired it into both CI database jobs.
+- Added `tools/benchmark_queries.php` and [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md) with reproducible before/after measurements for PERF-10/12/13/14/17 and the manual browser procedure for PERF-15.
+- Extended `tests/search_pagination_test.php`, `tests/thread_integration_test.php`, `tests/database_install_test.php`, `tests/migration_system_test.php`, `tests/i18n_test.php`, `tests/global_quota_test.php`, `tests/frontend_contract_test.php`, `tests/lock_order_test.php` and `tests/thread_test.php`.
+- Added a guest-flag assertion to `tests/thread_integration_test.php` so the history keeps its translated guest author label.
+- Updated `README.md`, `docs/ARCHITECTURE.md`, `docs/UPGRADING.md` and `docs/BACKUP-RESTORE.md` with the counters, author label, thread query, upgrade migrations and reconciliation commands.
+
+### Phase 11 — Operational robustness and backups
+#### 💾 Backup format
+- **ROB-21:** the shared dump now groups rows into bounded multi-row `INSERT` statements (`OPNG_BACKUP_BATCH_ROWS = 200`, `OPNG_BACKUP_BATCH_BYTES = 1 MiB`) instead of one statement per row. The dump is smaller and restores faster, and a failure inside the read-only snapshot is rolled back before the exception is rethrown. The byte/time limits and the portable format are unchanged.
+- `docs/BACKUP-RESTORE.md` documents the batching, the internal rollback and when a native `mysqldump --single-transaction --quick` is preferable for very large databases.
+
+#### 🔐 Administrative confirmations and monitoring
+- **ROB-22:** `reauthenticate_user()` returns a `ReauthResult` enum (`Allowed`, `InvalidPassword`, `RateLimited`, `Unavailable`). Infrastructure failures return `Unavailable`, which all four callers map to `error_service_unavailable` (503) through `reauth_error_key()`; wrong passwords and rate limits keep `error_reauth` (403). The failure is also logged.
+- **SEC-26:** `/healthz.php` returns only `{"status":"ok"}` by default. The schema version is included only when the request sends `OPNG_HEALTHZ_DETAIL_TOKEN` as an `Authorization: Bearer` token, compared with `hash_equals()`. The container healthcheck and public monitoring keep working without the token.
+- Added `tests/write_concurrency_integration_test.php` and extended `tests/sql_backup_test.php`, `tests/backup_restore_test.php`, `tests/reauth_test.php` and `tests/health_endpoint_test.php` for the new contracts.
+
+### Phase 12 — Hygiene, CI and documentation
+- **HYG-12:** added `src/includes/requirements.php` as the single source of truth for the supported PHP patch range, mirroring `composer.json`. `tools/doctor.php` now reports a `php_version` check, and `docs/INSTALL-CLASSIC.md` lists the real patch floors instead of a bare "8.2 or newer".
+- **HYG-13:** PHPStan runs at **level 6** for `src/` and `tools/` with `reportUnmatchedIgnoredErrors: true`. All missing iterable/return types were fixed instead of adding ignores, and the CI step and contributor docs were renamed accordingly.
+- **HYG-14:** added a behavioural concurrency test for the write paths: quota race, concurrent edits, double delete and a role change. It opens two connections, fails on a deadlock or lost update, and is wired into both CI database jobs.
+- `docs/ARCHITECTURE.md` lists the new lock-order and write-concurrency coverage; `docs/SECURITY.md` documents the 503 mapping and the health-check detail token.
+
+### Phase 13 — New features (10.1–10.8)
+#### 📧 Account recovery (10.1)
+- Added a pluggable mail layer (`includes/mailer.php`) with a native SMTP client (STARTTLS/implicit TLS and AUTH LOGIN/PLAIN), PHP `mail()` for local `sendmail`, and a `log` transport for development. No Composer dependency.
+- Added localized reset templates (`includes/mail_templates.php`), absolute links via `OPNG_PUBLIC_URL`, audit events for requests/deliveries and a doctor check for the selected transport. The login page only advertises *Forgot your password?* when the transport validates and can deliver; the loopback-only `OPNG_DEV_RESET` simulation remains available for development.
+- Reset tokens remain SHA-256 hashed, single-use and short-lived.
+
+#### 🔐 Administrator MFA (10.2)
+- Added RFC 6238 TOTP enrollment and challenges (`includes/mfa.php`, `auth/mfa.php`, `auth/mfa_enroll.php`, `auth/security.php`). The lowest-id administrator must enroll on the next login; other administrators may enroll voluntarily.
+- TOTP secrets are encrypted with AES-256-GCM under `OPNG_MFA_KEY`; recovery codes are one-time, 80-bit values stored as SHA-256 hashes. Enrollment, disable and recovery-code replacement run in transactions.
+- Destructive administrator actions now require the password **and** an MFA code/recovery code when MFA is enabled. The doctor fails while MFA is active without a valid key.
+
+#### 🗑️ Trash and retention (10.3)
+- Deleting a paste now moves the whole thread (root and replies) to the trash; restoring brings the whole thread back. Storage and quota counters stay charged until the physical purge.
+- Added author trash (`auth/trash.php`) and administrator trash (`admin/trash.php`) with restore and immediate purge. The purge refuses live rows and keeps the `storage_counters → users → entries` lock order.
+- Added `tools/trash_purge.php` and `OPNG_TRASH_RETENTION_DAYS` (default 7) for scheduled purges with structured audit events.
+
+#### 🔑 Read-only API and tokens (10.4)
+- Added personal token management (`auth/tokens.php`) and administrator review/revocation (`admin/tokens.php`). Tokens use `read`/`write` scopes, optional expiry and are stored only as SHA-256 hashes.
+- Added the read-only `src/api/v1/` router: `GET /api/v1/me`, `GET /api/v1/entries` (optional `?topic=`), `GET /api/v1/entries/{id}`. Bearer authentication, scope checks, per-token rate limits and the public visibility filter are enforced; private/unlisted entries are never returned.
+- Added the API front-controller rewrite and documented the `.htaccess` requirement.
+
+#### 👁️ Visibility, expiry and protection (10.5)
+- Added `public`, `unlisted` and `private` visibility, absolute expiry presets and Argon2id password protection (`includes/entry_access.php`, `src/unlock.php`).
+- Replies inherit the parent's visibility, expiry and protection hash, and reject replies to threads the account cannot view. Editing a thread root propagates access fields to the whole thread.
+- The public listing excludes deleted, expired and non-public rows; administrators retain access for moderation.
+
+#### 🧾 Observability (10.6)
+- Added `admin/audit.php` with action/actor/date filters plus a rate-limit and quota observability panel.
+- Added structured JSON logging with request IDs (`includes/logging.php`) and the `X-Request-ID` response header. API, backup and error paths log structured events.
+
+#### 💾 External backups (10.7)
+- Added `admin/external_backup.php`, `admin/external_backup_action.php` and `tools/backup_external.php`: local mounted-directory or S3-compatible targets with native SigV4 signing, SHA-256 checksums, configurable retention, optional local AES-256-GCM encryption and disposable-schema restore verification.
+- Extended `tools/doctor.php` with mail, MFA and external-backup checks.
+
+#### ⚡ Progressive highlighting and editor (10.8)
+- Added a syntax-highlighting Web Worker (`src/assets/js/highlight-worker.js`) with an automatic main-thread fallback, and virtualized line numbers above 1,000 lines (`src/assets/js/line-gutter.js`).
+- Added `worker-src 'self'` to the PHP, Apache and Nginx CSPs; reduced-motion handling and the global `[hidden]` rule remain in place.
+
+#### 🧪 Tests, schema and docs
+- Added migrations `0007_admin_mfa`, `0008_entry_retention` and `0009_api_tokens` (idempotent, `information_schema` guarded) and updated `database/schema.sql`.
+- Added `tests/mfa_test.php`, `tests/entry_visibility_test.php`, `tests/external_backup_test.php`, `tests/api_contract_test.php`, `tests/frontend_phase13_test.php`, `tests/trash_integration_test.php` and `tests/api_token_integration_test.php`; extended the doctor, password-reset, session, audit, quota, schema-drift, migration and query-plan tests.
+- Added 153 translation keys to all six catalogs (now 440 keys each) and updated the README, architecture, security, backup/restore and upgrade guides.
+
+### Remaining audit closure (SEC-21, SEC-25, SEC-15, PERF-08, ROB-10, ROB-13, UX-08, UX-10, HYG-08, HYG-09)
+#### 🔐 Identifier hashing (SEC-21)
+- Added `includes/hashing.php`: audit targets, client IPs and rate-limit keys use HMAC-SHA-256 when `OPNG_HASH_KEY` is configured (32+ raw bytes or base64). The unkeyed SHA-256 fallback keeps existing rows and development installs working; the doctor fails on invalid key material and warns while the key is missing.
+
+#### 🐳 Container migration warning (SEC-25)
+- The Apple Container entrypoint logs a warning when `OPNG_AUTO_MIGRATE=1` is used without `OPNG_INSTALL_DB_USER`/`OPNG_INSTALL_DB_PASS`, so operators know the runtime account keeps DDL. A contract test covers the warning and the docs describe the two-account flow.
+
+#### 💾 Backup redaction (SEC-15)
+- `sql_backup_dump()` exports `reset_token` and `reset_token_expires` as `NULL`; a restored database never keeps a pending reset link alive. The download remains CSRF-protected, reauthenticated and served with `no-store`, and external backups can still be encrypted.
+
+#### 🧹 Dead code and cursor cleanup (PERF-08, ROB-10, HYG-09)
+- Removed the legacy listing-cursor fallback, the `date IS NULL` cursor branches, the redundant `src/database.php` wrapper and other dead compatibility paths. `database_connect()` now lives in `src/includes/db.php`; old cursors are rejected and users restart pagination.
+
+#### 🛑 Custom error documents (ROB-13)
+- Added `src/404.php` and `src/500.php`, localized in all six catalogs and wired through Apache `ErrorDocument` and container Nginx `error_page`. The pages use the shared layout, set the correct status and never expose exception details.
+
+#### ♿ Icons and reading comfort (UX-08, UX-10)
+- Header and delete actions use decorative inline SVG icons (`includes/icons.php`) with the existing accessible labels; theme labels no longer contain emoji and the toggle swaps icons through CSS.
+- Added `@media print` styles and a three-step code font-size control that persists a CSS class in `localStorage` without inline styles or CSP exceptions.
+
+#### 🧱 Bootstrap and autoloader (HYG-08)
+- Added `src/bootstrap.php`: it registers a lightweight `Opng\` class autoloader (`src/classes/`) and loads the foundation libraries once. Web entry points now require the bootstrap instead of repeating the same fragile require list; domain modules stay explicit.
+
+#### 🧪 Tests and docs
+- Added `tests/hashing_test.php`, `tests/bootstrap_test.php` and `tests/error_pages_test.php`; extended the doctor, audit, backup, pagination, frontend and container contract tests and wired the new tests into CI.
+- Added `OPNG_HASH_KEY` to the example configuration and container environment, and updated the README, SECURITY, ARCHITECTURE, BACKUP-RESTORE, APPLE-CONTAINER and UPGRADING guides.
+
 ## Version 1.1.0 (2026-11-10)
 
 ### Phase 7 — Code hygiene

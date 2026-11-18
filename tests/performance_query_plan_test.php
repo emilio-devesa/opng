@@ -6,33 +6,56 @@ if (getenv('OPNG_TEST_ALLOW_PERFORMANCE_FIXTURES') !== '1') {
 
 require __DIR__ . '/../src/config.php';
 require __DIR__ . '/../src/includes/pagination_cursor.php';
+require __DIR__ . '/../src/includes/thread.php';
 
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 $db = new mysqli($mysql_server, $mysql_username, $mysql_password, $mysql_dbname);
 $db->set_charset('utf8mb4');
 
-$owner = $db->query("SELECT id FROM users WHERE role = 'user' ORDER BY id LIMIT 1")->fetch_assoc();
-if ($owner === null) {
-    throw new RuntimeException('The isolated performance database needs a normal user.');
-}
-$owner_id = (int) $owner['id'];
 $prefix = 'runtime-perf-' . bin2hex(random_bytes(6)) . '-';
-$stmt = $db->prepare(
-    'INSERT INTO entries (id, user_id, language, text, topic, date) VALUES (?, ?, ?, ?, ?, ?)'
-);
+$stmt = null;
+$thread_stmt = null;
+$user_stmt = null;
 $transaction_started = false;
 
 try {
     $db->begin_transaction();
     $transaction_started = true;
     $base_timestamp = 1577836800;
+
+    // The admin ordering plan is only meaningful once users is large enough
+    // for the optimizer to prefer idx_users_created over a table scan.
+    $fixture_hash = password_hash('runtime-perf-fixture', PASSWORD_DEFAULT);
+    $user_stmt = $db->prepare(
+        "INSERT INTO users (username, email, password_hash, role, created_at)
+         VALUES (?, ?, ?, 'user', ?)"
+    );
+    $owner_id = 0;
+    for ($index = 0; $index < 2000; $index++) {
+        $username = ($index % 10 === 0 ? 'a' : 'z') . $prefix . 'user-' . str_pad((string) $index, 3, '0', STR_PAD_LEFT);
+        $email = $username . '@example.test';
+        $created_at = gmdate('Y-m-d H:i:s', $base_timestamp + $index);
+        $user_stmt->bind_param('ssss', $username, $email, $fixture_hash, $created_at);
+        $user_stmt->execute();
+        if ($index === 0) {
+            $owner_id = (int) $db->insert_id;
+        }
+    }
+    $user_stmt->close();
+    $user_stmt = null;
+
+    $stmt = $db->prepare(
+        'INSERT INTO entries (id, user_id, author_label, language, text, topic, date)
+         VALUES (?, ?, ?, ?, ?, ?, ?)'
+    );
     for ($index = 0; $index < 5000; $index++) {
         $id = $prefix . str_pad((string) $index, 5, '0', STR_PAD_LEFT);
+        $author_label = 'perf-author-' . str_pad((string) ($index % 100), 3, '0', STR_PAD_LEFT);
         $language = 'text';
         $text = 'Synthetic performance-plan fixture.';
         $topic = $index % 2 === 0 ? 'needle performance match' : 'other performance topic';
         $date = gmdate('Y-m-d H:i:s', $base_timestamp + $index);
-        $stmt->bind_param('sissss', $id, $owner_id, $language, $text, $topic, $date);
+        $stmt->bind_param('sisssss', $id, $owner_id, $author_label, $language, $text, $topic, $date);
         $stmt->execute();
     }
 
@@ -40,22 +63,24 @@ try {
     // (root_id, date, id) index without loading the rest of the fixtures.
     $thread_root = $prefix . 'thread-root';
     $thread_stmt = $db->prepare(
-        'INSERT INTO entries (id, parent_id, root_id, depth, user_id, language, text, topic, date)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO entries (id, parent_id, root_id, depth, user_id, author_label, language, text, topic, date)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     $thread_parent = null;
     $thread_root_id = $thread_root;
     $thread_text = 'Synthetic thread fixture.';
     $thread_language = 'text';
+    $thread_author = 'perf-author-000';
     $thread_date = gmdate('Y-m-d H:i:s', $base_timestamp);
     $thread_depth = 0;
     $thread_stmt->bind_param(
-        'sssiissss',
+        'sssiisssss',
         $thread_root,
         $thread_parent,
         $thread_root_id,
         $thread_depth,
         $owner_id,
+        $thread_author,
         $thread_language,
         $thread_text,
         $thread_text,
@@ -69,12 +94,13 @@ try {
         $thread_topic = 'Thread reply ' . $index;
         $thread_date = gmdate('Y-m-d H:i:s', $base_timestamp + $index);
         $thread_stmt->bind_param(
-            'sssiissss',
+            'sssiisssss',
             $thread_id,
             $parent_id,
             $thread_root_id,
             $depth,
             $owner_id,
+            $thread_author,
             $thread_language,
             $thread_text,
             $thread_topic,
@@ -94,25 +120,36 @@ try {
     // can keep a stale "tiny table" plan and pick a filesort.
     $db->query('ANALYZE TABLE entries');
 
-    $thread_sql = "SELECT entries.id, entries.parent_id, entries.root_id, entries.depth,
-                          entries.topic, entries.date, u.username
-                   FROM entries
-                   LEFT JOIN users u ON u.id = entries.user_id
-                   WHERE entries.root_id = '{$thread_root}'
-                   ORDER BY entries.date ASC, entries.id ASC
-                   LIMIT 501";
-    $thread_plan = $db->query('EXPLAIN ' . $thread_sql)->fetch_assoc();
-    if (
-        ($thread_plan['key'] ?? null) !== 'idx_entries_root'
-        || str_contains(strtolower((string) ($thread_plan['Extra'] ?? '')), 'filesort')
-    ) {
-        throw new RuntimeException('The history query did not use idx_entries_root without filesort.');
+    // EXPLAIN the exact SQL produced by thread_fetch_page(), including the
+    // cursor-free UNION ALL form and the author label column (HYG-15).
+    $thread_query = thread_page_query($thread_root);
+    $thread_explain = $db->prepare('EXPLAIN ' . $thread_query['sql']);
+    $thread_explain->bind_param($thread_query['types'], ...$thread_query['params']);
+    $thread_explain->execute();
+    $thread_plan_rows = $thread_explain->get_result()->fetch_all(MYSQLI_ASSOC);
+    $thread_explain->close();
+    $thread_plan_keys = array_column($thread_plan_rows, 'key');
+    if (!in_array('idx_entries_root', $thread_plan_keys, true)) {
+        throw new RuntimeException('The production history query did not use idx_entries_root.');
+    }
+    foreach ($thread_plan_rows as $thread_plan_row) {
+        if (
+            ($thread_plan_row['table'] ?? '') === 'entries'
+            && ($thread_plan_row['type'] ?? '') === 'ALL'
+        ) {
+            throw new RuntimeException('A production history branch scanned the whole entries table.');
+        }
     }
 
     $thread_started = hrtime(true);
-    $thread_result = $db->query($thread_sql);
+    $thread_stmt = $db->prepare($thread_query['sql']);
+    $thread_stmt->bind_param($thread_query['types'], ...$thread_query['params']);
+    $thread_stmt->execute();
+    $thread_result = $thread_stmt->get_result();
     $thread_rows = $thread_result->fetch_all(MYSQLI_ASSOC);
     $thread_result->free();
+    $thread_stmt->close();
+    $thread_stmt = null;
     $thread_elapsed_ms = (hrtime(true) - $thread_started) / 1e6;
     if (count($thread_rows) !== 500) {
         throw new RuntimeException('The 500-node thread did not return every entry.');
@@ -130,7 +167,7 @@ try {
     }
 
     $listing_plans = [];
-    foreach ([['date', 'desc'], ['topic', 'asc'], ['language', 'asc']] as [$sort, $order]) {
+    foreach ([['date', 'desc'], ['topic', 'asc'], ['language', 'asc'], ['author', 'asc']] as [$sort, $order]) {
         $listing = build_listing_query(null, null, null, $sort, $order);
         $listing_plan = $db->query('EXPLAIN ' . $listing['sql'])->fetch_assoc();
         $listing_plans[$sort] = $listing_plan;
@@ -138,7 +175,7 @@ try {
 
     $date_plan = $listing_plans['date'];
     if (
-        !in_array($date_plan['key'] ?? null, ['idx_entries_cursor', 'idx_entries_date'], true)
+        !in_array($date_plan['key'] ?? null, ['idx_entries_cursor', 'idx_entries_date', 'idx_entries_deleted'], true)
         || str_contains(strtolower((string) ($date_plan['Extra'] ?? '')), 'filesort')
     ) {
         throw new RuntimeException('Cursor listing did not use a date index without filesort.');
@@ -155,13 +192,27 @@ try {
     ) {
         throw new RuntimeException('Language listing did not use idx_entries_language without filesort.');
     }
+    if (
+        ($listing_plans['author']['key'] ?? null) !== 'idx_entries_author'
+        || str_contains(strtolower((string) ($listing_plans['author']['Extra'] ?? '')), 'filesort')
+    ) {
+        throw new RuntimeException('Author listing did not use idx_entries_author without filesort.');
+    }
 
+    // The account quota reads the denormalized counter from the primary key
+    // instead of aggregating the account's entries (PERF-10).
     $quota_plan = $db->query(
-        "EXPLAIN SELECT COALESCE(SUM(OCTET_LENGTH(text)), 0)
-         FROM entries WHERE user_id = {$owner_id}"
+        "EXPLAIN SELECT role, used_bytes, username FROM users WHERE id = {$owner_id}"
     )->fetch_assoc();
-    if (($quota_plan['key'] ?? null) !== 'idx_entries_user') {
-        throw new RuntimeException('Account storage aggregation did not use the user index.');
+    if (($quota_plan['key'] ?? null) !== 'PRIMARY') {
+        throw new RuntimeException('Account quota lookup did not use the users primary key.');
+    }
+    $global_counter_plan = $db->query(
+        "EXPLAIN SELECT used_bytes, used_entries FROM storage_counters
+         WHERE counter_key = 'global'"
+    )->fetch_assoc();
+    if (($global_counter_plan['key'] ?? null) !== 'PRIMARY') {
+        throw new RuntimeException('Global quota lookup did not use the storage counter primary key.');
     }
 
     // Admin user ordering and prefix searches must use the new users indexes.
@@ -176,11 +227,25 @@ try {
     $user_prefix_plan = $db->query(
         "EXPLAIN SELECT id FROM users WHERE username LIKE 'a%'"
     )->fetch_assoc();
-    if (($user_prefix_plan['key'] ?? null) !== 'uniq_users_username') {
+    $unique_username_indexes = [];
+    $unique_index_result = $db->query(
+        "SELECT DISTINCT INDEX_NAME
+         FROM information_schema.STATISTICS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'users'
+           AND NON_UNIQUE = 0
+           AND COLUMN_NAME = 'username'"
+    );
+    while ($unique_index_row = $unique_index_result->fetch_assoc()) {
+        $unique_username_indexes[] = $unique_index_row['INDEX_NAME'];
+    }
+    $unique_index_result->free();
+    $prefix_key = $user_prefix_plan['key'] ?? null;
+    if (!is_string($prefix_key) || !in_array($prefix_key, $unique_username_indexes, true)) {
         throw new RuntimeException('A username prefix search did not use the unique index.');
     }
 
-    echo "PASS: FULLTEXT, cursor-listing, history, quota, and admin user query plans use their indexes on synthetic rows\n";
+    echo "PASS: FULLTEXT, cursor-listing (including author), production history, counter, and admin user query plans use their indexes on synthetic rows\n";
 } finally {
     if ($transaction_started) {
         $db->rollback();
@@ -188,13 +253,21 @@ try {
     if ($stmt instanceof mysqli_stmt) {
         $stmt->close();
     }
-    if (isset($thread_stmt) && $thread_stmt instanceof mysqli_stmt) {
+    if ($thread_stmt instanceof mysqli_stmt) {
         $thread_stmt->close();
     }
+    if ($user_stmt instanceof mysqli_stmt) {
+        $user_stmt->close();
+    }
     $pattern = $prefix . '%';
+    $user_pattern = '%' . $prefix . '%';
     $cleanup = $db->prepare('DELETE FROM entries WHERE id LIKE ?');
     $cleanup->bind_param('s', $pattern);
     $cleanup->execute();
     $cleanup->close();
+    $cleanup_users = $db->prepare('DELETE FROM users WHERE username LIKE ?');
+    $cleanup_users->bind_param('s', $user_pattern);
+    $cleanup_users->execute();
+    $cleanup_users->close();
     $db->close();
 }

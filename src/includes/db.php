@@ -8,6 +8,39 @@ declare(strict_types=1);
 
 require_once(__DIR__ . '/session.php');
 
+/**
+ * Connection timeout in seconds (ROB-19).
+ *
+ * A database that stops answering must not keep PHP-FPM workers blocked until
+ * PHP's default socket timeout. OPNG_DB_CONNECT_TIMEOUT is validated to a
+ * small range; invalid values fall back to five seconds.
+ */
+function db_connect_timeout_seconds(): int
+{
+    $raw = getenv('OPNG_DB_CONNECT_TIMEOUT');
+    $value = filter_var($raw, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 60]]);
+
+    return $value === false ? 5 : $value;
+}
+
+/**
+ * Optional read timeout in seconds (ROB-19).
+ *
+ * Unset by default: a global read timeout must be greater than the slowest
+ * expected query (for example a large admin backup). Set OPNG_DB_READ_TIMEOUT
+ * to bound a stuck query as well.
+ */
+function db_read_timeout_seconds(): ?int
+{
+    $raw = getenv('OPNG_DB_READ_TIMEOUT');
+    if ($raw === false || $raw === '') {
+        return null;
+    }
+    $value = filter_var($raw, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 3600]]);
+
+    return $value === false ? null : $value;
+}
+
 function db_connect(): ?mysqli
 {
     require(__DIR__ . "/../config.php");
@@ -15,7 +48,17 @@ function db_connect(): ?mysqli
     $conn = null;
     try {
         mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
-        $conn = new mysqli($mysql_server, $mysql_username, $mysql_password, $mysql_dbname);
+        $conn = mysqli_init();
+        if (!$conn instanceof mysqli) {
+            error_log('OPNG db.php: MySQL client initialization failed');
+            return null;
+        }
+        $conn->options(MYSQLI_OPT_CONNECT_TIMEOUT, db_connect_timeout_seconds());
+        $read_timeout = db_read_timeout_seconds();
+        if ($read_timeout !== null && defined('MYSQLI_OPT_READ_TIMEOUT')) {
+            $conn->options(MYSQLI_OPT_READ_TIMEOUT, $read_timeout);
+        }
+        $conn->real_connect($mysql_server, $mysql_username, $mysql_password, $mysql_dbname);
         $conn->set_charset('utf8mb4');
 
         // Validate the authenticated session against the database on every
@@ -26,9 +69,12 @@ function db_connect(): ?mysqli
             try {
                 session_validate_account($conn);
             } catch (mysqli_sql_exception | RuntimeException $exception) {
-                // A transient failure must not log everybody out; the DB-backed
-                // pages will surface the outage through their own error paths.
+                // Fail closed: if the account cannot be validated, drop the
+                // authenticated identity instead of keeping stale privileges.
+                // Public pages still render, and the user can sign in again
+                // once the database recovers (SEC-20).
                 error_log('OPNG db.php: session validation failed: ' . $exception->getMessage());
+                session_forget_account();
             }
         }
     } catch (mysqli_sql_exception $exception) {
@@ -42,6 +88,9 @@ function db_connect(): ?mysqli
     return $conn;
 }
 
-// Alias kept for compatibility with existing code
-// that still calls database_connect() from database.php.
-// NOTE: since v0.8 THIS FUNCTION DOES NOT MIGRATE (see src/install.php).
+// Public connection helper used by entry points and tools. It never runs DDL:
+// the schema is created and migrated by src/install.php at deploy time.
+function database_connect(): ?mysqli
+{
+    return db_connect();
+}

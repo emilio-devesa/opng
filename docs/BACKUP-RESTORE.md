@@ -22,6 +22,33 @@ format. The dump is taken from a consistent read-only snapshot and honours
 `OPNG_BACKUP_MAX_SECONDS` (default 300) and `OPNG_BACKUP_MAX_BYTES`
 (default 512 MiB); it aborts rather than write a truncated file.
 
+Rows are written as bounded multi-row `INSERT` statements (`OPNG_BACKUP_BATCH_ROWS
+= 200`, `OPNG_BACKUP_BATCH_BYTES = 1 MiB`). This keeps the file smaller and the
+restore faster without one statement per row, and the batch is flushed when
+either limit is reached. If the dump fails mid-way, the helper rolls the
+read-only snapshot back before rethrowing, so an interrupted backup never keeps
+a transaction open.
+
+Password-reset tokens (`reset_token`, `reset_token_expires`) are exported as
+`NULL`. A restored database therefore never keeps a pending reset link alive;
+users must request a new one. Password hashes remain in the dump, so treat the
+file as a secret.
+
+### Very large databases
+
+The PHP helper is deliberately portable and has no `mysqldump` dependency. For
+databases in the hundreds of MiB, a native dump is faster and is still
+compatible with `tools/restore.php` if it omits `CREATE DATABASE`/`USE`:
+
+```bash
+mysqldump --single-transaction --quick --skip-add-locks \
+  --no-create-db --skip-comments opng > /secure/backups/opng-native.sql
+```
+
+The application dump remains the reference for a flat shared host where the
+MySQL client is unavailable. Whichever tool you use, restore it into a
+disposable database first and run `tools/recount_storage.php --check`.
+
 ## Create a backup
 
 ### CLI
@@ -60,6 +87,41 @@ three monthly copies, with at least one copy off the host. Define and test an
 RPO/RTO appropriate to your data; a backup that has never been restored is not
 a backup.
 
+### Off-host targets
+
+`tools/backup_external.php` runs one backup to the target selected by
+`OPNG_BACKUP_TARGET`:
+
+```bash
+# Mounted directory, optionally encrypted at rest.
+OPNG_BACKUP_TARGET=local \
+OPNG_BACKUP_DIR=/mnt/offsite/opng \
+OPNG_BACKUP_KEY="$(base64 < /run/secrets/opng-backup-key)" \
+OPNG_BACKUP_RETENTION_DAYS=30 \
+php tools/backup_external.php
+
+# Any S3-compatible endpoint (AWS, MinIO, Backblaze, ...).
+OPNG_BACKUP_TARGET=s3 \
+OPNG_BACKUP_S3_ENDPOINT=https://s3.example.com \
+OPNG_BACKUP_S3_BUCKET=opng-backups \
+OPNG_BACKUP_S3_REGION=us-east-1 \
+OPNG_BACKUP_S3_ACCESS_KEY=... \
+OPNG_BACKUP_S3_SECRET_KEY=... \
+OPNG_BACKUP_S3_PREFIX=opng \
+php tools/backup_external.php
+```
+
+The command writes `opng-YYYYMMDD-HHMMSS-xxxxxxxx.sql` (or `.enc` for an
+encrypted local backup) plus a `.sha256` sidecar, applies the retention window
+and logs a structured `external_backup_completed` event. Local retention removes
+expired plain and encrypted files together with their sidecars. S3 uploads use
+native SigV4 signing and no SDK; objects are uploaded as-is, so use a private
+bucket with bucket-side encryption. The admin page (`admin/external_backup.php`)
+shows the configuration and local files, and can run or verify a backup after
+password + MFA reauthentication. Verification imports the dump into a disposable
+schema and compares the table list, so the verification account needs
+`CREATE`/`DROP`.
+
 ## Verify a backup
 
 ```bash
@@ -74,8 +136,21 @@ mysql opng_restore < opng-2026-11-05.sql
 mysql opng_restore -e 'SELECT COUNT(*) FROM entries; SELECT MAX(version) FROM schema_migrations;'
 ```
 
-The restored schema must include `schema_migrations`, `storage_counters`,
-`entries.parent_id/root_id/depth`, the FULLTEXT index and all foreign keys.
+The restored schema must include `schema_migrations`, `storage_counters`
+(with `used_bytes` and `used_entries`), `users.used_bytes`, the MFA columns
+(`users.mfa_secret`, `mfa_enabled`, `mfa_enrolled_at`) and `mfa_recovery_codes`,
+`api_tokens`, `entries.parent_id/root_id/depth/author_label`,
+`entries.visibility/expires_at/protection_hash/deleted_at`,
+`idx_entries_author`, `idx_entries_visibility`, `idx_entries_deleted`, the
+FULLTEXT index and all foreign keys. The dump includes the denormalized
+counters, so a normal restore keeps the quota and dashboard values consistent.
+If you import only table data or a partial dump, rebuild them:
+
+```bash
+php tools/recount_storage.php
+php tools/recount_storage.php --check
+```
+
 For an automated end-to-end check, run:
 
 ```bash
@@ -117,11 +192,14 @@ Set `OPNG_MYSQL_CLIENT=/path/to/mysql` when the client is not in `PATH`
 
 ```bash
 mysql opng < /secure/backups/opng-2026-11-05.sql
+php tools/recount_storage.php --check
 php tools/doctor.php
 ```
 
 The dump disables foreign-key checks during import and re-enables them. Do not
-interrupt an import; restore into a fresh database instead if it fails.
+interrupt an import; restore into a fresh database instead if it fails. A
+successful `tools/backup.php` dump already contains matching counters; the
+check will report drift if the import was partial or edited by hand.
 
 ## Restore into a different installation
 

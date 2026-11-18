@@ -7,7 +7,11 @@ is a documented fallback.
 
 ## Requirements
 
-- PHP 8.2 or newer with `mysqli`, `mbstring` and `gd`.
+- PHP 8.2.35+ with `mysqli`, `mbstring` and `gd`, respecting the exact patch
+  ranges from `composer.json`: `>=8.2.35 <8.3.0`, `>=8.3.36 <8.4.0`,
+  `>=8.4.27 <8.5.0` or `>=8.5.12 <9.0.0`. Earlier patch releases are rejected
+  because of security or runtime bugs. `php tools/doctor.php` checks the
+  running patch level.
 - MySQL 5.7+ or MariaDB 10.4+.
 - A web server whose document root can point at the extracted `src/`
   directory (Apache 2.4 with `mod_rewrite`/`mod_headers`, or Nginx).
@@ -78,7 +82,8 @@ $mysql_dbname   = 'opng';
 Use a non-empty password. Never reuse the development/MAMP example values.
 Optional settings are documented at the top of `src/config.example.php`:
 `OPNG_FORCE_HTTPS`, `OPNG_PUBLIC_URL`, `OPNG_TRUSTED_PROXIES`,
-`OPNG_STORAGE_QUOTA_BYTES`, `OPNG_BACKUP_MAX_SECONDS` and
+`OPNG_STORAGE_QUOTA_BYTES`, `OPNG_DB_CONNECT_TIMEOUT`,
+`OPNG_DB_READ_TIMEOUT`, `OPNG_BACKUP_MAX_SECONDS` and
 `OPNG_BACKUP_MAX_BYTES`.
 
 ## 4. Install the schema (CLI, recommended)
@@ -95,7 +100,7 @@ php tools/install.php
 
 The target database must already exist; the installer deliberately does not
 create or drop databases. It prints the applied migration versions and ends
-with `schema version 0004_entry_threads`. If the host runs MySQL 8.4 or newer
+with `schema version 0006_entry_author_label`. If the host runs MySQL 8.4 or newer
 and the legacy table names differ only by case, resolve them before running
 the installer; it aborts rather than deleting ambiguous data.
 
@@ -123,6 +128,10 @@ php tools/create_admin.php --username=admin --email=admin@example.com --if-empty
 makes it safe in provisioning scripts. The command refuses to create a second
 administrator unless `--force` is explicit. Remove or protect
 `tools/create_admin.php` after setup.
+
+Prefer the hidden prompt or `OPNG_ADMIN_PASSWORD` over passing the password on
+the command line. `--password=` is rejected unless `--allow-argv-password` is
+also present, because argv is visible in process listings and shell history.
 
 ## 6. Run the doctor
 
@@ -199,8 +208,22 @@ After installation, verify:
 2. Sign in as the administrator.
 3. Create a paste, open it, reply to it and open the **History** tab.
 4. Run `php tools/backup.php /tmp/smoke.sql` and confirm the file is non-empty.
-5. `curl -fsS https://paste.example.com/healthz.php` returns
-   `{"status":"ok","schema":"0004_entry_threads"}`.
+5. `curl -fsS https://paste.example.com/healthz.php` returns `{"status":"ok"}`.
+
+`/healthz.php` is public and status-only by default. Monitoring that needs the
+schema version can set `OPNG_HEALTHZ_DETAIL_TOKEN` in the PHP environment and
+send it as a bearer token:
+
+```bash
+OPNG_HEALTHZ_DETAIL_TOKEN="$(openssl rand -hex 32)"
+curl -fsS -H "Authorization: Bearer ${OPNG_HEALTHZ_DETAIL_TOKEN}" \
+  https://paste.example.com/healthz.php
+# {"status":"ok","schema":"0006_entry_author_label"}
+```
+
+The comparison uses `hash_equals()`. Never put the token in a URL, a
+client-side bundle or a public issue. Without the matching token the response
+stays `{"status":"ok"}`, and the container healthcheck does not need it.
 
 ## Troubleshooting
 

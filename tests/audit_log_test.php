@@ -2,13 +2,21 @@
 
 require __DIR__ . '/../src/includes/audit_log.php';
 
+// The assertions below cover the unkeyed fallback. hashing_test.php covers
+// the HMAC path when OPNG_HASH_KEY is configured.
+putenv('OPNG_HASH_KEY');
+
 $root = dirname(__DIR__);
 $failures = [];
 
 if (!function_exists('audit_log_record') || !function_exists('audit_log_ip_hash')) {
     $failures[] = 'The audit log helpers are missing';
 }
-if (!function_exists('audit_log_prune') || !function_exists('audit_log_email_target')) {
+if (
+    !function_exists('audit_log_prune')
+    || !function_exists('audit_log_prune_all')
+    || !function_exists('audit_log_email_target')
+) {
     $failures[] = 'The audit retention and email-hash helpers are missing';
 }
 
@@ -34,13 +42,34 @@ if (
     $failures[] = 'The audit log IP hash must be a stable SHA-256 digest';
 }
 
+// SEC-22: the audit hash must honour the same trusted-proxy resolution as the
+// rate limiter instead of always hashing REMOTE_ADDR.
+putenv('OPNG_TRUSTED_PROXIES=203.0.113.0/24');
+$_SERVER['REMOTE_ADDR'] = '203.0.113.7';
+$_SERVER['HTTP_X_FORWARDED_FOR'] = '198.51.100.30';
+if (audit_log_ip_hash() !== hash('sha256', '198.51.100.30')) {
+    $failures[] = 'The audit log IP hash must use client_ip() behind a trusted proxy';
+}
+putenv('OPNG_TRUSTED_PROXIES');
+unset($_SERVER['HTTP_X_FORWARDED_FOR']);
+
+$audit_source = file_get_contents($root . '/src/includes/audit_log.php');
+if (
+    !is_string($audit_source)
+    || !str_contains($audit_source, 'client_ip()')
+    || !str_contains($audit_source, 'ORDER BY id ASC')
+    || !str_contains($audit_source, 'LIMIT {$limit}')
+) {
+    $failures[] = 'audit_log_ip_hash() or the bounded retention query is missing';
+}
+
 $install = file_get_contents($root . '/src/install.php');
 if (!is_string($install) || !str_contains($install, 'CREATE TABLE IF NOT EXISTS audit_log')) {
     $failures[] = 'The installer does not create the audit_log table';
 }
 
 foreach ([
-    'src/admin/drop_id.php' => 'entry.delete',
+    'src/admin/drop_id.php' => 'entry.trash',
     'src/admin/empty.php' => 'database.empty',
     'src/admin/user_action.php' => 'user.role',
     'src/admin/backup.php' => 'backup.download',
@@ -48,10 +77,25 @@ foreach ([
     'src/auth/request_reset.php' => 'auth.reset_requested',
     'src/auth/reset_password.php' => 'auth.reset_completed',
     'src/auth/change_password.php' => 'auth.password_changed',
+    'src/admin/trash_action.php' => 'entry.purge',
+    'src/auth/trash_action.php' => 'entry.restore',
+    'src/admin/tokens_action.php' => 'api_token.admin_revoke',
+    'src/auth/tokens_action.php' => 'api_token.create',
+    'src/admin/external_backup_action.php' => 'backup.external',
+    'src/auth/mfa.php' => 'auth.mfa',
 ] as $path => $action) {
     $source = file_get_contents($root . '/' . $path);
     if (!is_string($source) || !str_contains($source, 'audit_log_record(') || !str_contains($source, $action)) {
         $failures[] = "Missing audit logging in {$path}";
+    }
+}
+
+foreach (['src/admin/drop_id.php', 'src/admin/empty.php', 'src/admin/user_action.php'] as $path) {
+    $source = file_get_contents($root . '/' . $path);
+    $commit = is_string($source) ? strpos($source, '$db->commit()') : false;
+    $record = is_string($source) ? strpos($source, 'audit_log_record(') : false;
+    if ($commit === false || $record === false || $record < $commit) {
+        $failures[] = "{$path} must audit after its business transaction commits (ROB-20)";
     }
 }
 
@@ -64,7 +108,7 @@ $prune = file_get_contents($root . '/tools/audit_prune.php');
 if (
     !is_string($prune)
     || !str_contains($prune, "PHP_SAPI !== 'cli'")
-    || !str_contains($prune, 'audit_log_prune($db')
+    || !str_contains($prune, 'audit_log_prune_all($db')
 ) {
     $failures[] = 'tools/audit_prune.php is missing or not CLI-only';
 }

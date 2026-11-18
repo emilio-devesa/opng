@@ -1,21 +1,16 @@
 <?php
+
+require_once __DIR__ . '/bootstrap.php';
 // Paste view.
 //   - "Edit" (real UPDATE): only visible to the author or an admin → update.php (U1)
 //   - "Reply" (creates a new RE: paste): always available → submit.php
-require("includes/session.php");
 session_start_secured();
-require("includes/db.php");
-require("includes/csrf.php");
 require("includes/rules.php");
 require("includes/paste_permissions.php");
-require("includes/http_input.php");
 require("includes/account_role.php");
-require("includes/error_messages.php");
-require("includes/assets.php");
 require("includes/thread.php");
+require_once("includes/entry_access.php");
 require_once("includes/pagination_cursor.php");
-require_once("includes/i18n.php");
-
 $asset_version = opng_asset_version();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
@@ -47,8 +42,14 @@ $array = null;
 try {
     $stmt = $db->prepare(
         "SELECT e.id, e.user_id, e.language, e.text, e.topic, e.date,
-                e.parent_id, e.root_id, e.depth,
-                EXISTS(SELECT 1 FROM entries c WHERE c.parent_id = e.id) AS has_children
+                e.parent_id, e.root_id, e.depth, e.deleted_at, e.expires_at,
+                e.visibility, e.protection_hash,
+                EXISTS(
+                    SELECT 1 FROM entries c
+                    WHERE c.parent_id = e.id
+                      AND c.deleted_at IS NULL
+                      AND (c.expires_at IS NULL OR c.expires_at > NOW())
+                ) AS has_children
          FROM entries e
          WHERE e.id = ?"
     );
@@ -77,6 +78,23 @@ if (!$array) {
     opng_error_redirect('error_entry_not_found');
 }
 
+// Visibility, expiry and password protection are enforced before any content
+// is rendered. A hidden entry answers exactly like a missing one so a private
+// id cannot be confirmed by probing (10.5).
+if (
+    entry_is_deleted($array)
+    || entry_is_expired($array)
+    || !entry_visibility_allows($array, $user_id, (string) $role)
+) {
+    $db->close();
+    opng_error_redirect('error_entry_not_found');
+}
+if (entry_requires_unlock($array) && !entry_is_unlocked(entry_thread_root_id($array))) {
+    $db->close();
+    header('Location: unlock.php?id=' . urlencode($id));
+    exit;
+}
+
 // Fetch and normalize the language
 $language = trim($array['language']);
 
@@ -87,6 +105,11 @@ $textarea_rows = min(max($line_count, 10), 50);
 // 1 MiB paste. Cap the gutter; the code itself is always shown in full.
 const OPNG_MAX_RENDERED_LINE_NUMBERS = 5000;
 $show_line_numbers = $line_count <= OPNG_MAX_RENDERED_LINE_NUMBERS;
+// Highlighting a 1 MiB paste blocks the main thread. Small and medium pastes
+// keep the automatic behaviour; larger ones get an explicit control so the
+// initial render stays responsive (PERF-15/UX-13).
+const OPNG_MAX_AUTO_HIGHLIGHT_BYTES = 200 * 1024;
+$text_bytes = strlen($array['text']);
 // Preselect the closest current language when editing a paste saved with the
 // legacy combined "Java/C/C++" value.
 $selected_language = $language === 'Java/C/C++' ? 'C++' : $language;
@@ -96,6 +119,15 @@ $current_user_id = $user_id;
 $owner_id = $array['user_id'] !== null ? (int) $array['user_id'] : null;
 $can_edit = paste_owner_can_manage($current_user_id, (string) $role, $owner_id);
 $can_delete = $can_edit;
+$is_thread_root = (int) ($array['depth'] ?? 0) === 0;
+$visibility_value = entry_visibility_valid($array['visibility'] ?? null)
+    ? (string) $array['visibility']
+    : 'public';
+$visibility_key = 'visibility_' . $visibility_value;
+$expires_at_value = is_string($array['expires_at'] ?? null) && $array['expires_at'] !== ''
+    ? $array['expires_at']
+    : null;
+$has_protection = entry_requires_unlock($array);
 
 $csrf_token = csrf_token();
 $lang_attr = 'en';
@@ -223,6 +255,8 @@ $highlight_language_class = match (strtolower($language)) {
     'java/c/c++' => 'language-cpp',
     default => '',
 };
+$highlight_enabled = $highlight_language_class !== 'language-plaintext';
+$highlight_manual = $highlight_enabled && $text_bytes > OPNG_MAX_AUTO_HIGHLIGHT_BYTES;
 $flash_key = match ($flash_message) {
     'Paste updated successfully' => 'paste_updated',
     default => '',
@@ -255,6 +289,13 @@ require(__DIR__ . "/includes/layout_header.php");
                 <div><dt data-i18n="language:">Language:</dt><dd><?php echo htmlspecialchars($language, ENT_QUOTES, 'UTF-8'); ?></dd></div>
                 <div><dt data-i18n="date">Date:</dt><dd><?php echo opng_datetime_html((string) $array['date']); ?></dd></div>
                 <div><dt data-i18n="id">ID:</dt><dd><?php echo htmlspecialchars($array['id'], ENT_QUOTES, 'UTF-8'); ?></dd></div>
+                <div><dt data-i18n="visibility_label">Visibility:</dt><dd data-i18n="<?php echo htmlspecialchars($visibility_key, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars(ucfirst($visibility_value), ENT_QUOTES, 'UTF-8'); ?></dd></div>
+                <?php if ($expires_at_value !== null): ?>
+                <div><dt data-i18n="expiry_label">Expires:</dt><dd><?php echo opng_datetime_html($expires_at_value); ?></dd></div>
+                <?php endif; ?>
+                <?php if ($has_protection): ?>
+                <div><dt data-i18n="protection_status_label">Protection:</dt><dd data-i18n="protection_status_enabled">Password protected</dd></div>
+                <?php endif; ?>
             </dl>
             <div class="code-view<?php echo $show_line_numbers ? '' : ' no-line-numbers'; ?>">
                 <?php if ($show_line_numbers): ?>
@@ -263,8 +304,23 @@ require(__DIR__ . "/includes/layout_header.php");
                 <pre class="code-content"><code id="code-block"<?php echo $highlight_language_class !== '' ? ' class="' . htmlspecialchars($highlight_language_class, ENT_QUOTES, 'UTF-8') . '"' : ''; ?>><?php echo htmlspecialchars($array['text'], ENT_QUOTES, 'UTF-8'); ?></code></pre>
             </div>
             <?php if (!$show_line_numbers): ?>
-            <p class="line-numbers-notice" data-i18n="line_numbers_hidden">Line numbers are hidden for very long pastes.</p>
+            <p class="line-numbers-notice" data-i18n="line_numbers_hidden">Line numbers are hidden for pastes with more than 5,000 lines to keep the page responsive.</p>
             <?php endif; ?>
+            <?php if ($highlight_enabled): ?>
+            <div class="highlight-controls">
+                <p id="highlight-notice" class="highlight-notice" data-i18n="highlight_large_notice"<?php echo $highlight_manual ? '' : ' hidden'; ?>>This paste is large, so syntax highlighting is off by default to keep the page responsive.</p>
+                <button id="highlight-button" type="button" class="highlight-button" data-i18n="highlight_button"<?php echo $highlight_manual ? '' : ' hidden'; ?>>Highlight</button>
+                <p id="highlight-status" class="highlight-status" role="status" aria-live="polite" hidden></p>
+                <span id="highlighting-message" data-i18n="highlighting" hidden>Highlighting…</span>
+                <span id="highlight-error-message" data-i18n="highlight_error" hidden>The paste could not be highlighted.</span>
+            </div>
+            <?php endif; ?>
+            <div class="code-font-controls" role="group" aria-label="Code font size" data-i18n-aria-label="code_font_size">
+                <span class="code-font-label" data-i18n="code_font_size">Code font size</span>
+                <button type="button" class="code-font-decrease" aria-label="Decrease code font size" title="Decrease code font size" data-i18n-aria-label="font_smaller" data-i18n-title="font_smaller">A−</button>
+                <button type="button" class="code-font-reset" aria-label="Reset code font size" title="Reset code font size" data-i18n-aria-label="font_reset" data-i18n-title="font_reset">A</button>
+                <button type="button" class="code-font-increase" aria-label="Increase code font size" title="Increase code font size" data-i18n-aria-label="font_larger" data-i18n-title="font_larger">A+</button>
+            </div>
             <div class="paste-actions">
                 <div class="copy-controls">
                     <button id="copy-button" type="button" data-i18n="copy" class="copy-button">Copy</button>
@@ -274,7 +330,7 @@ require(__DIR__ . "/includes/layout_header.php");
                 </div>
                 <?php if ($can_delete): ?>
                 <button type="button" class="danger delete-paste-open" data-delete-paste-open aria-haspopup="dialog" aria-controls="delete-paste-dialog">
-                    <span aria-hidden="true">🗑️</span>
+                    <?php echo opng_icon('trash'); ?>
                     <span data-i18n="delete_paste">Delete Paste</span>
                 </button>
                 <?php endif; ?>
@@ -288,15 +344,17 @@ require(__DIR__ . "/includes/layout_header.php");
                     <div class="delete-paste-reauth">
                         <label for="delete_current_password" data-i18n="reauth_password">Current password:</label>
                         <input id="delete_current_password" type="password" name="current_password" maxlength="72" autocomplete="current-password" required>
+                        <label for="delete_mfa_code" data-i18n="mfa_code_optional">Authentication code (if enabled):</label>
+                        <input id="delete_mfa_code" type="text" name="mfa_code" maxlength="32" inputmode="numeric" autocomplete="one-time-code">
                     </div>
                     <label class="confirm-check">
                         <input id="delete_confirm" type="checkbox" name="confirm_delete" value="yes" required>
-                        <span data-i18n="delete_confirm">Are you sure you want to delete this paste? This action cannot be undone.</span>
+                        <span data-i18n="delete_confirm_trash">The whole thread will move to the trash and can be restored later.</span>
                     </label>
                     <div class="delete-paste-dialog-actions">
                         <button type="button" class="delete-paste-cancel" data-delete-paste-close data-i18n="cancel">Cancel</button>
                         <button type="submit" class="danger">
-                            <span aria-hidden="true">🗑️</span>
+                            <?php echo opng_icon('trash'); ?>
                             <span data-i18n="delete_paste">Delete Paste</span>
                         </button>
                     </div>
@@ -321,6 +379,38 @@ require(__DIR__ . "/includes/layout_header.php");
                         </option>
                     <?php endforeach; ?>
                 </select>
+                <?php if ($is_thread_root): ?>
+                <fieldset class="access-options">
+                    <legend data-i18n="access_options">Access and lifetime</legend>
+                    <label for="edit_visibility" data-i18n="visibility_label">Visibility:</label>
+                    <select id="edit_visibility" name="visibility">
+                        <?php foreach (entry_visibility_options() as $value => $label_key): ?>
+                        <option value="<?php echo htmlspecialchars($value, ENT_QUOTES, 'UTF-8'); ?>" data-i18n="<?php echo htmlspecialchars($label_key, ENT_QUOTES, 'UTF-8'); ?>"<?php echo $value === $visibility_value ? ' selected' : ''; ?>>
+                            <?php echo htmlspecialchars(ucfirst($value), ENT_QUOTES, 'UTF-8'); ?>
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <label for="edit_expiry" data-i18n="expiry_label">Expires:</label>
+                    <select id="edit_expiry" name="expiry">
+                        <?php foreach (entry_expiry_options() as $value => $label_key): ?>
+                        <option value="<?php echo htmlspecialchars($value, ENT_QUOTES, 'UTF-8'); ?>" data-i18n="<?php echo htmlspecialchars($label_key, ENT_QUOTES, 'UTF-8'); ?>"<?php echo $value === entry_expiry_option_for($expires_at_value) ? ' selected' : ''; ?>>
+                            <?php echo htmlspecialchars($value === 'never' ? 'Never' : $value, ENT_QUOTES, 'UTF-8'); ?>
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <label for="edit_protection_password" data-i18n="protection_password_replace_label">New protection password (optional):</label>
+                    <input id="edit_protection_password" type="password" name="protection_password" maxlength="72" autocomplete="new-password">
+                    <p class="form-help" data-i18n="protection_password_keep_help">Leave blank to keep the current protection. Changing it applies to every reply in the thread.</p>
+                    <?php if ($has_protection): ?>
+                    <label class="confirm-check">
+                        <input type="checkbox" name="remove_protection" value="yes">
+                        <span data-i18n="protection_remove">Remove password protection</span>
+                    </label>
+                    <?php endif; ?>
+                </fieldset>
+                <?php else: ?>
+                <p class="form-help" data-i18n="reply_inherits_access">Replies inherit the thread's visibility, expiry and password protection.</p>
+                <?php endif; ?>
                 <label for="edit_text" data-i18n="text">Enter your text here</label>
                 <textarea id="edit_text" name="input_text" maxlength="1048576" rows="<?php echo $textarea_rows; ?>" cols="80" required><?php echo htmlspecialchars($array['text'], ENT_QUOTES, 'UTF-8'); ?></textarea>
                 <div class="length-meter" data-length-meter-for="edit_text" data-max-bytes="1048576">
@@ -337,6 +427,7 @@ require(__DIR__ . "/includes/layout_header.php");
             <form method="post" action="submit.php" class="editor-form">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
                 <input type="hidden" name="parent_id" value="<?php echo htmlspecialchars($array['id'], ENT_QUOTES, 'UTF-8'); ?>">
+                <p class="form-help" data-i18n="reply_inherits_access">Replies inherit the thread's visibility, expiry and password protection.</p>
                 <label for="reply_topic" data-i18n="topic:">Topic:</label>
                 <input id="reply_topic" type="text" name="input_topic" maxlength="255" value="RE: <?php echo htmlspecialchars($array['topic'], ENT_QUOTES, 'UTF-8'); ?>" required>
                 <label data-i18n="select_language:" for="input_language">Select language:</label>
@@ -407,10 +498,10 @@ require(__DIR__ . "/includes/layout_header.php");
                         <?php echo opng_datetime_html((string) $node['date']); ?>
                         <span class="history-author">
                             <span data-i18n="history_author">Author:</span>
-                            <?php if ($node['username'] !== null): ?>
-                            <?php echo htmlspecialchars($node['username'], ENT_QUOTES, 'UTF-8'); ?>
-                            <?php else: ?>
+                            <?php if ($node['guest']): ?>
                             <span data-i18n="history_guest">Guest</span>
+                            <?php else: ?>
+                            <?php echo htmlspecialchars($node['username'], ENT_QUOTES, 'UTF-8'); ?>
                             <?php endif; ?>
                         </span>
                     </span>
@@ -460,9 +551,9 @@ require(__DIR__ . "/includes/layout_header.php");
                         echo '<span class="history-meta">'
                             . opng_datetime_html((string) $node['date']) . ' · '
                             . '<span data-i18n="history_author">Author:</span> ';
-                        echo $node['username'] !== null
-                            ? htmlspecialchars($node['username'], ENT_QUOTES, 'UTF-8')
-                            : '<span data-i18n="history_guest">Guest</span>';
+                        echo $node['guest']
+                            ? '<span data-i18n="history_guest">Guest</span>'
+                            : htmlspecialchars($node['username'], ENT_QUOTES, 'UTF-8');
                         echo '</span></span>';
 
                         $children = $thread_grouped['children'][$node_id] ?? [];
@@ -498,10 +589,14 @@ require(__DIR__ . "/includes/layout_header.php");
         <?php endif; ?>
     </div>
     <?php if ($tab === 'view'): ?>
-    <?php if ($highlight_language_class !== 'language-plaintext'): ?>
+    <?php if ($highlight_enabled): ?>
     <script src="assets/vendor/highlight.min.js?v=<?php echo $asset_version; ?>" defer></script>
     <?php endif; ?>
     <script src="assets/js/copy.js?v=<?php echo $asset_version; ?>" defer></script>
+    <script src="assets/js/code-font-size.js?v=<?php echo $asset_version; ?>" defer></script>
+    <?php if ($show_line_numbers): ?>
+    <script src="assets/js/line-gutter.js?v=<?php echo $asset_version; ?>" defer></script>
+    <?php endif; ?>
     <?php if ($can_delete): ?>
     <script src="assets/js/delete-paste-dialog.js?v=<?php echo $asset_version; ?>" defer></script>
     <?php endif; ?>

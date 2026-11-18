@@ -1,17 +1,16 @@
 <?php
+
+require_once __DIR__ . '/bootstrap.php';
 // Handles the create/reply POST. Refactor: centralized session/CSRF/rules.
-require("includes/session.php");
 session_start_secured();
-require("includes/csrf.php");
 require("includes/rules.php");
-require("includes/db.php");
 require("includes/ratelimit.php");
 require("includes/paste_validation.php");
 require("includes/user_quota.php");
 require("includes/admin_metrics.php");
-require("includes/http_input.php");
-require("includes/error_messages.php");
 require("includes/thread.php");
+require_once("includes/entry_access.php");
+require_once("includes/account_role.php");
 require_once("includes/captcha.php");
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -55,19 +54,32 @@ if ($parent_id !== null && !http_valid_entry_id($parent_id)) {
     opng_error_redirect('error_invalid_paste');
 }
 
+// Visibility, expiry and password protection apply to new roots. Replies
+// inherit all three from their parent inside the transaction, so a reply can
+// never make a private or protected thread public.
+$visibility = http_string_parameter($_POST, 'visibility', 16, false) ?? 'public';
+if (!entry_visibility_valid($visibility)) {
+    opng_error_redirect('error_visibility_invalid');
+}
+$expiry_option = http_string_parameter($_POST, 'expiry', 16, false) ?? 'never';
+if (!array_key_exists($expiry_option, entry_expiry_options())) {
+    opng_error_redirect('error_expiry_invalid');
+}
+$protection_password = http_string_parameter($_POST, 'protection_password', 72, false);
+$protection_error = entry_protection_error($protection_password);
+if ($protection_error !== null) {
+    opng_error_redirect($protection_error);
+}
+$expires_at = entry_expiry_from_option($expiry_option);
+$protection_hash = $protection_password !== null && $protection_password !== ''
+    ? entry_protection_hash($protection_password)
+    : null;
+
 $user_id = $_SESSION['user_id'] ?? null;
 if ($user_id !== null) {
     $user_id = http_positive_integer($user_id);
     if ($user_id === null) {
         opng_error_redirect('error_auth_unavailable');
-    }
-}
-
-// Guests must solve the local CAPTCHA before creating an anonymous paste.
-if ($user_id === null) {
-    $captcha_answer = http_string_parameter($_POST, 'captcha_answer', 5);
-    if (!captcha_validate($captcha_answer)) {
-        opng_error_redirect('captcha_incorrect');
     }
 }
 
@@ -91,6 +103,17 @@ try {
         opng_error_redirect('error_paste_rate_limit');
     }
 
+    // Guests must solve the local CAPTCHA. Validate it after the rate limit so
+    // a wrong answer still consumes an attempt instead of allowing unlimited
+    // challenge rotation (SEC-19).
+    if ($user_id === null) {
+        $captcha_answer = http_string_parameter($_POST, 'captcha_answer', 5);
+        if (!captcha_validate($captcha_answer)) {
+            $db->close();
+            opng_error_redirect('captcha_incorrect');
+        }
+    }
+
     // Global soft cap for all paste text, configurable with
     // OPNG_STORAGE_QUOTA_BYTES (default 10 GiB). The counter row is locked
     // inside the same transaction as the insert, so concurrent writes cannot
@@ -102,6 +125,9 @@ try {
     $db->begin_transaction();
     $transaction_started = true;
 
+    // Global lock order (ROB-15): storage_counters -> users -> entries. The
+    // counter row is taken first, then the account (if any), and the parent
+    // entry (if this is a reply) last.
     $global_used = global_quota_lock($db);
     if ($global_used === null) {
         error_log('OPNG submit.php: global storage counter is unavailable');
@@ -117,6 +143,7 @@ try {
         opng_error_redirect('error_global_storage_quota');
     }
 
+    $author_label = 'Guest';
     if ($user_id !== null) {
         $usage = lock_user_quota($db, (int) $user_id);
         if ($usage === null) {
@@ -132,6 +159,7 @@ try {
             $db->close();
             opng_error_redirect('error_storage_quota');
         }
+        $author_label = $usage['username'];
     }
 
     $parent = null;
@@ -141,6 +169,16 @@ try {
         // dangling parent_id.
         $parent = thread_parent_for_reply($db, $parent_id, true);
         if ($parent === null) {
+            $db->rollback();
+            $transaction_started = false;
+            $db->close();
+            opng_error_redirect('error_entry_not_found');
+        }
+        // A reply inherits the parent's access policy, so only an account that
+        // can already view the thread may add to it. Otherwise a private or
+        // protected thread could be polluted by an unrelated visitor.
+        $reply_role = refresh_account_role($db) ?? 'guest';
+        if (!entry_can_view($parent, $user_id, $reply_role)) {
             $db->rollback();
             $transaction_started = false;
             $db->close();
@@ -163,31 +201,33 @@ try {
 
     if ($user_id === null) {
         $stmt = $db->prepare(
-            "INSERT INTO entries (id, parent_id, root_id, depth, user_id, language, text, topic)
-             VALUES (?, ?, ?, ?, NULL, ?, ?, ?)"
+            "INSERT INTO entries (id, parent_id, root_id, depth, user_id, author_label, language, text, topic)
+             VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?)"
         );
         $stmt->bind_param(
-            "sssisss",
+            "sssissss",
             $id,
             $position_parent_id,
             $position_root_id,
             $position_depth,
+            $author_label,
             $language,
             $text,
             $topic
         );
     } else {
         $stmt = $db->prepare(
-            "INSERT INTO entries (id, parent_id, root_id, depth, user_id, language, text, topic)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO entries (id, parent_id, root_id, depth, user_id, author_label, language, text, topic)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
         );
         $stmt->bind_param(
-            "sssiisss",
+            "sssiissss",
             $id,
             $position_parent_id,
             $position_root_id,
             $position_depth,
             $user_id,
+            $author_label,
             $language,
             $text,
             $topic
@@ -205,8 +245,46 @@ try {
     $stmt->close();
     $stmt = null;
 
-    if (!global_quota_consume($db, $text_bytes)) {
-        error_log('OPNG submit.php: could not update the global storage counter');
+    // The INSERT above keeps the legacy column list stable; visibility,
+    // expiry and protection are written separately so replies can copy them
+    // from the locked parent.
+    $access = $parent !== null
+        ? entry_reply_inherited_fields($parent)
+        : [
+            'visibility' => $visibility,
+            'expires_at' => $expires_at,
+            'protection_hash' => $protection_hash,
+        ];
+    $stmt = $db->prepare(
+        'UPDATE entries SET visibility = ?, expires_at = ?, protection_hash = ? WHERE id = ?'
+    );
+    if (!$stmt) {
+        throw new RuntimeException('Entry access fields could not be prepared.');
+    }
+    $stmt->bind_param(
+        'ssss',
+        $access['visibility'],
+        $access['expires_at'],
+        $access['protection_hash'],
+        $id
+    );
+    if (!$stmt->execute()) {
+        error_log('OPNG submit.php: ' . $stmt->error);
+        $stmt->close();
+        $db->rollback();
+        $transaction_started = false;
+        $db->close();
+        opng_error_redirect('error_save_paste');
+    }
+    $stmt->close();
+    $stmt = null;
+
+    if (
+        !global_quota_consume($db, $text_bytes)
+        || !global_entry_consume($db, 1)
+        || ($user_id !== null && !user_quota_consume($db, (int) $user_id, $text_bytes))
+    ) {
+        error_log('OPNG submit.php: could not update the storage counters');
         $db->rollback();
         $transaction_started = false;
         $db->close();

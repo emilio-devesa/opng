@@ -1,12 +1,9 @@
 <?php
-require_once('../includes/session.php');
+
+require_once __DIR__ . '/../bootstrap.php';
 session_start_secured();
-require_once('../includes/csrf.php');
-require_once('../includes/http_input.php');
 require_once('../includes/admin_guard.php');
 require_once('../includes/reauth.php');
-require_once('../database.php');
-require_once("../includes/error_messages.php");
 require_once('../includes/admin_metrics.php');
 require_once('../includes/audit_log.php');
 require_once('../includes/user_quota.php');
@@ -58,9 +55,11 @@ $current_user_id = require_admin($db, 'user_action.php');
 // Role changes and account deletion require an explicit password confirmation
 // in addition to CSRF (SEC-07).
 $current_password = http_string_parameter($_POST, 'current_password', 72, false);
-if (!reauthenticate_user($db, $current_user_id, $current_password, 'admin_reauth_user')) {
+$mfa_code = http_string_parameter($_POST, 'mfa_code', 32, false);
+$reauth = reauthenticate_user($db, $current_user_id, $current_password, 'admin_reauth_user', $mfa_code);
+if ($reauth !== ReauthResult::Allowed) {
     $db->close();
-    opng_error_redirect('error_reauth', '../error.php');
+    opng_error_redirect(reauth_error_key($reauth), '../error.php');
 }
 
 $transaction_started = false;
@@ -68,7 +67,15 @@ try {
     $db->begin_transaction();
     $transaction_started = true;
 
-    $stmt = $db->prepare('SELECT role FROM users WHERE id = ? FOR UPDATE');
+    // Global lock order (ROB-15): storage_counters -> users -> entries. The
+    // counter row doubles as the write mutex for administrative account
+    // actions, so two concurrent role changes cannot race the last-admin
+    // check or deadlock on the users table.
+    if (global_quota_lock($db) === null) {
+        throw new RuntimeException('Global storage counter is unavailable.');
+    }
+
+    $stmt = $db->prepare('SELECT role, used_bytes FROM users WHERE id = ? FOR UPDATE');
     $stmt->bind_param('i', $target_user_id);
     if (!$stmt->execute()) {
         throw new RuntimeException('User role lookup failed.');
@@ -87,11 +94,12 @@ try {
         $db->close();
         redirect_admin('user_not_found');
     }
+    $target_used_bytes = (int) ($target['used_bytes'] ?? 0);
 
     $removes_admin = $target['role'] === 'admin'
         && ($action === 'delete' || $new_role === 'user');
     if ($removes_admin) {
-        $administrators = $db->query("SELECT id FROM users WHERE role = 'admin' FOR UPDATE");
+        $administrators = $db->query("SELECT id FROM users WHERE role = 'admin' ORDER BY id ASC FOR UPDATE");
         if (!$administrators) {
             throw new RuntimeException('Administrator list is unavailable.');
         }
@@ -116,7 +124,11 @@ try {
         $message = 'user_role_changed';
     } else {
         if ($delete_mode === 'preserve') {
-            $stmt = $db->prepare('UPDATE entries SET user_id = NULL WHERE user_id = ?');
+            $stmt = $db->prepare(
+                "UPDATE entries
+                 SET user_id = NULL, author_label = 'Guest'
+                 WHERE user_id = ?"
+            );
             $stmt->bind_param('i', $target_user_id);
             if (!$stmt->execute()) {
                 throw new RuntimeException('User entries could not be preserved anonymously.');
@@ -124,34 +136,23 @@ try {
             $stmt->close();
             $stmt = null;
         } else {
-            // Measure the account's pastes before deleting them. The target
-            // user row is locked above, so no concurrent paste can slip in.
-            $usage_stmt = $db->prepare(
-                'SELECT COALESCE(SUM(OCTET_LENGTH(text)), 0) AS used_bytes FROM entries WHERE user_id = ?'
-            );
-            $usage_stmt->bind_param('i', $target_user_id);
-            if (!$usage_stmt->execute()) {
-                $usage_stmt->close();
-                throw new RuntimeException('User entry size lookup failed.');
-            }
-            $usage_result = $usage_stmt->get_result();
-            $usage_row = $usage_result ? $usage_result->fetch_assoc() : null;
-            if ($usage_result instanceof mysqli_result) {
-                $usage_result->free();
-            }
-            $usage_stmt->close();
-            $deleted_bytes = is_array($usage_row) ? (int) ($usage_row['used_bytes'] ?? 0) : 0;
-
+            // The locked target row carries the account byte counter, so this
+            // path no longer runs SUM(OCTET_LENGTH(text)) before the delete
+            // (PERF-10). The DELETE reports how many entry counters to release.
             $stmt = $db->prepare('DELETE FROM entries WHERE user_id = ?');
             $stmt->bind_param('i', $target_user_id);
             if (!$stmt->execute()) {
                 throw new RuntimeException('User entries could not be deleted.');
             }
+            $deleted_entries = max(0, $stmt->affected_rows);
             $stmt->close();
             $stmt = null;
 
-            if (!global_quota_consume($db, -$deleted_bytes)) {
-                throw new RuntimeException('Global storage counter could not be updated.');
+            if (
+                !global_quota_consume($db, -$target_used_bytes)
+                || !global_entry_consume($db, -$deleted_entries)
+            ) {
+                throw new RuntimeException('Global storage counters could not be updated.');
             }
         }
 
@@ -167,6 +168,12 @@ try {
             : 'user_deleted_entries';
     }
 
+    $db->commit();
+    $transaction_started = false;
+
+    // Audit after commit: the audit log is best-effort, and this keeps the
+    // opportunistic retention DELETE outside the business transaction
+    // (ROB-20).
     audit_log_record(
         $db,
         $current_user_id,
@@ -176,8 +183,6 @@ try {
             : 'user:' . $target_user_id . ' pastes:' . $delete_mode
     );
 
-    $db->commit();
-    $transaction_started = false;
     admin_metrics_invalidate($db);
     $db->close();
 } catch (mysqli_sql_exception | RuntimeException $exception) {

@@ -6,39 +6,45 @@ declare(strict_types=1);
 // Persistent audit trail for sensitive administrative actions (M5).
 //
 // The table stores the acting account, a short action identifier, an optional
-// target description, a SHA-256 hash of the client IP (never the address in
+// target description, a keyed hash of the client IP (never the address in
 // clear) and the timestamp. Logging is best-effort: a failure is written to
 // the application log but never rolls back the administrative action itself.
 
+require_once(__DIR__ . '/ratelimit.php');
+require_once(__DIR__ . '/hashing.php');
+
 /**
  * Hash the client IP the same way the rate limiter does.
+ *
+ * client_ip() honours OPNG_TRUSTED_PROXIES and X-Forwarded-For, so audit
+ * events and rate-limit buckets use the same address behind a proxy (SEC-22).
+ * The digest is keyed when OPNG_HASH_KEY is configured (SEC-21).
  */
 function audit_log_ip_hash(): string
 {
-    $remote_addr = $_SERVER['REMOTE_ADDR'] ?? null;
-    $ip = is_string($remote_addr) && filter_var($remote_addr, FILTER_VALIDATE_IP) !== false
-        ? $remote_addr
-        : '0.0.0.0';
-
-    return hash('sha256', $ip);
+    return opng_hash_identifier(client_ip());
 }
 
 /**
  * Hash an email address before writing it to the audit target column. The
  * audit log must never store account identifiers in clear text (SEC-14).
+ * The digest is keyed when OPNG_HASH_KEY is configured (SEC-21).
  */
 function audit_log_email_target(string $email): string
 {
-    return 'email:' . hash('sha256', strtolower(trim($email)));
+    return 'email:' . opng_hash_identifier(strtolower(trim($email)));
 }
 
 /**
- * Delete audit rows older than the configured retention window.
+ * Delete one bounded batch of audit rows older than the configured retention
+ * window.
  *
  * Returns the number of deleted rows (0 also covers a failed statement; the
- * failure is logged). A retention of 0 or less disables pruning.
+ * failure is logged). A retention of 0 or less disables pruning. The LIMIT
+ * keeps an opportunistic call from holding a long table lock inside a request
+ * (ROB-20); use audit_log_prune_all() from the CLI tool to drain the backlog.
  */
-function audit_log_prune(mysqli $db, ?int $days = null): int
+function audit_log_prune(mysqli $db, ?int $days = null, int $limit = 1000): int
 {
     if ($days === null) {
         $raw = getenv('OPNG_AUDIT_RETENTION_DAYS');
@@ -51,9 +57,16 @@ function audit_log_prune(mysqli $db, ?int $days = null): int
         return 0;
     }
 
+    $limit = max(1, min($limit, 10000));
+
     try {
         $days = (int) $days;
-        $result = $db->query("DELETE FROM audit_log WHERE created_at < NOW() - INTERVAL {$days} DAY");
+        $result = $db->query(
+            "DELETE FROM audit_log
+             WHERE created_at < NOW() - INTERVAL {$days} DAY
+             ORDER BY id ASC
+             LIMIT {$limit}"
+        );
         if ($result === false) {
             error_log('OPNG audit_log.php: audit pruning failed');
             return 0;
@@ -67,6 +80,21 @@ function audit_log_prune(mysqli $db, ?int $days = null): int
 }
 
 /**
+ * Drain every expired audit row in bounded batches. Intended for
+ * tools/audit_prune.php and scheduled maintenance, never for a web request.
+ */
+function audit_log_prune_all(mysqli $db, ?int $days = null, int $limit = 1000): int
+{
+    $total = 0;
+    do {
+        $deleted = audit_log_prune($db, $days, $limit);
+        $total += $deleted;
+    } while ($deleted >= $limit);
+
+    return $total;
+}
+
+/**
  * Record one administrative action. Returns false when the row could not be
  * written; callers should continue with the action in that case.
  */
@@ -77,8 +105,9 @@ function audit_log_record(mysqli $db, ?int $actorId, string $action, string $tar
         return false;
     }
 
-    // Opportunistic retention: one request in a hundred trims old rows so the
-    // table does not grow forever on installations without a cron job.
+    // Opportunistic retention: one request in a hundred trims one bounded
+    // batch so the table does not grow forever on installations without a
+    // cron job. Callers run this outside business transactions (ROB-20).
     if (random_int(1, 100) === 1) {
         audit_log_prune($db);
     }

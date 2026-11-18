@@ -47,7 +47,15 @@ foreach (['en', 'es', 'de', 'fr', 'pt', 'zh'] as $language) {
     } else {
         expect_i18n($keys === $reference, "{$language}.json has the same keys as English", $failures);
     }
-    foreach (['no_entries', 'no_entries_create', 'error_confirmation_required'] as $key) {
+    foreach ([
+        'no_entries',
+        'no_entries_create',
+        'error_confirmation_required',
+        'highlight_button',
+        'highlighting',
+        'highlight_large_notice',
+        'highlight_error',
+    ] as $key) {
         expect_i18n(
             isset($catalog[$key]) && is_string($catalog[$key]) && $catalog[$key] !== '',
             "{$language}.json defines {$key}",
@@ -70,6 +78,39 @@ expect_i18n(str_contains($translated, 'aria-label="Inicio"'), 'data-i18n attribu
 expect_i18n(str_contains($translated, '<strong>Keep nested markup</strong>'), 'nested markup is never replaced', $failures);
 expect_i18n(!str_contains($translated, '<?xml'), 'the temporary XML declaration is removed', $failures);
 expect_i18n(opng_t('no_entries') === 'Todavía no hay entradas.', 'opng_t resolves catalog keys', $failures);
+
+// Preformatted paste payloads bypass the DOM pass: translating a <pre> or the
+// edit <textarea> cannot change anything inside them, and serializing a 1 MiB
+// payload is what PERF-14 removed.
+$protected_html = '<html><body><p data-i18n="no_entries">No entries yet.</p>'
+    . '<pre class="code"><code data-i18n="copy">literal <span>keep</span></code></pre>'
+    . '<textarea data-i18n="text">raw &lt;b&gt;text&lt;/b&gt;</textarea></body></html>';
+$protected = opng_i18n_protect_blocks($protected_html);
+expect_i18n(
+    count($protected['blocks']) === 2
+        && !str_contains($protected['html'], '<pre')
+        && !str_contains($protected['html'], '<textarea'),
+    'pre and textarea payloads are replaced before the DOM translation pass',
+    $failures
+);
+$large_marker = 'LARGE_PASTE_PAYLOAD_' . str_repeat('x', 64);
+$large_html = '<html><body><p data-i18n="no_entries">No entries yet.</p>'
+    . '<pre class="code-content"><code id="code-block">' . htmlspecialchars($large_marker, ENT_QUOTES, 'UTF-8')
+    . '</code></pre></body></html>';
+$large_translated = opng_i18n_apply($large_html);
+expect_i18n(
+    str_contains($large_translated, $large_marker)
+        && str_contains($large_translated, '<pre class="code-content"><code id="code-block">')
+        && str_contains($large_translated, 'no hay entradas'),
+    'a large preformatted payload is restored byte-for-byte while surrounding copy is translated',
+    $failures
+);
+$restored_blocks = strtr($protected['html'], $protected['blocks']);
+expect_i18n(
+    $restored_blocks === $protected_html,
+    'protected preformatted blocks are restored exactly after translation',
+    $failures
+);
 
 // Locale-aware <time> rendering keeps the stored value as the machine value.
 $spanish_date = opng_datetime_html('2026-11-06 12:34:56', 'es');

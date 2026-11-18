@@ -7,7 +7,7 @@ declare(strict_types=1);
 
 require_once(__DIR__ . '/session.php');
 
-function csrf_token()
+function csrf_token(): string
 {
     if (session_status() === PHP_SESSION_NONE) {
         session_start_secured();
@@ -19,7 +19,7 @@ function csrf_token()
 }
 
 // Hidden field ready to embed in POST forms
-function csrf_input()
+function csrf_input(): string
 {
     return '<input type="hidden" name="csrf_token" value="' . csrf_token() . '">';
 }
@@ -39,7 +39,7 @@ function csrf_rotate(): void
 }
 
 // Validates the token sent by POST and returns a boolean.
-function csrf_valid($token): bool
+function csrf_valid(mixed $token): bool
 {
     if (session_status() === PHP_SESSION_NONE) {
         session_start_secured();

@@ -21,6 +21,8 @@ declare(strict_types=1);
 // "too many attempts" (M14). Both cases deny the action (fail-closed) and log
 // the error.
 
+require_once __DIR__ . '/hashing.php';
+
 enum RateLimitResult
 {
     case Allowed;
@@ -67,6 +69,9 @@ function trusted_proxy_ranges(): array
     return $ranges;
 }
 
+/**
+ * @param list<string> $ranges
+ */
 function ip_in_ranges(string $ip, array $ranges): bool
 {
     foreach ($ranges as $range) {
@@ -181,11 +186,12 @@ function client_ip(): string
  *
  * Including the window in the hash lets the table keep the current and the
  * previous bucket as separate rows without changing the primary key. The
- * sliding-window estimate then weighs both buckets (ROB-09).
+ * sliding-window estimate then weighs both buckets (ROB-09). The digest is
+ * keyed when OPNG_HASH_KEY is configured (SEC-21).
  */
 function rate_limit_window_hash(string $key, int $window_start): string
 {
-    return hash('sha256', $key . '|' . $window_start);
+    return opng_hash_identifier($key . '|' . $window_start);
 }
 
 /**

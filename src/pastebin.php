@@ -1,13 +1,10 @@
 <?php
+
+require_once __DIR__ . '/bootstrap.php';
 // Creation form. Refactor: centralized session/CSRF/rules.
-require("includes/session.php");
 session_start_secured();
-require("includes/db.php");
-require("includes/csrf.php");
 require("includes/rules.php");
-require("includes/http_input.php");
-require("includes/error_messages.php");
-require("includes/assets.php");
+require_once("includes/entry_access.php");
 require_once("includes/captcha.php");
 
 $asset_version = opng_asset_version();
@@ -65,6 +62,33 @@ require(__DIR__ . "/includes/layout_header.php");
             <progress class="length-meter-bar" max="1048576" value="0" aria-label="Paste length" data-i18n-aria-label="length_meter_label"></progress>
             <span class="length-meter-text"><span class="length-meter-value">1.00</span> <span data-i18n="length_mb_remaining">MB remaining</span></span>
         </div>
+
+        <fieldset class="access-options">
+            <legend data-i18n="access_options">Access and lifetime</legend>
+            <label for="input_visibility" data-i18n="visibility_label">Visibility:</label>
+            <select id="input_visibility" name="visibility">
+                <?php foreach (entry_visibility_options() as $value => $label_key): ?>
+                <option value="<?php echo htmlspecialchars($value, ENT_QUOTES, 'UTF-8'); ?>" data-i18n="<?php echo htmlspecialchars($label_key, ENT_QUOTES, 'UTF-8'); ?>">
+                    <?php echo htmlspecialchars(ucfirst($value), ENT_QUOTES, 'UTF-8'); ?>
+                </option>
+                <?php endforeach; ?>
+            </select>
+            <p class="form-help" data-i18n="visibility_help">Unlisted entries are reachable only by link. Private entries are visible to their author and administrators.</p>
+
+            <label for="input_expiry" data-i18n="expiry_label">Expires:</label>
+            <select id="input_expiry" name="expiry">
+                <?php foreach (entry_expiry_options() as $value => $label_key): ?>
+                <option value="<?php echo htmlspecialchars($value, ENT_QUOTES, 'UTF-8'); ?>" data-i18n="<?php echo htmlspecialchars($label_key, ENT_QUOTES, 'UTF-8'); ?>">
+                    <?php echo htmlspecialchars($value === 'never' ? 'Never' : $value, ENT_QUOTES, 'UTF-8'); ?>
+                </option>
+                <?php endforeach; ?>
+            </select>
+
+            <label for="input_protection_password" data-i18n="protection_password_label">Password protection (optional):</label>
+            <input id="input_protection_password" type="password" name="protection_password" maxlength="72" autocomplete="new-password">
+            <p class="form-help" data-i18n="protection_password_help">Minimum 4 characters. Replies inherit this protection automatically.</p>
+        </fieldset>
+
         <?php if ($is_guest): ?>
         <?php captcha_render('auth/captcha.php'); ?>
         <?php endif; ?>
