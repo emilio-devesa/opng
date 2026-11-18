@@ -1166,6 +1166,38 @@ legend {
     color: var(--text);
 }
 
+.access-options {
+    margin-top: 1rem;
+}
+
+.admin-tools-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0 0 1.25rem;
+}
+
+.admin-tools-nav a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.25rem;
+    padding: 0.35rem 0.85rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text);
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.admin-tools-nav a:hover,
+.admin-tools-nav a:focus-visible {
+    background: var(--surface-2);
+    color: var(--accent);
+    text-decoration: none;
+}
+
 .admin-search-form {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
