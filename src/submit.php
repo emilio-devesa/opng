@@ -1,16 +1,13 @@
 <?php
+
+require_once __DIR__ . '/bootstrap.php';
 // Handles the create/reply POST. Refactor: centralized session/CSRF/rules.
-require("includes/session.php");
 session_start_secured();
-require("includes/csrf.php");
 require("includes/rules.php");
-require("includes/db.php");
 require("includes/ratelimit.php");
 require("includes/paste_validation.php");
 require("includes/user_quota.php");
 require("includes/admin_metrics.php");
-require("includes/http_input.php");
-require("includes/error_messages.php");
 require("includes/thread.php");
 require_once("includes/entry_access.php");
 require_once("includes/account_role.php");

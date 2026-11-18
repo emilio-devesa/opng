@@ -5,7 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/entry_access.php';
 
 /**
- * @return array{id: string, date: string|null}|null
+ * @return array{id: string, date: string}|null
  */
 function decode_entry_cursor(mixed $value): ?array
 {
@@ -36,34 +36,36 @@ function decode_entry_cursor(mixed $value): ?array
         || !is_string($payload['id'])
         || $payload['id'] === ''
         || strlen($payload['id']) > 1020
-        || !array_key_exists('date', $payload)
-        || ($payload['date'] !== null && !is_string($payload['date']))
+        || !isset($payload['date'])
+        || !is_string($payload['date'])
     ) {
         return null;
     }
 
+    // entries.date is NOT NULL in the migrated schema and install.php rewrites
+    // legacy NULL dates, so a cursor without a valid date is never produced by
+    // this version and is rejected instead of keeping dead query branches
+    // (PERF-08/ROB-10).
     $date = $payload['date'];
-    if ($date !== null && $date !== '0000-00-00 00:00:00') {
-        if (strlen($date) !== 19) {
-            return null;
-        }
+    if (strlen($date) !== 19) {
+        return null;
+    }
 
-        $parsed_date = DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $date);
-        $date_errors = DateTimeImmutable::getLastErrors();
-        if (
-            $parsed_date === false
-            || ($date_errors !== false && ($date_errors['warning_count'] > 0 || $date_errors['error_count'] > 0))
-            || $parsed_date->format('Y-m-d H:i:s') !== $date
-        ) {
-            return null;
-        }
+    $parsed_date = DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $date);
+    $date_errors = DateTimeImmutable::getLastErrors();
+    if (
+        $parsed_date === false
+        || ($date_errors !== false && ($date_errors['warning_count'] > 0 || $date_errors['error_count'] > 0))
+        || $parsed_date->format('Y-m-d H:i:s') !== $date
+    ) {
+        return null;
     }
 
     return ['id' => $payload['id'], 'date' => $date];
 }
 
 /**
- * @param array{id: string, date: string|null} $cursor
+ * @param array{id: string, date: string} $cursor
  */
 function encode_entry_cursor(array $cursor): string
 {
@@ -73,28 +75,14 @@ function encode_entry_cursor(array $cursor): string
 }
 
 /**
- * @param array{id: string, date: string|null} $cursor
+ * @param array{id: string, date: string} $cursor
  * @return array{sql: string, params: list<string>}
  */
 function entry_cursor_condition(array $cursor, string $direction): array
 {
-    if ($cursor['date'] === null) {
-        if ($direction === 'older') {
-            return [
-                'sql' => '(entries.date IS NULL AND entries.id < ?)',
-                'params' => [$cursor['id']],
-            ];
-        }
-
-        return [
-            'sql' => '(entries.date IS NOT NULL OR (entries.date IS NULL AND entries.id > ?))',
-            'params' => [$cursor['id']],
-        ];
-    }
-
     if ($direction === 'older') {
         return [
-            'sql' => '(entries.date < ? OR entries.date IS NULL OR (entries.date = ? AND entries.id < ?))',
+            'sql' => '(entries.date < ? OR (entries.date = ? AND entries.id < ?))',
             'params' => [$cursor['date'], $cursor['date'], $cursor['id']],
         ];
     }
@@ -135,16 +123,6 @@ function decode_listing_cursor(mixed $value): ?array
         || preg_match('/\A[A-Za-z0-9_-]+\z/', $value) !== 1
     ) {
         return null;
-    }
-
-    $legacy_cursor = decode_entry_cursor($value);
-    if ($legacy_cursor !== null) {
-        return [
-            'sort' => 'date',
-            'order' => 'desc',
-            'value' => $legacy_cursor['date'] ?? '0000-00-00 00:00:00',
-            'id' => $legacy_cursor['id'],
-        ];
     }
 
     $base64 = strtr($value, '-_', '+/');

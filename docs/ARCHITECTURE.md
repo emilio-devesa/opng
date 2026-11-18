@@ -4,6 +4,17 @@ This document records the ordering rules that the write paths depend on. They
 are part of the correctness contract, not implementation detail: changing one
 flow without the others can reintroduce deadlocks (ROB-15) or quota drift.
 
+## Entry points and bootstrap
+
+Web entry points load `src/bootstrap.php` once. It registers a lightweight
+autoloader for `Opng\` classes (`src/classes/`) and loads the foundation
+libraries: version/requirements, session, input validation, error messages,
+i18n, logging, assets, CSRF, icons, hashing and the database helper. Domain
+modules (auth, MFA, captcha, pagination, backups, ...) stay in the entry point
+that needs them, so the load order is explicit without repeating the same
+foundation list in every file. The legacy `src/database.php` wrapper was
+removed; `database_connect()` lives in `src/includes/db.php` and never runs DDL.
+
 ## Global lock order
 
 Every web flow that writes more than one row takes InnoDB row locks in this
@@ -173,6 +184,16 @@ large admin backup.
   `admin/external_backup*.php`, `tools/backup_external.php`): local or
   S3-compatible targets, SHA-256 checksums, retention, optional local
   AES-256-GCM encryption and disposable-schema restore verification.
+
+## Error documents and UI polish
+
+`src/404.php` and `src/500.php` render the shared layout and the localized
+catalog without touching the database. Apache (`ErrorDocument`) and the
+container Nginx (`error_page`/`try_files`) route unmatched URLs and server
+errors to them. Header actions use decorative inline SVG (`includes/icons.php`)
+instead of emoji, and the code view offers a three-step font-size control that
+persists a CSS class in `localStorage`; `@media print` removes navigation and
+controls so pastes print cleanly.
 
 ## Regression coverage
 

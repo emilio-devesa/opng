@@ -1,16 +1,11 @@
 <?php
-require("../includes/session.php");
+
+require_once __DIR__ . '/../bootstrap.php';
 session_start_secured();
-require("../includes/csrf.php");
 require("../includes/ratelimit.php");
 require("../includes/password_validation.php");
-require("../includes/http_input.php");
-require("../includes/error_messages.php");
-require("../includes/assets.php");
 require("../includes/admin_metrics.php");
 require_once("../includes/captcha.php");
-require("../database.php");
-
 if (!in_array($_SERVER["REQUEST_METHOD"], ["GET", "POST"], true)) {
     http_response_code(405);
     header("Allow: GET, POST");

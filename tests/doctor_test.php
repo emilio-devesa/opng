@@ -42,6 +42,7 @@ $base = [
     'dev_reset' => null,
     'install_creds' => false,
     'https' => true,
+    'hash_key' => base64_encode(str_repeat('h', 32)),
 ];
 
 $results = opng_doctor_checks($base);
@@ -50,7 +51,7 @@ expect_doctor(
     $summary[OPNG_DOCTOR_FAIL] === 0
         && $summary[OPNG_DOCTOR_WARN] === 0
         && $summary[OPNG_DOCTOR_SKIP] === 0
-        && count($results) === 12,
+        && count($results) === 13,
     'a healthy production context passes every check',
     $failures
 );
@@ -71,6 +72,7 @@ expect_doctor(
         && ($by_id['https'] ?? null) === OPNG_DOCTOR_OK
         && ($by_id['mail_transport'] ?? null) === OPNG_DOCTOR_OK
         && ($by_id['mfa_key'] ?? null) === OPNG_DOCTOR_OK
+        && ($by_id['hash_key'] ?? null) === OPNG_DOCTOR_OK
         && ($by_id['external_backup'] ?? null) === OPNG_DOCTOR_OK,
     'the checklist reports every required deployment control',
     $failures
@@ -105,6 +107,16 @@ $cases = [
     'plain HTTP fails' => [
         array_replace($base, ['https' => false]),
         'https',
+        OPNG_DOCTOR_FAIL,
+    ],
+    'a missing hashing key is a warning' => [
+        array_replace($base, ['hash_key' => null]),
+        'hash_key',
+        OPNG_DOCTOR_WARN,
+    ],
+    'invalid hashing key material fails' => [
+        array_replace($base, ['hash_key' => 'too-short']),
+        'hash_key',
         OPNG_DOCTOR_FAIL,
     ],
     'a pending migration fails' => [

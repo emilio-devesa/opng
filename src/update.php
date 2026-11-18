@@ -1,19 +1,16 @@
 <?php
 
+require_once __DIR__ . '/bootstrap.php';
+
 // Real paste editing (UPDATE).
 // Only the paste author or an administrator may do it.
-require("includes/session.php");
 session_start_secured();
-require("includes/db.php");
-require("includes/csrf.php");
 require("includes/rules.php");
 require("includes/paste_validation.php");
 require("includes/paste_permissions.php");
 require("includes/user_quota.php");
 require("includes/admin_metrics.php");
-require("includes/http_input.php");
 require("includes/account_role.php");
-require("includes/error_messages.php");
 require_once("includes/entry_access.php");
 
 // ------------------ Validaciones de seguridad ------------------

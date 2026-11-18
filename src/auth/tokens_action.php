@@ -2,20 +2,15 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/../bootstrap.php';
+
 // auth/tokens_action.php
 // Create or revoke one of the current account's API tokens (10.4).
-
-require_once('../includes/session.php');
 session_start_secured();
-require_once('../includes/csrf.php');
-require_once('../includes/http_input.php');
-require_once('../includes/error_messages.php');
 require_once('../includes/admin_guard.php');
 require_once('../includes/reauth.php');
 require_once('../includes/api_tokens.php');
 require_once('../includes/audit_log.php');
-require_once('../database.php');
-
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     header('Allow: POST');

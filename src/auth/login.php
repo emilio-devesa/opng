@@ -1,17 +1,12 @@
 <?php
-require("../includes/session.php");
+
+require_once __DIR__ . '/../bootstrap.php';
 session_start_secured();
-require("../includes/csrf.php");
 require("../includes/ratelimit.php");
-require("../includes/http_input.php");
 require_once("../includes/captcha.php");
 require_once("../includes/password_reset.php");
 require_once("../includes/auth.php");
 require_once("../includes/mfa.php");
-
-require("../database.php");
-require("../includes/error_messages.php");
-require("../includes/assets.php");
 require_once("../includes/audit_log.php");
 
 $asset_version = opng_asset_version();

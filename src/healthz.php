@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/bootstrap.php';
 // healthz.php
 // Cheap, unauthenticated health check for the container and monitoring (ROB-06).
 //
@@ -6,8 +8,6 @@
 // headroom are usable, or 503 {"status":"error"} without leaking credentials or
 // server internals. The schema version is only included when the request sends
 // the OPNG_HEALTHZ_DETAIL_TOKEN as an Authorization: Bearer token (SEC-26).
-
-require(__DIR__ . '/includes/db.php');
 require(__DIR__ . '/includes/user_quota.php');
 require(__DIR__ . '/includes/healthz.php');
 

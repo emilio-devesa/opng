@@ -19,6 +19,9 @@ if (!is_string($htaccess)) {
 } else {
     contains_all('src/.htaccess', $htaccess, [
         'RewriteRule ^includes',
+        'RewriteRule ^classes',
+        'ErrorDocument 404 /404.php',
+        'ErrorDocument 500 /500.php',
         'RewriteRule ^install\\.php$',
         'Strict-Transport-Security',
         'Cache-Control "public, max-age=31536000, immutable"',
@@ -36,6 +39,9 @@ if (!is_string($apache_htaccess)) {
     $failures[] = 'deploy/apache/htaccess is missing';
 } else {
     contains_all('deploy/apache/htaccess', $apache_htaccess, [
+        'RewriteRule ^classes',
+        'ErrorDocument 404 /404.php',
+        'ErrorDocument 500 /500.php',
         'Strict-Transport-Security',
         "form-action 'self'",
         'Permissions-Policy',
@@ -61,6 +67,7 @@ if (!is_string($nginx)) {
 } else {
     contains_all('deploy/nginx/opng.conf', $nginx, [
         'location ^~ /includes/',
+        'location ^~ /classes/',
         'location = /install.php',
         'tests|tools|database|deploy|docs',
         'Strict-Transport-Security',
@@ -76,6 +83,7 @@ if (!is_string($apple_nginx)) {
     $failures[] = 'deploy/apple-container/nginx.conf is missing';
 } else {
     contains_all('deploy/apple-container/nginx.conf', $apple_nginx, [
+        'location ^~ /classes/',
         "form-action 'self'",
         'Permissions-Policy',
         'Cross-Origin-Opener-Policy',

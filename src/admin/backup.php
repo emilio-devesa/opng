@@ -1,15 +1,11 @@
 <?php
-require_once('../includes/session.php');
+
+require_once __DIR__ . '/../bootstrap.php';
 session_start_secured();
-require_once('../includes/csrf.php');
-require_once('../includes/http_input.php');
 require_once('../includes/admin_guard.php');
 require_once('../includes/reauth.php');
 require_once('../includes/sql_backup.php');
 require_once('../includes/audit_log.php');
-require_once('../database.php');
-require_once("../includes/error_messages.php");
-
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     header('Allow: POST');
@@ -28,7 +24,7 @@ if (!$db) {
 $session_user_id = require_admin($db, 'backup.php');
 
 // A valid CSRF token is not proof that the account owner approved downloading
-// password hashes and reset tokens (SEC-07).
+// password hashes (SEC-07). Password-reset tokens are redacted from the dump.
 $current_password = http_string_parameter($_POST, 'current_password', 72, false);
 $mfa_code = http_string_parameter($_POST, 'mfa_code', 32, false);
 $reauth = reauthenticate_user($db, $session_user_id, $current_password, 'admin_reauth_backup', $mfa_code);

@@ -1,17 +1,13 @@
 <?php
+
+require_once __DIR__ . '/../bootstrap.php';
 // Administration panel.
-require("../includes/session.php");
 session_start_secured();
-require("../includes/csrf.php");
-require("../database.php");
-require("../includes/http_input.php");
 require("../includes/admin_guard.php");
 require("../includes/topic_search.php");
 require("../includes/pagination_cursor.php");
 require("../includes/admin_metrics.php");
 require("../includes/user_quota.php");
-require("../includes/assets.php");
-
 $asset_version = opng_asset_version();
 
 $db = database_connect();

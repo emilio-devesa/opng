@@ -1,22 +1,16 @@
 <?php
+
+require_once __DIR__ . '/bootstrap.php';
 // Paste view.
 //   - "Edit" (real UPDATE): only visible to the author or an admin → update.php (U1)
 //   - "Reply" (creates a new RE: paste): always available → submit.php
-require("includes/session.php");
 session_start_secured();
-require("includes/db.php");
-require("includes/csrf.php");
 require("includes/rules.php");
 require("includes/paste_permissions.php");
-require("includes/http_input.php");
 require("includes/account_role.php");
-require("includes/error_messages.php");
-require("includes/assets.php");
 require("includes/thread.php");
 require_once("includes/entry_access.php");
 require_once("includes/pagination_cursor.php");
-require_once("includes/i18n.php");
-
 $asset_version = opng_asset_version();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
@@ -321,6 +315,12 @@ require(__DIR__ . "/includes/layout_header.php");
                 <span id="highlight-error-message" data-i18n="highlight_error" hidden>The paste could not be highlighted.</span>
             </div>
             <?php endif; ?>
+            <div class="code-font-controls" role="group" aria-label="Code font size" data-i18n-aria-label="code_font_size">
+                <span class="code-font-label" data-i18n="code_font_size">Code font size</span>
+                <button type="button" class="code-font-decrease" aria-label="Decrease code font size" title="Decrease code font size" data-i18n-aria-label="font_smaller" data-i18n-title="font_smaller">A−</button>
+                <button type="button" class="code-font-reset" aria-label="Reset code font size" title="Reset code font size" data-i18n-aria-label="font_reset" data-i18n-title="font_reset">A</button>
+                <button type="button" class="code-font-increase" aria-label="Increase code font size" title="Increase code font size" data-i18n-aria-label="font_larger" data-i18n-title="font_larger">A+</button>
+            </div>
             <div class="paste-actions">
                 <div class="copy-controls">
                     <button id="copy-button" type="button" data-i18n="copy" class="copy-button">Copy</button>
@@ -330,7 +330,7 @@ require(__DIR__ . "/includes/layout_header.php");
                 </div>
                 <?php if ($can_delete): ?>
                 <button type="button" class="danger delete-paste-open" data-delete-paste-open aria-haspopup="dialog" aria-controls="delete-paste-dialog">
-                    <span aria-hidden="true">🗑️</span>
+                    <?php echo opng_icon('trash'); ?>
                     <span data-i18n="delete_paste">Delete Paste</span>
                 </button>
                 <?php endif; ?>
@@ -354,7 +354,7 @@ require(__DIR__ . "/includes/layout_header.php");
                     <div class="delete-paste-dialog-actions">
                         <button type="button" class="delete-paste-cancel" data-delete-paste-close data-i18n="cancel">Cancel</button>
                         <button type="submit" class="danger">
-                            <span aria-hidden="true">🗑️</span>
+                            <?php echo opng_icon('trash'); ?>
                             <span data-i18n="delete_paste">Delete Paste</span>
                         </button>
                     </div>
@@ -593,6 +593,7 @@ require(__DIR__ . "/includes/layout_header.php");
     <script src="assets/vendor/highlight.min.js?v=<?php echo $asset_version; ?>" defer></script>
     <?php endif; ?>
     <script src="assets/js/copy.js?v=<?php echo $asset_version; ?>" defer></script>
+    <script src="assets/js/code-font-size.js?v=<?php echo $asset_version; ?>" defer></script>
     <?php if ($show_line_numbers): ?>
     <script src="assets/js/line-gutter.js?v=<?php echo $asset_version; ?>" defer></script>
     <?php endif; ?>

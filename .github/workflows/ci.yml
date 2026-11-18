@@ -44,6 +44,9 @@ jobs:
       - name: Startup doctor regression test
         run: php tests/doctor_test.php
 
+      - name: Keyed identifier hashing regression test
+        run: php tests/hashing_test.php
+
       - name: Input limits regression test
         run: php tests/input_validation_test.php
 
@@ -67,6 +70,12 @@ jobs:
 
       - name: Audit log regression test
         run: php tests/audit_log_test.php
+
+      - name: Bootstrap and autoloader regression test
+        run: php tests/bootstrap_test.php
+
+      - name: Custom error document regression test
+        run: php tests/error_pages_test.php
 
       - name: Change-password contract regression test
         run: php tests/change_password_test.php

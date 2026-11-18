@@ -93,8 +93,9 @@ foreach ([
     'fastcgi_pass 127.0.0.1:9000;',
     'fastcgi_param HTTPS off;',
     'client_max_body_size 4m;',
-    'location ~ ^/(config\\.php|config\\.example\\.php|database\\.php|rules\\.xml)',
+    'location ~ ^/(config\\.php|config\\.example\\.php|rules\\.xml)',
     'location ^~ /includes/',
+    'location ^~ /classes/',
     'location = /install.php',
     'location ~ ^/(tests|tools|database|deploy|docs)/',
     'location ~ /\\.(?!well-known)',
@@ -152,6 +153,17 @@ foreach ([
 expect_container(
     !str_contains($entrypoint, 'OPNG_DB_ROOT_PASSWORD'),
     'entrypoint.sh never reads the MariaDB root password',
+    $failures
+);
+expect_container(
+    str_contains($entrypoint, 'WARNING: OPNG_AUTO_MIGRATE=1 without OPNG_INSTALL_DB_USER/OPNG_INSTALL_DB_PASS')
+        && str_contains($entrypoint, 'runtime account will keep DDL'),
+    'entrypoint.sh warns when auto-migration reuses the runtime account (SEC-25)',
+    $failures
+);
+expect_container(
+    (bool) preg_match('/if \[ -z "\$\{OPNG_INSTALL_DB_USER:-\}" \].*?OPNG_INSTALL_DB_PASS/s', $entrypoint),
+    'entrypoint.sh checks both OPNG_INSTALL_DB_USER and OPNG_INSTALL_DB_PASS before migrating',
     $failures
 );
 

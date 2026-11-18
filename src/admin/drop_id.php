@@ -1,13 +1,10 @@
 <?php
+
+require_once __DIR__ . '/../bootstrap.php';
 // Paste deletion (soft delete). The whole thread moves to the trash (10.3).
-require_once('../includes/session.php');
 session_start_secured();
-require_once('../includes/csrf.php');
-require_once('../database.php');
-require_once('../includes/http_input.php');
 require_once('../includes/admin_guard.php');
 require_once('../includes/reauth.php');
-require_once("../includes/error_messages.php");
 require_once('../includes/admin_metrics.php');
 require_once('../includes/audit_log.php');
 require_once('../includes/user_quota.php');

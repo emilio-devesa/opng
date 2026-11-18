@@ -780,6 +780,84 @@ if (
     $failures[] = 'The create link must use a color-inheriting plus glyph, not an emoji';
 }
 
+$layout_header_source = file_get_contents($root . '/src/includes/layout_header.php');
+$icons_source = file_get_contents($root . '/src/includes/icons.php');
+if (
+    !is_string($layout_header_source)
+    || !str_contains($layout_header_source, 'opng_icon(')
+    || str_contains($layout_header_source, '🏠')
+    || str_contains($layout_header_source, '🌙')
+    || str_contains($layout_header_source, '🔒')
+    || str_contains($layout_header_source, '🔑')
+    || str_contains($layout_header_source, '🚪')
+    || str_contains($layout_header_source, '🔐')
+    || str_contains($layout_header_source, '📝')
+    || str_contains($layout_header_source, '🔎')
+    || str_contains($layout_header_source, 'ⓘ')
+) {
+    $failures[] = 'Header actions must use inline SVG icons instead of emoji (UX-08)';
+}
+if (
+    !is_string($icons_source)
+    || !str_contains($icons_source, 'aria-hidden="true"')
+    || !str_contains($icons_source, 'focusable="false"')
+    || !str_contains($icons_source, 'stroke="currentColor"')
+) {
+    $failures[] = 'Inline icons must be decorative, non-focusable and inherit the text color (UX-08)';
+}
+if (
+    !is_string($dark_mode_script)
+    || str_contains($dark_mode_script, '☀️')
+    || str_contains($dark_mode_script, '🌙')
+    || str_contains($dark_mode_script, 'themeToggle.textContent')
+) {
+    $failures[] = 'The theme toggle must swap SVG icons through CSS, not rewrite emoji text (UX-08)';
+}
+
+$catalog_dark_labels = [];
+foreach (glob($root . '/src/assets/lang/*.json') ?: [] as $catalog_file) {
+    $catalog = json_decode((string) file_get_contents($catalog_file), true);
+    if (is_array($catalog)) {
+        $catalog_dark_labels[] = (string) ($catalog['dark_mode'] ?? '');
+        $catalog_dark_labels[] = (string) ($catalog['light_mode'] ?? '');
+    }
+}
+if (
+    $catalog_dark_labels === []
+    || preg_match('/[\x{1F300}-\x{1FAFF}]/u', implode(' ', $catalog_dark_labels)) === 1
+) {
+    $failures[] = 'Theme labels must not depend on emoji to convey state (UX-08)';
+}
+
+$styles = file_get_contents($root . '/src/main.css');
+if (
+    !is_string($styles)
+    || !str_contains($styles, '@media print')
+    || !str_contains($styles, 'html.code-font-small .code-view pre')
+    || !str_contains($styles, 'html.code-font-large .code-view pre')
+    || !str_contains($styles, '#theme-toggle .theme-icon-light')
+) {
+    $failures[] = 'Print styles and code font-size classes are missing from the stylesheet (UX-10)';
+}
+$code_font_script = file_get_contents($root . '/src/assets/js/code-font-size.js');
+if (
+    !is_string($code_font_script)
+    || !str_contains($code_font_script, 'localStorage')
+    || !str_contains($code_font_script, 'code-font-')
+    || !str_contains($code_font_script, 'classList')
+) {
+    $failures[] = 'The code font-size control must persist a CSS class without inline styles (UX-10)';
+}
+$view_source = file_get_contents($root . '/src/view.php');
+if (
+    !is_string($view_source)
+    || !str_contains($view_source, 'code-font-controls')
+    || !str_contains($view_source, 'code-font-size.js')
+    || str_contains($view_source, '🗑️')
+) {
+    $failures[] = 'The view must expose the code font-size control and use SVG trash icons (UX-08/UX-10)';
+}
+
 $version_source = file_get_contents($root . '/src/includes/version.php');
 $footer_layout = file_get_contents($root . '/src/includes/layout_footer.php');
 if (

@@ -88,6 +88,9 @@ function db_connect(): ?mysqli
     return $conn;
 }
 
-// Alias kept for compatibility with existing code
-// that still calls database_connect() from database.php.
-// NOTE: since v0.8 THIS FUNCTION DOES NOT MIGRATE (see src/install.php).
+// Public connection helper used by entry points and tools. It never runs DDL:
+// the schema is created and migrated by src/install.php at deploy time.
+function database_connect(): ?mysqli
+{
+    return db_connect();
+}

@@ -1,13 +1,9 @@
 <?php
+
+require_once __DIR__ . '/bootstrap.php';
 // Creation form. Refactor: centralized session/CSRF/rules.
-require("includes/session.php");
 session_start_secured();
-require("includes/db.php");
-require("includes/csrf.php");
 require("includes/rules.php");
-require("includes/http_input.php");
-require("includes/error_messages.php");
-require("includes/assets.php");
 require_once("includes/entry_access.php");
 require_once("includes/captcha.php");
 

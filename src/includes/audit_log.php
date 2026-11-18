@@ -6,30 +6,33 @@ declare(strict_types=1);
 // Persistent audit trail for sensitive administrative actions (M5).
 //
 // The table stores the acting account, a short action identifier, an optional
-// target description, a SHA-256 hash of the client IP (never the address in
+// target description, a keyed hash of the client IP (never the address in
 // clear) and the timestamp. Logging is best-effort: a failure is written to
 // the application log but never rolls back the administrative action itself.
 
 require_once(__DIR__ . '/ratelimit.php');
+require_once(__DIR__ . '/hashing.php');
 
 /**
  * Hash the client IP the same way the rate limiter does.
  *
  * client_ip() honours OPNG_TRUSTED_PROXIES and X-Forwarded-For, so audit
  * events and rate-limit buckets use the same address behind a proxy (SEC-22).
+ * The digest is keyed when OPNG_HASH_KEY is configured (SEC-21).
  */
 function audit_log_ip_hash(): string
 {
-    return hash('sha256', client_ip());
+    return opng_hash_identifier(client_ip());
 }
 
 /**
  * Hash an email address before writing it to the audit target column. The
  * audit log must never store account identifiers in clear text (SEC-14).
+ * The digest is keyed when OPNG_HASH_KEY is configured (SEC-21).
  */
 function audit_log_email_target(string $email): string
 {
-    return 'email:' . hash('sha256', strtolower(trim($email)));
+    return 'email:' . opng_hash_identifier(strtolower(trim($email)));
 }
 
 /**

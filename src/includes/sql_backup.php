@@ -127,13 +127,19 @@ function sql_backup_dump(
             "-- Open Pastebin NG SQL backup\n"
             . '-- Source database: ' . $safe_database_name . "\n"
             . '-- Created: ' . gmdate('Y-m-d H:i:s') . " UTC\n"
-            . "-- Contains database structure and rows, including password hashes and reset tokens.\n"
+            . "-- Contains database structure and rows, including password hashes.\n"
+            . "-- Password-reset tokens are exported as NULL and must be reissued.\n"
             . "-- Store this file securely. Import it into a chosen database, for example:\n"
             . "--   mysql <target-database> < backup.sql\n"
             . "-- Importing it drops and recreates the listed tables.\n\n"
             . "SET NAMES utf8mb4;\n"
             . "SET FOREIGN_KEY_CHECKS=0;\n\n"
         );
+
+        // Password-reset tokens are bearer credentials: a restored backup must
+        // not keep working reset links alive (SEC-15). They are nullable, so
+        // replacing them with NULL is valid for every supported schema.
+        $redacted_columns = ['reset_token' => true, 'reset_token_expires' => true];
 
         foreach ($tables as $table_name) {
             $quoted_table = '`' . str_replace('`', '``', $table_name) . '`';
@@ -161,7 +167,11 @@ function sql_backup_dump(
             while ($row = $result->fetch_assoc()) {
                 $values = [];
                 foreach ($fields as $field) {
-                    $values[] = sql_backup_value($row[$field->name] ?? null, $field->type);
+                    $column_name = $field->name;
+                    $cell = isset($redacted_columns[$column_name])
+                        ? null
+                        : ($row[$column_name] ?? null);
+                    $values[] = sql_backup_value($cell, $field->type);
                 }
                 $tuple = '(' . implode(', ', $values) . ')';
                 $batch_rows[] = $tuple;

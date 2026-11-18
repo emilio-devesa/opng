@@ -2,19 +2,17 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/../../bootstrap.php';
+
 // api/v1/index.php
 // Read-only public API (10.4).
 //
 // Authentication: `Authorization: Bearer opng_...` with the `read` scope.
 // The v1 surface deliberately exposes only public entries; private and
 // unlisted threads are never returned by the API.
-
-require_once('../../database.php');
 require_once('../../includes/api_tokens.php');
 require_once('../../includes/entry_access.php');
-require_once('../../includes/logging.php');
 require_once('../../includes/ratelimit.php');
-require_once('../../includes/http_input.php');
 require_once('../../includes/topic_search.php');
 
 header('Content-Type: application/json; charset=utf-8');

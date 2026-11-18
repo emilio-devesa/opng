@@ -119,6 +119,33 @@
 - Added `tests/mfa_test.php`, `tests/entry_visibility_test.php`, `tests/external_backup_test.php`, `tests/api_contract_test.php`, `tests/frontend_phase13_test.php`, `tests/trash_integration_test.php` and `tests/api_token_integration_test.php`; extended the doctor, password-reset, session, audit, quota, schema-drift, migration and query-plan tests.
 - Added 153 translation keys to all six catalogs (now 440 keys each) and updated the README, architecture, security, backup/restore and upgrade guides.
 
+### Remaining audit closure (SEC-21, SEC-25, SEC-15, PERF-08, ROB-10, ROB-13, UX-08, UX-10, HYG-08, HYG-09)
+#### 🔐 Identifier hashing (SEC-21)
+- Added `includes/hashing.php`: audit targets, client IPs and rate-limit keys use HMAC-SHA-256 when `OPNG_HASH_KEY` is configured (32+ raw bytes or base64). The unkeyed SHA-256 fallback keeps existing rows and development installs working; the doctor fails on invalid key material and warns while the key is missing.
+
+#### 🐳 Container migration warning (SEC-25)
+- The Apple Container entrypoint logs a warning when `OPNG_AUTO_MIGRATE=1` is used without `OPNG_INSTALL_DB_USER`/`OPNG_INSTALL_DB_PASS`, so operators know the runtime account keeps DDL. A contract test covers the warning and the docs describe the two-account flow.
+
+#### 💾 Backup redaction (SEC-15)
+- `sql_backup_dump()` exports `reset_token` and `reset_token_expires` as `NULL`; a restored database never keeps a pending reset link alive. The download remains CSRF-protected, reauthenticated and served with `no-store`, and external backups can still be encrypted.
+
+#### 🧹 Dead code and cursor cleanup (PERF-08, ROB-10, HYG-09)
+- Removed the legacy listing-cursor fallback, the `date IS NULL` cursor branches, the redundant `src/database.php` wrapper and other dead compatibility paths. `database_connect()` now lives in `src/includes/db.php`; old cursors are rejected and users restart pagination.
+
+#### 🛑 Custom error documents (ROB-13)
+- Added `src/404.php` and `src/500.php`, localized in all six catalogs and wired through Apache `ErrorDocument` and container Nginx `error_page`. The pages use the shared layout, set the correct status and never expose exception details.
+
+#### ♿ Icons and reading comfort (UX-08, UX-10)
+- Header and delete actions use decorative inline SVG icons (`includes/icons.php`) with the existing accessible labels; theme labels no longer contain emoji and the toggle swaps icons through CSS.
+- Added `@media print` styles and a three-step code font-size control that persists a CSS class in `localStorage` without inline styles or CSP exceptions.
+
+#### 🧱 Bootstrap and autoloader (HYG-08)
+- Added `src/bootstrap.php`: it registers a lightweight `Opng\` class autoloader (`src/classes/`) and loads the foundation libraries once. Web entry points now require the bootstrap instead of repeating the same fragile require list; domain modules stay explicit.
+
+#### 🧪 Tests and docs
+- Added `tests/hashing_test.php`, `tests/bootstrap_test.php` and `tests/error_pages_test.php`; extended the doctor, audit, backup, pagination, frontend and container contract tests and wired the new tests into CI.
+- Added `OPNG_HASH_KEY` to the example configuration and container environment, and updated the README, SECURITY, ARCHITECTURE, BACKUP-RESTORE, APPLE-CONTAINER and UPGRADING guides.
+
 ## Version 1.1.0 (2026-11-10)
 
 ### Phase 7 — Code hygiene

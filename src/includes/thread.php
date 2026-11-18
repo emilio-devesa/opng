@@ -108,7 +108,7 @@ function thread_position(?array $parent, string $new_id): array
  * root_id = NULL, and excludes the normal case where the root already belongs
  * to the first branch, so no row is duplicated.
  *
- * @param array{id: string, date: string|null}|null $cursor
+ * @param array{id: string, date: string}|null $cursor
  * @return array{sql: string, types: string, params: list<string>}
  */
 function thread_page_query(string $root_id, ?array $cursor = null): array
@@ -158,7 +158,7 @@ function thread_page_query(string $root_id, ?array $cursor = null): array
 /**
  * Fetch one chronological page of a thread.
  *
- * @param array{id: string, date: string|null}|null $cursor
+ * @param array{id: string, date: string}|null $cursor
  * @return array{
  *   nodes: list<array{id: string, parent_id: string|null, root_id: string|null, depth: int, topic: string, date: string, username: string, guest: bool}>,
  *   truncated: bool,

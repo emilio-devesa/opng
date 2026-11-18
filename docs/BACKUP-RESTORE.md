@@ -29,6 +29,11 @@ either limit is reached. If the dump fails mid-way, the helper rolls the
 read-only snapshot back before rethrowing, so an interrupted backup never keeps
 a transaction open.
 
+Password-reset tokens (`reset_token`, `reset_token_expires`) are exported as
+`NULL`. A restored database therefore never keeps a pending reset link alive;
+users must request a new one. Password hashes remain in the dump, so treat the
+file as a secret.
+
 ### Very large databases
 
 The PHP helper is deliberately portable and has no `mysqldump` dependency. For

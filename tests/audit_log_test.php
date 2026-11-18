@@ -2,6 +2,10 @@
 
 require __DIR__ . '/../src/includes/audit_log.php';
 
+// The assertions below cover the unkeyed fallback. hashing_test.php covers
+// the HMAC path when OPNG_HASH_KEY is configured.
+putenv('OPNG_HASH_KEY');
+
 $root = dirname(__DIR__);
 $failures = [];
 

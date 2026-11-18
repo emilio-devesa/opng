@@ -16,6 +16,7 @@ require_once __DIR__ . '/requirements.php';
 require_once __DIR__ . '/mailer.php';
 require_once __DIR__ . '/mfa.php';
 require_once __DIR__ . '/external_backup.php';
+require_once __DIR__ . '/hashing.php';
 
 const OPNG_DOCTOR_OK = 'ok';
 const OPNG_DOCTOR_WARN = 'warn';
@@ -310,6 +311,37 @@ function opng_doctor_checks(array $context): array
             'MFA encryption key',
             OPNG_DOCTOR_OK,
             $mfa_active . ' administrator(s) currently have MFA enabled.'
+        );
+    }
+
+    // Pseudonymous identifiers (SEC-21): audit targets, client IPs and
+    // rate-limit keys are stored as digests. Without a key the fallback is a
+    // plain SHA-256, which is reversible for low-entropy values.
+    $hash_key_raw = array_key_exists('hash_key', $context)
+        ? $context['hash_key']
+        : getenv('OPNG_HASH_KEY');
+    $hash_key_valid = opng_hash_decode_key($hash_key_raw) !== null;
+    $hash_key_present = is_string($hash_key_raw) && trim($hash_key_raw) !== '';
+    if ($hash_key_present && !$hash_key_valid) {
+        $results[] = opng_doctor_result(
+            'hash_key',
+            'Hashing key',
+            OPNG_DOCTOR_FAIL,
+            'OPNG_HASH_KEY is set but does not provide at least 32 bytes (raw or base64).'
+        );
+    } elseif (!$hash_key_valid) {
+        $results[] = opng_doctor_result(
+            'hash_key',
+            'Hashing key',
+            OPNG_DOCTOR_WARN,
+            'OPNG_HASH_KEY is not set; audit and rate-limit identifiers use an unkeyed SHA-256 that can be reversed for IP addresses and emails.'
+        );
+    } else {
+        $results[] = opng_doctor_result(
+            'hash_key',
+            'Hashing key',
+            OPNG_DOCTOR_OK,
+            'Audit and rate-limit identifiers use a keyed HMAC-SHA-256 digest.'
         );
     }
 

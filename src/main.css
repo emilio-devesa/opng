@@ -2467,6 +2467,66 @@ footer .back-to-top:hover {
 }
 
 /* ========================= */
+/* ICONOS SVG (UX-08) */
+/* ========================= */
+.icon {
+    width: 1.25em;
+    height: 1.25em;
+    flex: none;
+    vertical-align: -0.15em;
+}
+
+#theme-toggle .theme-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#theme-toggle .theme-icon-light {
+    display: none;
+}
+
+body.dark-mode #theme-toggle .theme-icon-dark {
+    display: none;
+}
+
+body.dark-mode #theme-toggle .theme-icon-light {
+    display: inline-flex;
+}
+
+/* ========================= */
+/* TAMAÑO DEL CÓDIGO (UX-10) */
+/* ========================= */
+.code-font-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0.75rem 0 0;
+}
+
+.code-font-label {
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+.code-font-controls button {
+    min-width: 2.25rem;
+    min-height: 2.25rem;
+    padding: 0.2rem 0.5rem;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+}
+
+html.code-font-small .code-view pre {
+    font-size: 0.72rem;
+}
+
+html.code-font-large .code-view pre {
+    font-size: 1.05rem;
+}
+
+/* ========================= */
 /* ACCESIBILIDAD */
 /* ========================= */
 @media (prefers-reduced-motion: reduce) {
@@ -2477,3 +2537,59 @@ footer .back-to-top:hover {
         animation: none !important;
     }
 }
+
+/* ========================= */
+/* IMPRESIÓN (UX-10) */
+/* ========================= */
+@media print {
+    #SiteHeader,
+    footer,
+    .skip-link,
+    .search-form,
+    .paste-actions,
+    .highlight-controls,
+    .code-font-controls,
+    .history-back,
+    dialog,
+    .back-to-top {
+        display: none !important;
+    }
+
+    body {
+        background: #fff !important;
+        color: #000 !important;
+    }
+
+    main,
+    .box,
+    .code-view {
+        border-color: #999 !important;
+        box-shadow: none !important;
+    }
+
+    .code-view {
+        display: block !important;
+    }
+
+    .code-view .line-numbers {
+        display: none !important;
+    }
+
+    .code-view pre {
+        overflow: visible !important;
+        white-space: pre-wrap !important;
+        overflow-wrap: anywhere;
+        font-size: 10pt !important;
+    }
+
+    a {
+        color: #000 !important;
+        text-decoration: underline;
+    }
+
+    a[href^="http"]::after {
+        content: " (" attr(href) ")";
+        font-size: 0.8em;
+    }
+}
+

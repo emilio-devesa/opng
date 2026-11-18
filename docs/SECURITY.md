@@ -91,8 +91,11 @@ should upgrade using [UPGRADING.md](UPGRADING.md).
   reauthentication plus explicit confirmation checkboxes for destructive admin
   actions, and generic authentication errors are built in. Do not disable them.
 - The audit log records destructive admin actions, authentication events and
-  backup downloads with hashed IPs and hashed email targets. Review it during
-  incident response; prune it with `tools/audit_prune.php`
+  backup downloads with hashed IPs and hashed email targets. Set
+  `OPNG_HASH_KEY` (32+ raw bytes or base64) so those identifiers use
+  HMAC-SHA-256 instead of an unkeyed SHA-256 that is reversible for IP addresses
+  and emails; the doctor warns while the key is missing. Review the audit log
+  during incident response; prune it with `tools/audit_prune.php`
   (`OPNG_AUDIT_RETENTION_DAYS`, default 90). Request-time pruning is limited to
   one 1,000-row batch and runs after the business transaction commits. The
   administrator viewer (`admin/audit.php`) filters by action, actor and date and
@@ -132,10 +135,12 @@ should upgrade using [UPGRADING.md](UPGRADING.md).
 ### Backups
 
 - Back up daily, verify checksums and test a restore regularly.
-- Backups contain password hashes, reset tokens, encrypted MFA secrets and audit
-  data. Encrypt them at rest, restrict permissions, keep copies off the host and
-  never put them in the document root. The MFA key is not part of the database
-  backup; losing it makes enrolled TOTP secrets unreadable.
+- Backups contain password hashes, encrypted MFA secrets and audit data.
+  Password-reset tokens are exported as `NULL`, so pending reset links never
+  survive a restore and must be reissued. Encrypt backups at rest, restrict
+  permissions, keep copies off the host and never put them in the document root.
+  The MFA key is not part of the database backup; losing it makes enrolled TOTP
+  secrets unreadable.
 - The restore tool refuses dumps with `CREATE DATABASE`/`USE` unless explicitly
   allowed, verifies checksums and requires interactive confirmation.
 - `tools/backup_external.php` writes to `OPNG_BACKUP_DIR` or uploads to an
@@ -159,6 +164,11 @@ should upgrade using [UPGRADING.md](UPGRADING.md).
   minimal capability set is sufficient on engines that support it.
 - Never bake secrets into the image. Use `--env-file` with mode `0600` or the
   host secret store.
+- `OPNG_AUTO_MIGRATE=1` warns at startup when `OPNG_INSTALL_DB_USER` or
+  `OPNG_INSTALL_DB_PASS` is missing. In production, provide a dedicated
+  migration account so the runtime account can keep DML-only privileges; the
+  warning is intentional and the container still starts for single-account
+  development deployments.
 
 ## Known limitations
 

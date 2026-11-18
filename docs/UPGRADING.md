@@ -123,6 +123,17 @@ Configure the Phase 13 services before enabling them:
 - MFA: `OPNG_MFA_KEY` as described above. The lowest-id administrator must
   enroll on the next login; other administrators may enroll from the security
   page.
+- Identifiers: set `OPNG_HASH_KEY` to 32+ raw bytes or base64 (`openssl rand
+  -base64 32`). Audit targets, client IPs and rate-limit keys switch to
+  HMAC-SHA-256; existing unkeyed rows keep working, and the doctor warns while
+  the key is missing.
+- Bootstrap: entry points now load `src/bootstrap.php` instead of repeating the
+  foundation requires. The redundant `src/database.php` wrapper was removed;
+  custom integrations should require `src/includes/db.php` and call
+  `database_connect()`.
+- Pagination: cursors produced before this release are rejected when they lack
+  the current sort/date fields. Users simply restart pagination; no data
+  changes.
 - Trash: `OPNG_TRASH_RETENTION_DAYS` (default 7) and a cron entry for
   `php tools/trash_purge.php`.
 - External backups: `OPNG_BACKUP_TARGET`, `OPNG_BACKUP_DIR` or

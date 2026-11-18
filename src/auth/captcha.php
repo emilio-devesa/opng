@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../bootstrap.php';
 // auth/captcha.php
 // Local CAPTCHA generated with GD (S7).
 //
@@ -12,13 +14,9 @@
 // Requires no external services or keys. When a TTF font is available
 // (DejaVu on Linux, Arial on macOS) it is used to rotate the characters;
 // otherwise the scaled GD bitmap font is used instead.
-
-require(__DIR__ . '/../includes/session.php');
 session_start_secured();
 require_once(__DIR__ . '/../includes/captcha.php');
 require_once(__DIR__ . '/../includes/ratelimit.php');
-require_once(__DIR__ . '/../database.php');
-
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     http_response_code(405);
     header('Allow: GET');

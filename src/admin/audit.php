@@ -2,21 +2,13 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/../bootstrap.php';
+
 // admin/audit.php
 // Audit trail viewer and operational observability panel (10.6).
-
-require_once('../includes/session.php');
 session_start_secured();
-require_once('../includes/csrf.php');
-require_once('../includes/http_input.php');
-require_once('../includes/error_messages.php');
-require_once('../includes/assets.php');
 require_once('../includes/admin_guard.php');
 require_once('../includes/audit_log.php');
-require_once('../includes/logging.php');
-require_once('../includes/i18n.php');
-require_once('../database.php');
-
 $asset_version = opng_asset_version();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {

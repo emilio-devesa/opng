@@ -1,9 +1,7 @@
 <?php
-require(__DIR__ . '/includes/session.php');
-session_start_secured();
-require(__DIR__ . '/includes/http_input.php');
-require(__DIR__ . '/includes/error_messages.php');
 
+require_once __DIR__ . '/bootstrap.php';
+session_start_secured();
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     http_response_code(405);
     header('Allow: GET');

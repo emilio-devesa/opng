@@ -39,7 +39,14 @@ Edit `deploy/apple-container/opng.env`:
   Set it to `1` only when a TLS proxy terminates HTTPS in front of the app;
   otherwise the session cookie is marked `Secure` and login fails.
 - Set `OPNG_PUBLIC_URL` to the URL users actually open.
-- `OPNG_AUTO_MIGRATE=1` runs the idempotent installer on start: it creates the\n  baseline schema on a fresh volume and applies pending migrations on later\n  boots. Set a separate `OPNG_INSTALL_DB_*` account if you do not want the\n  application account to keep DDL privileges.
+- `OPNG_AUTO_MIGRATE=1` runs the idempotent installer on start: it creates the
+  baseline schema on a fresh volume and applies pending migrations on later
+  boots. Set a separate `OPNG_INSTALL_DB_USER`/`OPNG_INSTALL_DB_PASS` account if
+  you do not want the application account to keep DDL privileges. When those
+  variables are missing, the entrypoint logs a warning and reuses the runtime
+  account for the migration.
+- Set `OPNG_HASH_KEY` (`openssl rand -base64 32`) so audit and rate-limit
+  identifiers use HMAC-SHA-256. The doctor warns while it is missing.
 
 The file contains secrets. It is excluded from the image context
 (`.containerignore`/`.dockerignore`) and must never be committed. Remove

@@ -8,9 +8,15 @@
 # Compatible con Apache 2.4 (mod_authz_host).
 # ------------------------------------------------------------------
 
-<FilesMatch "^(config\.php|config\.example\.php|database\.php|rules\.xml)$">
+<FilesMatch "^(config\.php|config\.example\.php|rules\.xml)$">
     Require all denied
 </FilesMatch>
+
+# ------------------------------------------------------------------
+# Custom error documents (ROB-13).
+# ------------------------------------------------------------------
+ErrorDocument 404 /404.php
+ErrorDocument 500 /500.php
 
 # ------------------------------------------------------------------
 # Internal directories and development files must never be served.
@@ -20,6 +26,7 @@
 <IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteRule ^includes(?:/|$) - [R=404,L]
+    RewriteRule ^classes(?:/|$) - [R=404,L]
     RewriteRule ^(?:tests|tools|database|deploy|docs)(?:/|$) - [R=404,L]
     RewriteRule ^install\.php$ - [R=404,L]
     RewriteRule ^\. - [R=404,L]

@@ -60,10 +60,10 @@ if (is_string($source)) {
         $failures
     );
     expect_health(
-        str_contains($source, "require(__DIR__ . '/includes/db.php')")
+        str_contains($source, "require_once __DIR__ . '/bootstrap.php'")
             && str_contains($source, "require(__DIR__ . '/includes/user_quota.php')")
             && !str_contains($source, 'admin_guard'),
-        'the endpoint is unauthenticated and independent from admin guards',
+        'the endpoint is unauthenticated, uses the shared bootstrap and stays independent from admin guards',
         $failures
     );
 }

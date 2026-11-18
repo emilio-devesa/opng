@@ -2,19 +2,13 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/../bootstrap.php';
+
 // auth/trash.php
 // Author-facing trash with restore (10.3).
-
-require_once('../includes/session.php');
 session_start_secured();
-require_once('../includes/csrf.php');
-require_once('../includes/http_input.php');
-require_once('../includes/error_messages.php');
-require_once('../includes/assets.php');
 require_once('../includes/admin_guard.php');
 require_once('../includes/trash.php');
-require_once('../database.php');
-
 $asset_version = opng_asset_version();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {

@@ -22,6 +22,7 @@ if (isset($page_title_i18n) && is_string($page_title_i18n)) {
 }
 require_once(__DIR__ . '/csrf.php');
 require_once(__DIR__ . '/i18n.php');
+require_once(__DIR__ . '/icons.php');
 require_once(__DIR__ . '/logging.php');
 opng_send_request_id_header();
 // The locale cookie/Accept-Language wins over page-local hard-coded values so
@@ -54,9 +55,9 @@ ob_start();
         <div class="header-top">
             <p class="site-name" data-i18n="title_index">Open Pastebin NG</p>
             <div class="header-actions">
-                <a class="header-home" href="<?php echo $base; ?>index.php" aria-label="Home" title="Home" data-i18n-aria-label="home" data-i18n-title="home">🏠</a>
+                <a class="header-home" href="<?php echo $base; ?>index.php" aria-label="Home" title="Home" data-i18n-aria-label="home" data-i18n-title="home"><?php echo opng_icon('home'); ?></a>
                 <div class="header-tools">
-                    <button id="theme-toggle" type="button" data-i18n-aria-label="dark_mode" data-i18n-title="dark_mode" aria-label="Dark mode" title="Dark mode">🌙</button>
+                    <button id="theme-toggle" type="button" data-i18n-aria-label="dark_mode" data-i18n-title="dark_mode" aria-label="Dark mode" title="Dark mode"><span class="theme-icon theme-icon-dark"><?php echo opng_icon('moon'); ?></span><span class="theme-icon theme-icon-light"><?php echo opng_icon('sun'); ?></span></button>
                     <label class="visually-hidden" for="language-selector" data-i18n="language_selector_label">Select language</label>
                     <span class="language-select-wrap">
                         <select id="language-selector">
@@ -71,27 +72,27 @@ ob_start();
                 </div>
                 <?php if ($logged_in && ($_SESSION['role'] ?? '') === 'admin') : ?>
                 <nav class="header-nav" aria-label="Account navigation" data-i18n-aria-label="account_navigation">
-                    <a href="<?php echo $base; ?>admin/admin.php" aria-label="Admin" title="Admin" data-i18n-aria-label="admin" data-i18n-title="admin">🛠️</a>
-                    <a href="<?php echo $base; ?>auth/security.php" aria-label="Account security" title="Account security" data-i18n-aria-label="security_title" data-i18n-title="security_title">🔒</a>
-                    <a href="<?php echo $base; ?>auth/change_password.php" aria-label="Change password" title="Change password" data-i18n-aria-label="change_password" data-i18n-title="change_password">🔑</a>
+                    <a href="<?php echo $base; ?>admin/admin.php" aria-label="Admin" title="Admin" data-i18n-aria-label="admin" data-i18n-title="admin"><?php echo opng_icon('admin'); ?></a>
+                    <a href="<?php echo $base; ?>auth/security.php" aria-label="Account security" title="Account security" data-i18n-aria-label="security_title" data-i18n-title="security_title"><?php echo opng_icon('lock'); ?></a>
+                    <a href="<?php echo $base; ?>auth/change_password.php" aria-label="Change password" title="Change password" data-i18n-aria-label="change_password" data-i18n-title="change_password"><?php echo opng_icon('key'); ?></a>
                     <form method="post" action="<?php echo $base; ?>auth/logout.php" class="logout-form">
                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($logout_csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
-                        <button type="submit" aria-label="Logout" title="Logout" data-i18n-aria-label="logout" data-i18n-title="logout">🚪</button>
+                        <button type="submit" aria-label="Logout" title="Logout" data-i18n-aria-label="logout" data-i18n-title="logout"><?php echo opng_icon('logout'); ?></button>
                     </form>
                 </nav>
                 <?php elseif ($logged_in) : ?>
                 <nav class="header-nav" aria-label="Account navigation" data-i18n-aria-label="account_navigation">
-                    <a href="<?php echo $base; ?>auth/security.php" aria-label="Account security" title="Account security" data-i18n-aria-label="security_title" data-i18n-title="security_title">🔒</a>
-                    <a href="<?php echo $base; ?>auth/change_password.php" aria-label="Change password" title="Change password" data-i18n-aria-label="change_password" data-i18n-title="change_password">🔑</a>
+                    <a href="<?php echo $base; ?>auth/security.php" aria-label="Account security" title="Account security" data-i18n-aria-label="security_title" data-i18n-title="security_title"><?php echo opng_icon('lock'); ?></a>
+                    <a href="<?php echo $base; ?>auth/change_password.php" aria-label="Change password" title="Change password" data-i18n-aria-label="change_password" data-i18n-title="change_password"><?php echo opng_icon('key'); ?></a>
                     <form method="post" action="<?php echo $base; ?>auth/logout.php" class="logout-form">
                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($logout_csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
-                        <button type="submit" aria-label="Logout" title="Logout" data-i18n-aria-label="logout" data-i18n-title="logout">🚪</button>
+                        <button type="submit" aria-label="Logout" title="Logout" data-i18n-aria-label="logout" data-i18n-title="logout"><?php echo opng_icon('logout'); ?></button>
                     </form>
                 </nav>
                 <?php else : ?>
                 <nav class="header-nav" aria-label="Account navigation" data-i18n-aria-label="account_navigation">
-                    <a href="<?php echo $base; ?>auth/login.php" aria-label="Login" title="Login" data-i18n-aria-label="login" data-i18n-title="login">🔐</a>
-                    <a href="<?php echo $base; ?>auth/register.php" aria-label="Register" title="Register" data-i18n-aria-label="register" data-i18n-title="register">📝</a>
+                    <a href="<?php echo $base; ?>auth/login.php" aria-label="Login" title="Login" data-i18n-aria-label="login" data-i18n-title="login"><?php echo opng_icon('login'); ?></a>
+                    <a href="<?php echo $base; ?>auth/register.php" aria-label="Register" title="Register" data-i18n-aria-label="register" data-i18n-title="register"><?php echo opng_icon('register'); ?></a>
                 </nav>
                 <?php endif; ?>
             </div>
@@ -101,11 +102,11 @@ ob_start();
             <label class="visually-hidden" for="header-search" data-i18n="search_by_topic">Search by topic</label>
             <div class="search-input-wrap">
                 <input id="header-search" type="text" name="q" maxlength="255" aria-describedby="header-search-help" placeholder="Search by topic..." data-i18n-placeholder="search_placeholder" value="<?php echo htmlspecialchars($q ?? '', ENT_QUOTES, 'UTF-8'); ?>">
-                <button class="search-clear" type="button" aria-label="Clear search" title="Clear search" data-i18n-aria-label="search_clear" data-i18n-title="search_clear"<?php echo empty($q) ? ' hidden' : ''; ?>>×</button>
-                <button class="search-help-trigger" type="button" aria-label="Search help" title="Search help" aria-expanded="false" aria-controls="header-search-help" data-i18n-aria-label="search_help_label" data-i18n-title="search_help_label">ⓘ</button>
+                <button class="search-clear" type="button" aria-label="Clear search" title="Clear search" data-i18n-aria-label="search_clear" data-i18n-title="search_clear"<?php echo empty($q) ? ' hidden' : ''; ?>><?php echo opng_icon('close'); ?></button>
+                <button class="search-help-trigger" type="button" aria-label="Search help" title="Search help" aria-expanded="false" aria-controls="header-search-help" data-i18n-aria-label="search_help_label" data-i18n-title="search_help_label"><?php echo opng_icon('info'); ?></button>
                 <span id="header-search-help" class="search-help-tooltip" role="note" data-i18n="search_help">All words must match; word beginnings are supported. Short words or stopwords may be ignored.</span>
             </div>
-            <button type="submit" aria-label="Search" title="Search" data-i18n-aria-label="search" data-i18n-title="search">🔎</button>
+            <button type="submit" aria-label="Search" title="Search" data-i18n-aria-label="search" data-i18n-title="search"><?php echo opng_icon('search'); ?></button>
         </form>
         <?php endif; ?>
     </header>

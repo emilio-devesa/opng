@@ -26,7 +26,8 @@
         }
 
         // Reuse the catalog language.js has already fetched. The server renders
-        // the initial label, so no extra request is needed here (PERF-16).
+        // the initial label and the CSS swaps the moon/sun SVG, so no extra
+        // request is needed here (PERF-16, UX-08).
         function updateThemeButtonText(catalog) {
             const shared = window.opngLanguageCatalog;
             const data = catalog || (shared && shared.data);
@@ -34,9 +35,7 @@
 
             const isDark = document.body.classList.contains("dark-mode");
             const label = isDark ? data.light_mode : data.dark_mode;
-            const emoji = isDark ? "☀️" : "🌙";
             if (label) {
-                themeToggle.textContent = emoji;
                 themeToggle.setAttribute("aria-label", label);
                 themeToggle.setAttribute("title", label);
             }

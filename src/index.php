@@ -1,14 +1,10 @@
 <?php
+
+require_once __DIR__ . '/bootstrap.php';
 // Listing with cursor pagination and FULLTEXT topic search.
-require("includes/session.php");
 session_start_secured();
-require("includes/db.php");
 require("includes/topic_search.php");
 require_once("includes/pagination_cursor.php");
-require("includes/http_input.php");
-require("includes/error_messages.php");
-require("includes/i18n.php");
-
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     http_response_code(405);
     header('Allow: GET');
