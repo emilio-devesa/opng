@@ -1825,14 +1825,18 @@ legend {
 /* CONTROLES DE TEMA / IDIOMA */
 /* ========================= */
 #theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     min-width: 2.75rem;
     min-height: 2.75rem;
-    padding: 0.35rem;
+    padding: 0;
     border-radius: 999px;
     background: var(--control-bg);
     color: var(--text);
     border: 1px solid var(--control-border);
     box-shadow: var(--control-shadow);
+    line-height: 1;
 }
 
 #theme-toggle:hover {
@@ -2480,6 +2484,7 @@ footer .back-to-top:hover {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    line-height: 0;
 }
 
 #theme-toggle .theme-icon-light {
