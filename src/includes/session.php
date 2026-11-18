@@ -42,8 +42,12 @@ function session_start_secured(): void
     ini_set('session.cookie_httponly', '1');
     // 48 hex-equivalent characters with the largest entropy alphabet. This
     // raises the guessing cost without changing the session API (SEC-13).
-    ini_set('session.sid_length', '48');
-    ini_set('session.sid_bits_per_character', '6');
+    // PHP 8.4 generates 128-bit session IDs and deprecates both settings, so
+    // only older releases need the explicit override.
+    if (PHP_VERSION_ID < 80400) {
+        ini_set('session.sid_length', '48');
+        ini_set('session.sid_bits_per_character', '6');
+    }
 
     // `__Host-` requires Secure, Path=/ and no Domain, so it is only valid on
     // HTTPS. Plain-HTTP development keeps the unprefixed name. PHP's session

@@ -44,11 +44,17 @@ if (session_name() !== '__Host-opng_session') {
 }
 echo "PASS: HTTPS sessions use the __Host- cookie prefix\n";
 
-if (ini_get('session.sid_length') !== '48' || ini_get('session.sid_bits_per_character') !== '6') {
-    fwrite(STDERR, "FAIL: the session ID entropy settings were not raised\n");
-    exit(1);
+if (PHP_VERSION_ID < 80400) {
+    if (ini_get('session.sid_length') !== '48' || ini_get('session.sid_bits_per_character') !== '6') {
+        fwrite(STDERR, "FAIL: the session ID entropy settings were not raised\n");
+        exit(1);
+    }
+    echo "PASS: session ID length and entropy are raised\n";
+} else {
+    // PHP 8.4+ generates 128-bit session IDs itself and deprecates both INI
+    // settings; session.php must not touch them there.
+    echo "PASS: PHP 8.4+ native session ID entropy is used\n";
 }
-echo "PASS: session ID length and entropy are raised\n";
 
 $_SESSION['csrf_token'] = str_repeat('a', 64);
 csrf_rotate();
