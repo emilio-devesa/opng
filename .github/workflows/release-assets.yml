@@ -1,0 +1,132 @@
+name: Release assets
+
+# Manual workflow that (re)builds the classic shared-hosting artifacts for an
+# existing release and attaches them to the matching GitHub Release.
+#
+# The tag-triggered workflow in release.yml creates the release with generated
+# notes. Use this workflow when the release exists but the assets are missing,
+# or when an artifact has to be rebuilt without moving the tag.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to build and attach assets to (for example v1.2.0)'
+        required: true
+        default: 'v1.2.0'
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-assets-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  classic:
+    name: Build classic assets for ${{ inputs.tag }}
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag }}
+    steps:
+      - name: Check out the release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: gd, mbstring, mysqli, zip
+          coverage: none
+
+      - name: Verify the tag matches OPNG_VERSION
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          declared="$(sed -n "s/.*define('OPNG_VERSION', '\([^']*\)').*/\1/p" src/includes/version.php | head -n 1)"
+          if [ "$version" != "$declared" ]; then
+            echo "::error::Tag $TAG does not match OPNG_VERSION $declared"
+            exit 1
+          fi
+          echo "Building $version from tag $TAG"
+
+      - name: Check that the release exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::No GitHub Release found for tag $TAG. Create the release first."
+            exit 1
+          fi
+
+      - name: Run release contracts
+        run: |
+          set -e
+          cp src/config.example.php src/config.php
+          php tests/release_contract_test.php
+          php tests/frontend_contract_test.php
+          php tests/doctor_test.php
+          php tests/deployment_config_test.php
+
+      - name: Build the classic archive
+        run: |
+          set -euo pipefail
+          bash tools/build_release.sh --version "${TAG#v}"
+
+      - name: Verify the artifacts
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          zip="dist/opng-${version}-classic.zip"
+          tar="dist/opng-${version}-classic.tar.gz"
+
+          test -s "$zip"
+          test -s "$tar"
+          test -s dist/SHA256SUMS
+
+          if unzip -Z1 "$zip" | grep -qx 'opng-'"${version}"'/src/config.php'; then
+            echo "::error::$zip contains the real src/config.php"
+            exit 1
+          fi
+          unzip -Z1 "$zip" | grep -qx 'opng-'"${version}"'/src/config.example.php'
+          tar -tzf "$tar" | grep -qx 'opng-'"${version}"'/src/config.example.php'
+
+          ( cd dist && sha256sum -c SHA256SUMS )
+
+      - name: Summarize the artifacts
+        run: |
+          set -euo pipefail
+          {
+            echo "### Release assets for ${TAG}"
+            echo
+            echo '```'
+            cat dist/SHA256SUMS
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the artifacts as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: classic-release-${{ inputs.tag }}
+          path: |
+            dist/opng-*-classic.zip
+            dist/opng-*-classic.tar.gz
+            dist/SHA256SUMS
+          if-no-files-found: error
+
+      - name: Attach the assets to the GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          files: |
+            dist/opng-*-classic.zip
+            dist/opng-*-classic.tar.gz
+            dist/SHA256SUMS
+          fail_on_unmatched_files: true
+          overwrite_files: true
+          generate_release_notes: false

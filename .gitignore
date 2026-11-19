@@ -7,6 +7,9 @@ src/config.php
 .phpstan.cache/
 phpstan-result-cache/
 
+# Release build output
+/dist/
+
 # OS / editor noise
 .DS_Store
 *.log
