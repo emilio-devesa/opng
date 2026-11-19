@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Open Pastebin NG — self-hosted pastebin for text and code</title>
-<meta name="description" content="Open Pastebin NG is a fast, self-hosted pastebin for sharing text and code. Syntax highlighting, threaded replies, roles, audit log, backups and no external dependencies.">
+<meta name="description" content="Open Pastebin NG is a fast, self-hosted pastebin for sharing text and code. Syntax highlighting, threaded replies, roles, account recovery, MFA, a read-only API, audit log and backups, with no external dependencies.">
 <meta name="theme-color" content="#0f172a">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Open Pastebin NG — self-hosted pastebin for text and code">
-<meta property="og:description" content="A fast, self-hosted pastebin with syntax highlighting, threaded replies, roles, audit log and backups. PHP + MySQL, no external CDN.">
+<meta property="og:description" content="A fast, self-hosted pastebin with syntax highlighting, threaded replies, roles, account recovery, MFA, a read-only API, audit log and backups. PHP + MySQL, no external CDN.">
 <meta property="og:url" content="https://emilio-devesa.github.io/opng/">
 <meta property="og:image" content="https://emilio-devesa.github.io/opng/assets/screenshots/opng-homepage.jpg">
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
@@ -58,12 +58,13 @@
   <section class="hero">
     <div class="wrap hero-grid">
       <div class="hero-copy">
-        <p class="badge"><span class="badge-dot" aria-hidden="true"></span> v1.1.0 · Stable release</p>
+        <p class="badge"><span class="badge-dot" aria-hidden="true"></span> v1.2.0 · Stable release</p>
         <h1>Share text and code.<br><span class="accent">Own the server.</span></h1>
         <p class="lead">
           Open Pastebin NG is a lightweight, self-hosted pastebin for teams and
-          individuals. Syntax highlighting, threaded replies, roles, an audit log
-          and backups — all in plain PHP and MySQL.
+          individuals. Syntax highlighting, threaded replies, roles, account
+          recovery, MFA, a read-only API, an audit log and backups — all in plain
+          PHP and MySQL.
         </p>
         <div class="hero-actions">
           <a class="button primary" href="https://github.com/emilio-devesa/opng">
@@ -100,7 +101,7 @@
             <svg viewBox="0 0 24 24"><path d="m8 6-6 6 6 6M16 6l6 6-6 6M14 4l-4 16"/></svg>
           </span>
           <h3>Local syntax highlighting</h3>
-          <p>PHP, Ruby, Bash, Python, Pascal, Java, C and C++ highlighted in the browser. Line numbers, one-click copy and accessible feedback.</p>
+          <p>PHP, Ruby, Bash, Python, Pascal, Java, C and C++ highlighted locally. Progressive Web Worker rendering, virtualized line numbers, one-click copy and a code-size control.</p>
         </article>
 
         <article class="feature">
@@ -116,7 +117,7 @@
             <svg viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 5 3.4 8.4 8 9 4.6-.6 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg>
           </span>
           <h3>Roles and permissions</h3>
-          <p>Admin, registered user and guest access. Self-service password changes, session invalidation, rate limits and CSRF protection.</p>
+          <p>Admin, registered user and guest access, with optional TOTP MFA. Self-service password changes, session invalidation, rate limits and CSRF protection.</p>
         </article>
 
         <article class="feature">
@@ -124,7 +125,7 @@
             <svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>
           </span>
           <h3>Auditable admin panel</h3>
-          <p>Compact action cards and centred confirmation dialogs for destructive actions. Metrics, storage progress and a collapsible audit log.</p>
+          <p>Metrics, storage progress, an audit viewer with filters, rate-limit and quota panels, trash and API-token management, plus centred confirmation dialogs.</p>
         </article>
 
         <article class="feature">
@@ -132,7 +133,7 @@
             <svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 21h16"/></svg>
           </span>
           <h3>Portable backups</h3>
-          <p>Download a bounded SQL dump from the admin panel or CLI. Restore it explicitly into any database, with password reauthentication on every download.</p>
+          <p>Bounded SQL dumps from the admin panel or CLI, plus external S3-compatible backups with checksums, retention and optional AES-256-GCM encryption.</p>
         </article>
 
         <article class="feature">
@@ -157,6 +158,38 @@
           </span>
           <h3>Storage quotas</h3>
           <p>A global paste-text quota with a progress chart in Metrics, plus near-quota warnings before new pastes are rejected.</p>
+        </article>
+
+        <article class="feature">
+          <span class="feature-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/></svg>
+          </span>
+          <h3>Account recovery</h3>
+          <p>Password reset by email with a pluggable SMTP, sendmail or development log transport. Localized templates and audit events.</p>
+        </article>
+
+        <article class="feature">
+          <span class="feature-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><circle cx="8" cy="12" r="4"/><path d="M12 12h9M17 12v4M20 12v3"/></svg>
+          </span>
+          <h3>Read-only API</h3>
+          <p>Personal tokens with scopes, expiry and revocation. Read entries over <code>GET /api/v1/...</code> with per-token limits.</p>
+        </article>
+
+        <article class="feature">
+          <span class="feature-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+          </span>
+          <h3>Visibility and expiry</h3>
+          <p>Public, unlisted or private entries, absolute expiry and Argon2id password protection with per-thread unlock.</p>
+        </article>
+
+        <article class="feature">
+          <span class="feature-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/></svg>
+          </span>
+          <h3>Trash and retention</h3>
+          <p>Thread-level trash and restore for authors and administrators, with configurable retention and a scheduled purge command.</p>
         </article>
       </div>
     </div>
@@ -253,7 +286,7 @@ bash deploy/apple-container/start.sh --build
         </a>
         <a class="doc-card" href="https://github.com/emilio-devesa/opng/blob/main/docs/UPGRADING.md">
           <h3>Upgrading</h3>
-          <p>Back up first, then migrate from 0.9.x or 1.0.x with the versioned schema migrations.</p>
+          <p>Back up first, then migrate from 0.9.x, 1.0.x or 1.1.x with the versioned schema migrations.</p>
           <span aria-hidden="true">Read the guide →</span>
         </a>
         <a class="doc-card" href="https://github.com/emilio-devesa/opng/blob/main/docs/BACKUP-RESTORE.md">
@@ -273,7 +306,7 @@ bash deploy/apple-container/start.sh --build
         </a>
         <a class="doc-card" href="https://github.com/emilio-devesa/opng/blob/main/CHANGELOG.md">
           <h3>Changelog</h3>
-          <p>Every release, including the v1.1.0 admin-panel workflow and documentation updates.</p>
+          <p>Every release, including the v1.2.0 account recovery, MFA, API and observability features.</p>
           <span aria-hidden="true">Read the changelog →</span>
         </a>
       </div>
@@ -296,7 +329,7 @@ bash deploy/apple-container/start.sh --build
 
 <footer class="site-footer">
   <div class="wrap footer-inner">
-    <p>© 2026 Emilio Devesa · Open Pastebin NG v1.1.0</p>
+    <p>© 2026 Emilio Devesa · Open Pastebin NG v1.2.0</p>
     <nav aria-label="Footer navigation">
       <a href="https://github.com/emilio-devesa/opng">GitHub</a>
       <a href="https://github.com/emilio-devesa/opng/blob/main/LICENSE">GPL license</a>
