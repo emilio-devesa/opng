@@ -5,9 +5,9 @@
 This project is based on **[Open Pastebin](http://sourceforge.net/projects/openpastebin/)**. All you need is a **web server with PHP and MySQL**.
 Open Pastebin NG is **free software** released under the **[GNU GPL license](LICENSE)**.
 
-⚠️ **Open Pastebin NG v1.1.0 is the current stable release.** Back up your database and review [`docs/UPGRADING.md`](docs/UPGRADING.md) before upgrading from 1.0.x or 0.9.x.
+⚠️ **Open Pastebin NG v1.2.0 is the current stable release.** Back up your database and review [`docs/UPGRADING.md`](docs/UPGRADING.md) before upgrading from 1.1.x, 1.0.x or 0.9.x.
 
-**Current version:** `1.1.0` (see [`src/includes/version.php`](src/includes/version.php) and [`CHANGELOG.md`](CHANGELOG.md)).
+**Current version:** `1.2.0` (see [`src/includes/version.php`](src/includes/version.php) and [`CHANGELOG.md`](CHANGELOG.md)).
 
 **Project website:** <https://emilio-devesa.github.io/opng/>
 

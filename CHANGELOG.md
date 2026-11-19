@@ -1,7 +1,7 @@
 # Open Pastebin NG - Changelog
 ============================
 
-## Version 1.2.0 (in development)
+## Version 1.2.0 (2026-11-18)
 
 ### Phase 8 — Security and UX fixes
 #### 🔐 Authentication and anti-abuse
