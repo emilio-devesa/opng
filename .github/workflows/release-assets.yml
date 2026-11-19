@@ -89,12 +89,17 @@ jobs:
           test -s "$tar"
           test -s dist/SHA256SUMS
 
-          if unzip -Z1 "$zip" | grep -qx 'opng-'"${version}"'/src/config.php'; then
+          # Write the listings to files: piping into `grep -q` closes the pipe
+          # early and `pipefail` would turn the resulting SIGPIPE into a failure.
+          unzip -Z1 "$zip" > /tmp/opng-zip-list.txt
+          tar -tzf "$tar" > /tmp/opng-tar-list.txt
+
+          if grep -qx "opng-${version}/src/config.php" /tmp/opng-zip-list.txt; then
             echo "::error::$zip contains the real src/config.php"
             exit 1
           fi
-          unzip -Z1 "$zip" | grep -qx 'opng-'"${version}"'/src/config.example.php'
-          tar -tzf "$tar" | grep -qx 'opng-'"${version}"'/src/config.example.php'
+          grep -qx "opng-${version}/src/config.example.php" /tmp/opng-zip-list.txt
+          grep -qx "opng-${version}/src/config.example.php" /tmp/opng-tar-list.txt
 
           ( cd dist && sha256sum -c SHA256SUMS )
 
