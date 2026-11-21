@@ -1,15 +1,17 @@
 name: Container image
 
+# Builds the application image for Docker (linux/amd64) and Apple Container
+# (linux/arm64), pushes it to GHCR and attaches portable archives to the
+# matching GitHub Release.
+#
+# Tag pushes build and publish automatically. Use the manual trigger with an
+# existing tag (for example v1.2.0) to rebuild the image or to recover a
+# release whose container assets are missing.
+
 on:
   push:
     tags:
       - 'v*'
-    paths:
-      - 'deploy/apple-container/**'
-      - 'src/**'
-      - 'database/**'
-      - 'tools/**'
-      - '.github/workflows/container.yml'
   pull_request:
     paths:
       - 'deploy/apple-container/**'
@@ -18,17 +20,32 @@ on:
       - 'tools/**'
       - '.github/workflows/container.yml'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to build (for example v1.2.0)'
+        required: true
+        default: 'v1.2.0'
+        type: string
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
+concurrency:
+  group: container-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
-  arm64:
-    name: Build arm64 image
+  image:
+    name: Build Docker and Apple Container images
     runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out the release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -38,8 +55,12 @@ jobs:
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Compute the image version
+        id: version
+        run: echo "value=${TAG#v}" >> "$GITHUB_OUTPUT"
+
       - name: Log in to GHCR
-        if: startsWith(github.ref, 'refs/tags/')
+        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -52,25 +73,86 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository_owner }}/opng
           tags: |
-            type=ref,event=tag
-            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/') }}
+            type=raw,value=${{ steps.version.outputs.value }}
+            type=raw,value=latest,enable=${{ github.event_name != 'pull_request' }}
 
-      - name: Build and push linux/arm64
+      - name: Build and push linux/amd64 and linux/arm64
         uses: docker/build-push-action@v6
         with:
           context: .
           file: deploy/apple-container/Containerfile
-          platforms: linux/arm64
-          push: ${{ startsWith(github.ref, 'refs/tags/') }}
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          sbom: true
-          provenance: true
+          sbom: ${{ github.event_name != 'pull_request' }}
+          provenance: ${{ github.event_name != 'pull_request' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Record the arm64 digest
+      - name: Export portable archives
+        if: github.event_name != 'pull_request'
         run: |
-          echo "Built ghcr.io/${{ github.repository_owner }}/opng for linux/arm64."
-          echo "On Apple silicon, create a portable archive with:"
-          echo "  container image save ghcr.io/${{ github.repository_owner }}/opng:${{ github.ref_name }} opng-app-${{ github.ref_name }}-arm64.tar"
+          set -euo pipefail
+          version="${TAG#v}"
+          image="ghcr.io/${{ github.repository_owner }}/opng:${version}"
+          mkdir -p dist/container
+
+          # Apple Container loads OCI archives, so build the arm64 image again
+          # from the same cache with an OCI output instead of `docker save`.
+          docker buildx build \
+            --platform linux/arm64 \
+            --file deploy/apple-container/Containerfile \
+            --tag "$image" \
+            --output "type=oci,dest=dist/container/opng-app-${version}-arm64.tar" \
+            --provenance=false --sbom=false \
+            --cache-from type=gha \
+            .
+
+          # Docker users get the classic `docker load` archive for amd64.
+          docker buildx build \
+            --platform linux/amd64 \
+            --file deploy/apple-container/Containerfile \
+            --tag "$image" \
+            --output "type=docker,dest=dist/container/opng-app-${version}-amd64-docker.tar" \
+            --provenance=false --sbom=false \
+            --cache-from type=gha \
+            .
+
+          tar -tf "dist/container/opng-app-${version}-arm64.tar" > /tmp/opng-oci-list.txt
+          grep -qx 'oci-layout' /tmp/opng-oci-list.txt
+          tar -tf "dist/container/opng-app-${version}-amd64-docker.tar" > /tmp/opng-docker-list.txt
+          grep -qx 'manifest.json' /tmp/opng-docker-list.txt
+
+          (
+            cd dist/container
+            sha256sum opng-app-*.tar > SHA256SUMS-containers
+            cat SHA256SUMS-containers
+          )
+
+      - name: Record the image digests
+        if: github.event_name != 'pull_request'
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          image="ghcr.io/${{ github.repository_owner }}/opng:${version}"
+          {
+            echo "### Container images for ${TAG}"
+            echo
+            echo '```'
+            docker buildx imagetools inspect "$image" || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Attach the portable archives to the GitHub Release
+        if: github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          files: |
+            dist/container/opng-app-*-arm64.tar
+            dist/container/opng-app-*-amd64-docker.tar
+            dist/container/SHA256SUMS-containers
+          fail_on_unmatched_files: true
+          overwrite_files: true
+          generate_release_notes: false

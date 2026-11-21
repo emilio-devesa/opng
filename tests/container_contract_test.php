@@ -2,7 +2,7 @@
 /**
  * Apple Container contracts (F3).
  *
- * Structural checks for the single-image arm64 release: Containerfile, Nginx,
+ * Structural checks for the multi-architecture release: Containerfile, Nginx,
  * PHP-FPM, supervisord, entrypoint, host scripts, build-context ignores, env
  * template and documentation. The test never needs a running container engine;
  * it fails when a security or orchestration invariant is removed.
@@ -311,10 +311,13 @@ foreach ([
 $container_workflow = container_file($root . '/.github/workflows/container.yml', $failures);
 expect_container(
     str_contains($container_workflow, 'linux/arm64')
+    && str_contains($container_workflow, 'linux/amd64')
     && str_contains($container_workflow, 'deploy/apple-container/Containerfile')
-    && str_contains($container_workflow, 'sbom: true')
-    && str_contains($container_workflow, 'provenance: true'),
-    'the container workflow publishes an arm64 image with SBOM and provenance',
+    && str_contains($container_workflow, 'sbom: ${{ github.event_name != \'pull_request\' }}')
+    && str_contains($container_workflow, 'provenance: ${{ github.event_name != \'pull_request\' }}')
+    && str_contains($container_workflow, 'type=oci')
+    && str_contains($container_workflow, 'type=docker'),
+    'the container workflow publishes multi-arch images with SBOM and provenance plus portable archives',
     $failures
 );
 

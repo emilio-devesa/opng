@@ -208,25 +208,48 @@ Rollback:
   audit output as sensitive.
 - See [SECURITY.md](SECURITY.md) for the full checklist.
 
-## 8. Published image and portable archive
+## 8. Published image and portable archives
 
-CI builds `linux/arm64` with Buildx and publishes to GHCR on tags:
+CI builds `linux/arm64` and `linux/amd64` with Buildx and publishes the
+multi-architecture manifest to GHCR on tags:
 
 ```bash
 container image pull ghcr.io/OWNER/opng:1.2.0
 ```
 
-Create a `container image save` archive on an Apple silicon Mac:
+Every release also attaches two portable archives plus their checksums:
+
+| Asset | Format | Load with |
+| --- | --- | --- |
+| `opng-app-1.2.0-arm64.tar` | OCI archive (`linux/arm64`) | `container image load` |
+| `opng-app-1.2.0-amd64-docker.tar` | Docker archive (`linux/amd64`) | `docker load` |
+| `SHA256SUMS-containers` | SHA-256 checksums | `sha256sum -c` |
+
+Apple Container on Apple silicon:
+
+```bash
+curl -LO https://github.com/OWNER/opng/releases/download/v1.2.0/opng-app-1.2.0-arm64.tar
+curl -LO https://github.com/OWNER/opng/releases/download/v1.2.0/SHA256SUMS-containers
+grep arm64 SHA256SUMS-containers | shasum -a 256 -c -
+container image load --input opng-app-1.2.0-arm64.tar
+```
+
+Docker on x86-64:
+
+```bash
+grep amd64 SHA256SUMS-containers | sha256sum -c -
+docker load --input opng-app-1.2.0-amd64-docker.tar
+docker tag ghcr.io/OWNER/opng:1.2.0 opng-app:1.2.0
+```
+
+You can also create an OCI archive locally from a published image:
 
 ```bash
 container image save ghcr.io/OWNER/opng:1.2.0 opng-app-1.2.0-arm64.tar
-sha256sum opng-app-1.2.0-arm64.tar > opng-app-1.2.0-arm64.tar.sha256
-container image load < opng-app-1.2.0-arm64.tar
 ```
 
-The release notes attach the classic artifacts and checksums. The container
-workflow produces BuildKit SBOM/provenance attestations; the local
-`container image save` archive is an additional convenience.
+The container workflow produces BuildKit SBOM/provenance attestations for the
+registry manifest; the portable archives are intended for offline installs.
 
 ## 9. Troubleshooting
 
