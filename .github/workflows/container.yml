@@ -57,7 +57,15 @@ jobs:
 
       - name: Compute the image version
         id: version
-        run: echo "value=${TAG#v}" >> "$GITHUB_OUTPUT"
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            # github.ref_name is `123/merge` on pull requests, which is not a
+            # valid image tag; the PR build never pushes or publishes.
+            echo "value=0.0.0-pr" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${TAG#v}" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Log in to GHCR
         if: github.event_name != 'pull_request'
@@ -120,7 +128,7 @@ jobs:
             .
 
           tar -tf "dist/container/opng-app-${version}-arm64.tar" > /tmp/opng-oci-list.txt
-          grep -qx 'oci-layout' /tmp/opng-oci-list.txt
+          grep -Eqx '(\./)?oci-layout' /tmp/opng-oci-list.txt
           tar -tf "dist/container/opng-app-${version}-amd64-docker.tar" > /tmp/opng-docker-list.txt
           grep -qx 'manifest.json' /tmp/opng-docker-list.txt
 
