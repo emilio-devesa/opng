@@ -21,6 +21,10 @@ if (PHP_SAPI !== 'cli') {
 require __DIR__ . '/../src/config.php';
 require __DIR__ . '/../src/includes/sql_backup.php';
 
+// PHP 8.5 may report register_argc_argv=Off while the CLI still defines
+// $argv; $_SERVER['argv'] is available in every CLI invocation.
+$argv = $_SERVER['argv'] ?? [];
+
 $output = $argv[1] ?? '-';
 if ($output === '--help' || $output === '-h') {
     echo "Usage: php tools/backup.php [output.sql|-]\n";

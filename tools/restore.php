@@ -114,6 +114,10 @@ function restore_mysql_client(): ?string
     return null;
 }
 
+// PHP 8.5 may report register_argc_argv=Off while the CLI still defines
+// $argv; $_SERVER['argv'] is available in every CLI invocation.
+$argv = $_SERVER['argv'] ?? [];
+
 try {
     $options = restore_options($argv);
 } catch (InvalidArgumentException $exception) {

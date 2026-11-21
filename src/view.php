@@ -317,9 +317,9 @@ require(__DIR__ . "/includes/layout_header.php");
             <?php endif; ?>
             <div class="code-font-controls" role="group" aria-label="Code font size" data-i18n-aria-label="code_font_size">
                 <span class="code-font-label" data-i18n="code_font_size">Code font size</span>
-                <button type="button" class="code-font-decrease" aria-label="Decrease code font size" title="Decrease code font size" data-i18n-aria-label="font_smaller" data-i18n-title="font_smaller">A−</button>
-                <button type="button" class="code-font-reset" aria-label="Reset code font size" title="Reset code font size" data-i18n-aria-label="font_reset" data-i18n-title="font_reset">A</button>
-                <button type="button" class="code-font-increase" aria-label="Increase code font size" title="Increase code font size" data-i18n-aria-label="font_larger" data-i18n-title="font_larger">A+</button>
+                <button type="button" class="code-font-decrease" title="Decrease code font size" data-i18n-title="font_smaller">A−<span class="visually-hidden" data-i18n="font_smaller">Decrease code font size</span></button>
+                <button type="button" class="code-font-reset" title="Reset code font size" data-i18n-title="font_reset">A<span class="visually-hidden" data-i18n="font_reset">Reset code font size</span></button>
+                <button type="button" class="code-font-increase" title="Increase code font size" data-i18n-title="font_larger">A+<span class="visually-hidden" data-i18n="font_larger">Increase code font size</span></button>
             </div>
             <div class="paste-actions">
                 <div class="copy-controls">

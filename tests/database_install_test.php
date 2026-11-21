@@ -34,7 +34,7 @@ while ($row = $result->fetch_assoc()) {
 }
 $result->free();
 sort($table_names);
-if ($table_names !== ['admin_metrics_cache', 'audit_log', 'entries', 'rate_limits', 'schema_migrations', 'storage_counters', 'users']) {
+if ($table_names !== ['admin_metrics_cache', 'api_tokens', 'audit_log', 'entries', 'mfa_recovery_codes', 'rate_limits', 'schema_migrations', 'storage_counters', 'users']) {
     throw new RuntimeException('The installer did not leave exactly the lowercase application tables.');
 }
 echo "PASS: application tables use lowercase names on a case-sensitive server\n";
@@ -52,6 +52,9 @@ foreach ([
     '0004_entry_threads',
     '0005_storage_counters',
     '0006_entry_author_label',
+    '0007_admin_mfa',
+    '0008_entry_retention',
+    '0009_api_tokens',
 ] as $expected_migration) {
     if (!in_array($expected_migration, $migration_versions, true)) {
         throw new RuntimeException("The installer did not record migration {$expected_migration}.");
@@ -116,6 +119,9 @@ $expected_user_columns = [
     'created_at',
     'email',
     'id',
+    'mfa_enabled',
+    'mfa_enrolled_at',
+    'mfa_secret',
     'password_hash',
     'reset_token',
     'reset_token_expires',
@@ -313,12 +319,14 @@ $author_column = $db->query(
        AND TABLE_NAME = 'entries'
        AND COLUMN_NAME = 'author_label'"
 )->fetch_assoc();
+// MySQL 8 reports the default as `Guest`; MariaDB includes the quotes.
+$author_default = trim((string) ($author_column['COLUMN_DEFAULT'] ?? ''), "'");
 if (
     $author_column === null
     || $author_column['DATA_TYPE'] !== 'varchar'
     || (int) $author_column['CHARACTER_MAXIMUM_LENGTH'] !== 50
     || $author_column['IS_NULLABLE'] !== 'NO'
-    || $author_column['COLUMN_DEFAULT'] !== 'Guest'
+    || $author_default !== 'Guest'
 ) {
     throw new RuntimeException('Migration 0006 did not add entries.author_label.');
 }

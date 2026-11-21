@@ -5,7 +5,9 @@ parameters:
         - tools
     excludePaths:
         # Credenciales locales: no está en el repo y no debe analizarse.
-        - src/config.php
+        # El `(?)` lo marca como opcional para que el análisis funcione en CI,
+        # donde src/config.php no existe.
+        - src/config.php (?)
     ignoreErrors:
         # Las credenciales llegan por require de config.php, que no se
         # versiona. Se declaran aquí para que el análisis sea idéntico

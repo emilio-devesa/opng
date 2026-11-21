@@ -207,6 +207,10 @@ function benchmark_legacy_i18n_apply(string $html): string
     return preg_replace('/<\?xml[^>]*\?>\s*/', '', $output) ?? $output;
 }
 
+// PHP 8.5 may report register_argc_argv=Off while the CLI still defines
+// $argv; $_SERVER['argv'] is available in every CLI invocation.
+$argv = $_SERVER['argv'] ?? [];
+
 $options = benchmark_options($argv);
 
 if (getenv('OPNG_TEST_ALLOW_DATABASE_FIXTURES') !== '1') {

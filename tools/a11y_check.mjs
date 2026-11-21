@@ -16,7 +16,9 @@ import { HtmlValidate } from "html-validate";
 import { chromium } from "playwright";
 
 const base = (process.env.OPNG_A11Y_BASE || "http://127.0.0.1:8080").replace(/\/$/, "");
-const email = process.env.OPNG_A11Y_EMAIL || "root@example.test";
+// The first administrator (lowest id) is forced to enroll MFA on the next
+// login, so the seeded second administrator is used for the admin page.
+const email = process.env.OPNG_A11Y_EMAIL || "maria@example.test";
 const password = process.env.OPNG_A11Y_PASSWORD || "Password123!";
 
 const pages = [

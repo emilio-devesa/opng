@@ -55,7 +55,7 @@ CREATE USER 'opng_runtime'@'localhost' IDENTIFIED BY 'replace-runtime-secret';
 GRANT SELECT, INSERT, UPDATE, DELETE ON opng.* TO 'opng_runtime'@'localhost';
 
 CREATE USER 'opng_migrator'@'localhost' IDENTIFIED BY 'replace-migration-secret';
-GRANT SELECT, INSERT, UPDATE, CREATE, ALTER, INDEX, DROP ON opng.* TO 'opng_migrator'@'localhost';
+GRANT SELECT, INSERT, UPDATE, CREATE, ALTER, INDEX, DROP, REFERENCES ON opng.* TO 'opng_migrator'@'localhost';
 ```
 
 Some panels create the database and user for you and do not allow `CREATE

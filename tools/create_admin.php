@@ -127,6 +127,10 @@ function create_admin_sql_literal(mysqli $db, string $value): string
     return "'" . $db->real_escape_string($value) . "'";
 }
 
+// PHP 8.5 may report register_argc_argv=Off while the CLI still defines
+// $argv; $_SERVER['argv'] is available in every CLI invocation.
+$argv = $_SERVER['argv'] ?? [];
+
 try {
     $options = create_admin_options($argv);
 } catch (InvalidArgumentException $exception) {

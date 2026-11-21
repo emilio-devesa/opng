@@ -23,6 +23,10 @@ require __DIR__ . '/../src/includes/audit_log.php';
 
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
+// PHP 8.5 may report register_argc_argv=Off while the CLI still defines
+// $argv; $_SERVER['argv'] is available in every CLI invocation.
+$argv = $_SERVER['argv'] ?? [];
+
 $verifyPath = null;
 foreach (array_slice($argv, 1) as $argument) {
     if (str_starts_with($argument, '--verify=')) {

@@ -127,7 +127,7 @@ CREATE DATABASE opng CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER 'opng_runtime'@'localhost' IDENTIFIED BY 'REPLACE_WITH_RUNTIME_SECRET';
 GRANT SELECT, INSERT, UPDATE, DELETE ON opng.* TO 'opng_runtime'@'localhost';
 CREATE USER 'opng_migrator'@'localhost' IDENTIFIED BY 'REPLACE_WITH_MIGRATION_SECRET';
-GRANT SELECT, INSERT, UPDATE, CREATE, ALTER, INDEX, DROP ON opng.* TO 'opng_migrator'@'localhost';
+GRANT SELECT, INSERT, UPDATE, CREATE, ALTER, INDEX, DROP, REFERENCES ON opng.* TO 'opng_migrator'@'localhost';
 ```
 
 The `UPDATE` privilege is needed only for one-time backfills of legacy `NULL` dates/topics during an upgrade.

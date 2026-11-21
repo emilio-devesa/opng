@@ -184,6 +184,9 @@ expect_doctor(
 );
 
 chmod($config, 0666);
+// PHP 8.2 keeps the previous fileperms() result in the stat cache, while
+// 8.3+ invalidates it on chmod(); clear it explicitly for both.
+clearstatcache(true, $config);
 $writable_statuses = [];
 foreach (opng_doctor_checks($base) as $result) {
     $writable_statuses[$result['id']] = $result['status'];
@@ -194,6 +197,7 @@ expect_doctor(
     $failures
 );
 chmod($config, 0644);
+clearstatcache(true, $config);
 $mode_statuses = [];
 foreach (opng_doctor_checks($base) as $result) {
     $mode_statuses[$result['id']] = $result['status'];
