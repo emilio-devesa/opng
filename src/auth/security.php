@@ -221,7 +221,7 @@ require(__DIR__ . '/../includes/layout_header.php');
             <?php elseif ($enroll_secret !== null): ?>
                 <p data-i18n="mfa_enroll_intro">Add this account to your authenticator app, then enter the six-digit code it shows.</p>
                 <dl class="mfa-secret">
-                    <div><dt data-i18n="mfa_secret_label">Secret key:</dt><dd><code><?php echo htmlspecialchars($enroll_secret, ENT_QUOTES, 'UTF-8'); ?></code></dd></div>
+                    <div><dt data-i18n="mfa_secret_label">Secret key:</dt><dd><code class="mfa-secret-key"><?php echo htmlspecialchars($enroll_secret, ENT_QUOTES, 'UTF-8'); ?></code></dd></div>
                     <div><dt data-i18n="mfa_uri_label">Setup URI:</dt><dd><code class="mfa-uri"><?php echo htmlspecialchars(mfa_otpauth_uri($enroll_secret, $record['username']), ENT_QUOTES, 'UTF-8'); ?></code></dd></div>
                 </dl>
                 <form method="post" class="auth-form">
