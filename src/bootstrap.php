@@ -66,3 +66,11 @@ require_once __DIR__ . '/includes/csrf.php';
 require_once __DIR__ . '/includes/icons.php';
 require_once __DIR__ . '/includes/hashing.php';
 require_once __DIR__ . '/includes/db.php';
+
+// Local configuration for classic installs. It is optional in CI and tests,
+// where config.php does not exist. Load it before the entry point runs so
+// putenv() values are available to feature checks that happen before the
+// first database connection, such as mfa_key() on the enrollment page.
+if (is_file(__DIR__ . '/config.php')) {
+    require_once __DIR__ . '/config.php';
+}
