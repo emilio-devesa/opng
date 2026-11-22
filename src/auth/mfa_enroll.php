@@ -150,11 +150,17 @@ require(__DIR__ . '/../includes/layout_header.php');
             </ul>
             <p><a class="button" href="<?php echo htmlspecialchars($redirect, ENT_QUOTES, 'UTF-8'); ?>" data-i18n="mfa_continue">Continue</a></p>
         <?php else: ?>
-            <p data-i18n="mfa_enroll_intro">Add this account to your authenticator app, then enter the six-digit code it shows.</p>
-            <dl class="mfa-secret">
-                <div><dt data-i18n="mfa_secret_label">Secret key:</dt><dd><code class="mfa-secret-key"><?php echo htmlspecialchars($secret, ENT_QUOTES, 'UTF-8'); ?></code></dd></div>
-                <div><dt data-i18n="mfa_uri_label">Setup URI:</dt><dd><code class="mfa-uri"><?php echo htmlspecialchars($otpauth, ENT_QUOTES, 'UTF-8'); ?></code></dd></div>
-            </dl>
+            <p data-i18n="mfa_enroll_intro">Scan the QR code with your authenticator app. If you cannot scan it, open the manual setup and enter the secret key. Then enter the six-digit code shown by the app.</p>
+            <div class="mfa-qr" id="mfa-qr"
+                 data-otpauth="<?php echo htmlspecialchars($otpauth, ENT_QUOTES, 'UTF-8'); ?>"
+                 data-label="<?php echo htmlspecialchars(opng_t('mfa_qr_label', 'QR code for authenticator setup'), ENT_QUOTES, 'UTF-8'); ?>"></div>
+            <details class="mfa-manual">
+                <summary data-i18n="mfa_manual_summary">Can't scan the QR code?</summary>
+                <dl class="mfa-secret">
+                    <div><dt data-i18n="mfa_secret_label">Secret key:</dt><dd><code class="mfa-secret-key"><?php echo htmlspecialchars($secret, ENT_QUOTES, 'UTF-8'); ?></code></dd></div>
+                    <div><dt data-i18n="mfa_uri_label">Setup URI:</dt><dd><code class="mfa-uri"><?php echo htmlspecialchars($otpauth, ENT_QUOTES, 'UTF-8'); ?></code></dd></div>
+                </dl>
+            </details>
             <?php if ($form_error_key !== ''): ?>
             <p class="form-error" id="form-error" role="alert" data-i18n="<?php echo htmlspecialchars($form_error_key, ENT_QUOTES, 'UTF-8'); ?>">
                 <?php echo htmlspecialchars(opng_error_text($form_error_key), ENT_QUOTES, 'UTF-8'); ?>
@@ -171,4 +177,8 @@ require(__DIR__ . '/../includes/layout_header.php');
             <p><a href="mfa.php?cancel=1" data-i18n="mfa_cancel">Cancel and return to sign in</a></p>
         <?php endif; ?>
     </section>
+<?php if ($recovery_codes === []): ?>
+<script src="../assets/vendor/qrcode-generator.min.js?v=<?php echo $asset_version; ?>" defer></script>
+<script src="../assets/js/mfa-qr.js?v=<?php echo $asset_version; ?>" defer></script>
+<?php endif; ?>
 <?php require(__DIR__ . '/../includes/layout_footer.php'); ?>

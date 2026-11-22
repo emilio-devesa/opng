@@ -219,11 +219,17 @@ require(__DIR__ . '/../includes/layout_header.php');
                     <button type="submit" data-i18n="mfa_regenerate">Generate new recovery codes</button>
                 </form>
             <?php elseif ($enroll_secret !== null): ?>
-                <p data-i18n="mfa_enroll_intro">Add this account to your authenticator app, then enter the six-digit code it shows.</p>
-                <dl class="mfa-secret">
-                    <div><dt data-i18n="mfa_secret_label">Secret key:</dt><dd><code class="mfa-secret-key"><?php echo htmlspecialchars($enroll_secret, ENT_QUOTES, 'UTF-8'); ?></code></dd></div>
-                    <div><dt data-i18n="mfa_uri_label">Setup URI:</dt><dd><code class="mfa-uri"><?php echo htmlspecialchars(mfa_otpauth_uri($enroll_secret, $record['username']), ENT_QUOTES, 'UTF-8'); ?></code></dd></div>
-                </dl>
+                <p data-i18n="mfa_enroll_intro">Scan the QR code with your authenticator app. If you cannot scan it, open the manual setup and enter the secret key. Then enter the six-digit code shown by the app.</p>
+                <div class="mfa-qr" id="mfa-qr"
+                     data-otpauth="<?php echo htmlspecialchars(mfa_otpauth_uri($enroll_secret, $record['username']), ENT_QUOTES, 'UTF-8'); ?>"
+                     data-label="<?php echo htmlspecialchars(opng_t('mfa_qr_label', 'QR code for authenticator setup'), ENT_QUOTES, 'UTF-8'); ?>"></div>
+                <details class="mfa-manual">
+                    <summary data-i18n="mfa_manual_summary">Can't scan the QR code?</summary>
+                    <dl class="mfa-secret">
+                        <div><dt data-i18n="mfa_secret_label">Secret key:</dt><dd><code class="mfa-secret-key"><?php echo htmlspecialchars($enroll_secret, ENT_QUOTES, 'UTF-8'); ?></code></dd></div>
+                        <div><dt data-i18n="mfa_uri_label">Setup URI:</dt><dd><code class="mfa-uri"><?php echo htmlspecialchars(mfa_otpauth_uri($enroll_secret, $record['username']), ENT_QUOTES, 'UTF-8'); ?></code></dd></div>
+                    </dl>
+                </details>
                 <form method="post" class="auth-form">
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
                     <input type="hidden" name="action" value="confirm_enroll">
@@ -248,4 +254,8 @@ require(__DIR__ . '/../includes/layout_header.php');
             </ul>
         </section>
     </section>
+<?php if ($enroll_secret !== null): ?>
+<script src="../assets/vendor/qrcode-generator.min.js?v=<?php echo $asset_version; ?>" defer></script>
+<script src="../assets/js/mfa-qr.js?v=<?php echo $asset_version; ?>" defer></script>
+<?php endif; ?>
 <?php require(__DIR__ . '/../includes/layout_footer.php'); ?>

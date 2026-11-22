@@ -1020,6 +1020,57 @@ textarea[name="input_text"] {
     line-height: 1.45;
 }
 
+/* MFA setup: QR code and the manual fallback. The QR keeps a white
+   background in both themes so scanners get the contrast they expect. */
+.mfa-qr {
+    display: flex;
+    justify-content: center;
+    margin: 0 0 1rem;
+}
+
+.mfa-qr:empty {
+    display: none;
+}
+
+.mfa-qr svg {
+    display: block;
+    width: min(100%, 240px);
+    height: auto;
+    padding: 0.5rem;
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+}
+
+.auth-page > .mfa-qr svg {
+    box-shadow: var(--shadow-soft);
+}
+
+.mfa-manual {
+    margin: 0 0 1.25rem;
+}
+
+.auth-page > .mfa-manual {
+    padding: 0.75rem 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+}
+
+.mfa-manual summary {
+    cursor: pointer;
+    color: var(--muted);
+    font-weight: 600;
+}
+
+.mfa-manual[open] summary {
+    margin-bottom: 0.75rem;
+}
+
+.mfa-manual .mfa-secret {
+    margin: 0;
+}
+
 .recovery-code-list {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
