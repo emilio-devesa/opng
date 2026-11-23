@@ -71,7 +71,7 @@ try {
         opng_error_redirect('error_invalid_id', '../error.php');
     }
     $path = rtrim($config['directory'], '/') . '/' . $file;
-    $result = external_backup_verify_file($db, $path);
+    external_backup_verify_file($path);
     audit_log_record($db, $session_user_id, 'backup.verify', $file);
     $db->close();
     header('Location: external_backup.php?msg=verified');

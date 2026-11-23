@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/../src/includes/schema.php';
 require __DIR__ . '/../src/includes/api_tokens.php';
+require __DIR__ . '/../src/includes/entry_access.php';
 
 function api_token_fail(string $message): never
 {
@@ -77,6 +78,21 @@ try {
     $user_id = (int) $stmt->insert_id;
     $stmt->close();
     api_token_pass('a disposable database with a token owner is ready');
+
+    $db->query("INSERT INTO entries (id, topic, language, text, visibility, protection_hash, expires_at, deleted_at)
+        VALUES ('live','topic','text','body','public',NULL,NULL,NULL),
+               ('locked','topic','text','body','public','fixture',NULL,NULL),
+               ('private','topic','text','body','private',NULL,NULL,NULL),
+               ('unlisted','topic','text','body','unlisted',NULL,NULL,NULL),
+               ('expired','topic','text','body','public',NULL,'2000-01-01',NULL),
+               ('trashed','topic','text','body','public',NULL,NULL,NOW())");
+    foreach ([entry_public_filter_sql() => ['live', 'locked'], entry_api_content_filter_sql() => ['live']] as $filter => $ids) {
+        $rows = $db->query('SELECT id FROM entries WHERE ' . $filter . ' ORDER BY id')->fetch_all();
+        if (array_column($rows, 0) !== $ids) {
+            api_token_fail('listing and content visibility differ from their access matrix');
+        }
+    }
+    api_token_pass('listing returns public metadata; API content excludes protected and non-public rows');
 
     $created = api_token_create($db, $user_id, 'CI token', 'read', 30);
     if ($created === null || !api_token_valid_format($created['clear'])) {

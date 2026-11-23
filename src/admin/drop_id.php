@@ -35,12 +35,12 @@ if ($input_ID === null || !http_valid_entry_id($input_ID)) {
     opng_error_redirect('error_invalid_id', '../error.php');
 }
 
-$user_id = require_authenticated_user();
 // Connect to the database
 $db = database_connect();
 if (!$db) {
     opng_error_redirect('error_database_unavailable', '../error.php');
 }
+$user_id = require_authenticated_user();
 
 // Moving data to the trash requires the current password (and the second
 // factor when enrolled) in addition to CSRF and the explicit confirmation
@@ -74,11 +74,15 @@ try {
         opng_error_redirect('error_permission', '../error.php');
     }
 
-    // Discover the owner first, then lock the account before the entry. The
-    // row is re-read with FOR UPDATE below, so the ownership check always
-    // comes from the locked row.
+    // Authorize the resource being trashed: the root, not the selected reply.
+    $root_id = trash_thread_root_id($db, $input_ID);
+    if ($root_id === null) {
+        $db->rollback();
+        $db->close();
+        opng_error_redirect('error_entry_not_found', '../error.php');
+    }
     $stmt = $db->prepare('SELECT user_id FROM entries WHERE id = ?');
-    $stmt->bind_param('s', $input_ID);
+    $stmt->bind_param('s', $root_id);
     if (!$stmt->execute()) {
         throw new RuntimeException('Entry owner lookup failed.');
     }
@@ -100,7 +104,7 @@ try {
     $stmt = $db->prepare(
         'SELECT user_id, deleted_at FROM entries WHERE id = ? FOR UPDATE'
     );
-    $stmt->bind_param('s', $input_ID);
+    $stmt->bind_param('s', $root_id);
     if (!$stmt->execute()) {
         throw new RuntimeException('Entry lock failed.');
     }
@@ -112,27 +116,20 @@ try {
     $stmt->close();
     $stmt = null;
 
-    if (!is_array($size_row)) {
+    if (!is_array($size_row) && $user_role !== 'admin') {
         $db->rollback();
         $transaction_started = false;
         $db->close();
         opng_error_redirect('error_entry_not_found', '../error.php');
     }
 
-    $locked_owner_id = $size_row['user_id'] !== null ? (int) $size_row['user_id'] : null;
+    $locked_owner_id = isset($size_row['user_id']) ? (int) $size_row['user_id'] : null;
     if ($locked_owner_id !== $entry_owner_id) {
         throw new RuntimeException('Entry ownership changed while the deletion locked it.');
     }
-    if ($user_role !== 'admin' && $locked_owner_id !== $user_id) {
-        $db->rollback();
-        $transaction_started = false;
-        $db->close();
-        opng_error_redirect('error_permission', '../error.php');
-    }
-
     // Storage and quota counters stay charged until the scheduled purge
     // physically removes the rows, so a restore never re-checks quotas.
-    $trashed_rows = trash_soft_delete_thread($db, $input_ID);
+    $trashed_rows = trash_soft_delete_thread($db, $input_ID, $user_id, $user_role);
     $trashed = $trashed_rows > 0;
 
     if (!$db->commit()) {
@@ -144,7 +141,7 @@ try {
         // Audit after commit: the audit log is best-effort, and this keeps the
         // opportunistic retention DELETE outside the business transaction
         // (ROB-20).
-        audit_log_record($db, $user_id, 'entry.trash', $input_ID);
+        audit_log_record($db, $user_id, 'entry.trash', $root_id);
         admin_metrics_invalidate($db);
     }
 } catch (mysqli_sql_exception | RuntimeException $exception) {

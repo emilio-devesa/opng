@@ -142,17 +142,33 @@ backup_assert(is_file($new) && is_file($new . '.sha256'), 'backups inside the re
 $bad = $directory . '/opng-bad.sql';
 file_put_contents($bad, 'checksum payload');
 file_put_contents($bad . '.sha256', str_repeat('0', 64) . '  opng-bad.sql');
-$db = mysqli_init();
-if (!($db instanceof mysqli)) {
-    backup_fail('mysqli_init() is available');
-}
 $checksum_rejected = false;
 try {
-    external_backup_verify_file($db, $bad);
+    external_backup_verify_file($bad);
 } catch (RuntimeException $exception) {
     $checksum_rejected = str_contains($exception->getMessage(), 'checksum');
 }
 backup_assert($checksum_rejected, 'a mismatched SHA-256 sidecar is rejected before any import');
+
+foreach ([
+    ['missing.sql', $plain, false, 'checksum'],
+    ['empty.sql', '', true, 'inventory'],
+    ['legacy.sql', $plain, true, 'inventory'],
+    ['truncated.sql', "-- OPNG-SNAPSHOT-v1 {", true, 'inventory'],
+    ['fake.enc', $plain, true, 'encryption'],
+] as [$filename, $contents, $withChecksum, $reason]) {
+    $path = $directory . '/' . $filename;
+    file_put_contents($path, $contents);
+    if ($withChecksum) {
+        file_put_contents($path . '.sha256', hash('sha256', $contents) . "  {$filename}\n");
+    }
+    try {
+        external_backup_verify_file($path);
+        backup_fail("verification accepted {$filename}");
+    } catch (RuntimeException $exception) {
+        backup_assert(str_contains($exception->getMessage(), $reason), "verification rejects {$filename} before import");
+    }
+}
 
 backup_remove_tree($directory);
 echo "External backup regression passed: configuration, encryption, checksums and retention.\n";

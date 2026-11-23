@@ -41,8 +41,9 @@ databases in the hundreds of MiB, a native dump is faster and is still
 compatible with `tools/restore.php` if it omits `CREATE DATABASE`/`USE`:
 
 ```bash
+backup_dir=$(mktemp -d /secure/backups/opng-XXXXXXXX) || exit 1
 mysqldump --single-transaction --quick --skip-add-locks \
-  --no-create-db --skip-comments opng > /secure/backups/opng-native.sql
+  --no-create-db --skip-comments opng > "$backup_dir/backup.sql"
 ```
 
 The application dump remains the reference for a flat shared host where the
@@ -51,22 +52,29 @@ disposable database first and run `tools/recount_storage.php --check`.
 
 ## Create a backup
 
+For the interim retention and verification procedure, see
+[phase-0 containment](PHASE-0-CONTAINMENT.md). Never reuse an existing
+destination: the CLI opens it for writing before connecting to the database.
+
 ### CLI
 
 ```bash
 cd /path/to/opng
-php tools/backup.php /secure/backups/opng-$(date +%F).sql
-sha256sum /secure/backups/opng-$(date +%F).sql > /secure/backups/opng-$(date +%F).sql.sha256
+backup_dir=$(mktemp -d /secure/backups/opng-XXXXXXXX) || exit 1
+php tools/backup.php "$backup_dir/backup.sql" &&
+    (cd "$backup_dir" && sha256sum backup.sql > backup.sql.sha256)
 ```
 
 To stream instead of writing a file:
 
 ```bash
-php tools/backup.php - > /secure/backups/opng.sql
+backup_dir=$(mktemp -d /secure/backups/opng-XXXXXXXX) || exit 1
+php tools/backup.php - > "$backup_dir/backup.sql"
 ```
 
 The CLI returns non-zero on any failure and removes a partial destination file.
-Check that the result is non-empty before rotating older copies.
+When redirecting stdout, a partial file can remain. Do not rotate an older
+copy on the strength of a new file being non-empty.
 
 ### Admin panel
 
@@ -78,8 +86,8 @@ reauthentication and CSRF checks are mandatory.
 ### Scheduling
 
 ```cron
-# Daily backup at 02:15, keep seven days.
-15 2 * * * cd /home/USER/opng && php tools/backup.php /home/USER/backups/opng-$(date +\%F).sql && sha256sum /home/USER/backups/opng-$(date +\%F).sql > /home/USER/backups/opng-$(date +\%F).sql.sha256
+# Daily backup at 02:15; retention is a separate operation.
+15 2 * * * cd /home/USER/opng && d=$(mktemp -d /home/USER/backups/opng-XXXXXXXX) && php tools/backup.php "$d/backup.sql" && (cd "$d" && sha256sum backup.sql > backup.sql.sha256)
 ```
 
 Recommended retention for a small installation: seven daily, four weekly and
@@ -118,9 +126,22 @@ expired plain and encrypted files together with their sidecars. S3 uploads use
 native SigV4 signing and no SDK; objects are uploaded as-is, so use a private
 bucket with bucket-side encryption. The admin page (`admin/external_backup.php`)
 shows the configuration and local files, and can run or verify a backup after
-password + MFA reauthentication. Verification imports the dump into a disposable
-schema and compares the table list, so the verification account needs
-`CREATE`/`DROP`.
+password + MFA reauthentication. The automatic verifier requires the original
+`.sha256` sidecar, authenticates encrypted files, and checks the exact table
+names and per-table row counts against the inventory at the end of the new
+SQL dump. The inventory comes from the exported snapshot, not today's live
+database. Old dumps without this inventory remain manually restorable; their
+completeness cannot be certified by this check.
+
+Configure `OPNG_VERIFY_DB_HOST`, `OPNG_VERIFY_DB_PORT` (default `3306`),
+`OPNG_VERIFY_DB_USER` and `OPNG_VERIFY_DB_PASS` on the verifier caller (CLI or
+web). Use a separate, disposable MySQL/MariaDB **instance**, with no production
+data, mounts or credentials. Its verification account needs to create, import
+and drop `opng_verify_*` schemas. No runtime connection is used as a fallback.
+Enable this only for trusted backups: counts and an adjacent checksum do not
+authenticate provenance against someone who can replace both files. For
+encrypted local dumps, the recorded checksum covers decrypted SQL, not the
+ciphertext; use the verifier rather than `sha256sum -c` on an `.enc` file.
 
 ## Verify a backup
 

@@ -121,13 +121,15 @@ deployments should upgrade using [UPGRADING.md](UPGRADING.md).
   inherit the parent's visibility, absolute expiry and protection hash; editing a
   thread root propagates those fields to the whole thread. Protection passwords
   use Argon2id when available and are never stored in clear.
-- Deleting a paste moves the whole thread to the trash. Authors see their own
+- Only the root owner or an administrator may move a thread to the trash,
+  including when the selected entry is a reply. Authors see their own
   trashed threads; administrators can restore or purge any trashed thread. Purge
   refuses live rows, keeps the `storage_counters → users → entries` lock order
   and releases counters only after the rows are physically deleted. Set
   `OPNG_TRASH_RETENTION_DAYS` and schedule `tools/trash_purge.php`.
 - API tokens are shown once and stored as SHA-256 hashes. The v1 API requires
-  the `read` scope, returns only public live entries, applies a per-token rate
+  the `read` scope, lists only public live entries, withholds password-protected
+  bodies even from valid read tokens, applies a per-token rate
   limit and never accepts methods other than `GET`. Revocation is immediate and
   keeps the row for audit. Create, list and revoke tokens from the account
   security page; administrators can review and revoke every token.
@@ -148,8 +150,9 @@ deployments should upgrade using [UPGRADING.md](UPGRADING.md).
   with AES-256-GCM under `OPNG_BACKUP_KEY`; S3 objects are uploaded as-is, so use
   a private bucket and bucket-side encryption. Every backup has a SHA-256
   checksum and retention is controlled by `OPNG_BACKUP_RETENTION_DAYS`. Restore
-  verification creates and drops a disposable schema, so grant `CREATE`/`DROP`
-  only to the account that runs verification.
+  verification compares restored table names and row counts against the dump's
+  snapshot inventory on a separate disposable instance. Grant verification
+  privileges there, never on the production server (see `BACKUP-RESTORE.md`).
 
 ## Container hardening
 

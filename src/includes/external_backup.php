@@ -12,10 +12,8 @@ declare(strict_types=1);
 //   s3     Any S3-compatible endpoint. Uploads use native SigV4 signing; no SDK
 //          or Composer package is required.
 //
-// Every backup has a SHA-256 sidecar. Restore verification imports the dump
-// into a disposable schema, compares the table list, and drops it again. The
-// runtime account therefore needs CREATE/DROP privileges for verification; the
-// operator can skip it for restricted accounts.
+// Local backups have a SHA-256 sidecar. Only an explicitly configured
+// disposable verifier server may import SQL; runtime needs no extra grants.
 
 require_once __DIR__ . '/sql_backup.php';
 require_once __DIR__ . '/schema.php';
@@ -396,7 +394,7 @@ function external_backup_s3_put(string $body, string $objectKey, array $config):
  *
  * @return array{tables: int, rows: int, encrypted: bool}
  */
-function external_backup_verify_file(mysqli $db, string $path): array
+function external_backup_verify_file(string $path): array
 {
     if (!is_file($path) || !is_readable($path)) {
         throw new RuntimeException('Backup file is not readable.');
@@ -408,36 +406,70 @@ function external_backup_verify_file(mysqli $db, string $path): array
 
     $checksumFile = $path . '.sha256';
     $encrypted = str_ends_with($path, '.enc');
+    if ($encrypted !== str_starts_with($payload, OPNG_EXTERNAL_BACKUP_MAGIC)) {
+        throw new RuntimeException('Backup encryption marker does not match the file format.');
+    }
     $plain = $encrypted ? external_backup_decrypt($payload) : $payload;
-    if (is_file($checksumFile)) {
-        $line = trim((string) file_get_contents($checksumFile));
-        $expected = explode(' ', $line)[0];
-        if ($expected === '' || !hash_equals($expected, hash('sha256', $plain))) {
-            throw new RuntimeException('Backup checksum does not match.');
-        }
+    $line = is_file($checksumFile) ? file_get_contents($checksumFile) : false;
+    if (
+        !is_string($line)
+        || !preg_match('/\A([a-f0-9]{64})  [^\r\n]+\r?\n?\z/', $line, $match)
+        || !hash_equals($match[1], hash('sha256', $plain))
+    ) {
+        throw new RuntimeException('Backup checksum is missing, invalid or does not match.');
     }
 
-    $result = external_backup_verify_sql($db, $plain);
+    $inventory = external_backup_snapshot_inventory($plain);
+    $host = getenv('OPNG_VERIFY_DB_HOST');
+    $user = getenv('OPNG_VERIFY_DB_USER');
+    $password = getenv('OPNG_VERIFY_DB_PASS');
+    $port = filter_var(getenv('OPNG_VERIFY_DB_PORT') ?: '3306', FILTER_VALIDATE_INT, [
+        'options' => ['min_range' => 1, 'max_range' => 65535],
+    ]);
+    if (!$host || !$user || $password === false || $port === false) {
+        throw new RuntimeException('Configure OPNG_VERIFY_DB_* for an isolated restore server.');
+    }
+    $db = new mysqli($host, $user, $password, null, $port);
+    try {
+        $db->set_charset('utf8mb4');
+        $result = external_backup_verify_sql($db, $plain, $inventory);
+    } finally {
+        $db->close();
+    }
     $result['encrypted'] = $encrypted;
 
     return $result;
 }
 
 /**
- * Import a dump into a disposable database and compare table names.
+ * @return array<string|int, int>
+ */
+function external_backup_snapshot_inventory(string $sql): array
+{
+    if (!preg_match('/^-- OPNG-SNAPSHOT-v1 (\{[^\r\n]*\})\r?\n?\z/m', $sql, $match)) {
+        throw new RuntimeException('Snapshot inventory missing; completeness cannot be verified.');
+    }
+    $tables = json_decode($match[1], true);
+    if (!is_array($tables) || $tables === []) {
+        throw new RuntimeException('Invalid snapshot inventory.');
+    }
+    foreach ($tables as $rows) {
+        if (!is_int($rows) || $rows < 0) {
+            throw new RuntimeException('Invalid row count in snapshot inventory.');
+        }
+    }
+    ksort($tables, SORT_STRING);
+    return $tables;
+}
+
+/**
+ * Import on a dedicated verifier connection and compare snapshot counts.
  *
+ * @param array<string|int, int> $inventory
  * @return array{tables: int, rows: int}
  */
-function external_backup_verify_sql(mysqli $db, string $sql): array
+function external_backup_verify_sql(mysqli $db, string $sql, array $inventory): array
 {
-    $current = $db->query('SELECT DATABASE() AS database_name')->fetch_assoc();
-    $currentDatabase = is_array($current) && is_string($current['database_name'] ?? null)
-        ? $current['database_name']
-        : '';
-    if ($currentDatabase === '') {
-        throw new RuntimeException('The current database name is unavailable.');
-    }
-
     $temporaryDatabase = 'opng_verify_' . bin2hex(random_bytes(6));
     if (!$db->query("CREATE DATABASE `{$temporaryDatabase}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")) {
         throw new RuntimeException('Restore verification requires CREATE DATABASE privileges.');
@@ -466,7 +498,7 @@ function external_backup_verify_sql(mysqli $db, string $sql): array
         $tablesResult->free();
         sort($tables, SORT_STRING);
 
-        $rows = 0;
+        $actual = [];
         foreach ($tables as $table) {
             $quoted = '`' . str_replace('`', '``', $table) . '`';
             $countResult = $db->query("SELECT COUNT(*) AS total FROM {$quoted}");
@@ -474,12 +506,17 @@ function external_backup_verify_sql(mysqli $db, string $sql): array
             if ($countResult instanceof mysqli_result) {
                 $countResult->free();
             }
-            $rows += is_array($countRow) ? (int) ($countRow['total'] ?? 0) : 0;
+            if (!isset($countRow['total'])) {
+                throw new RuntimeException('Restored table count unavailable.');
+            }
+            $actual[$table] = (int) $countRow['total'];
         }
 
-        return ['tables' => count($tables), 'rows' => $rows];
+        if ($actual === [] || $actual !== $inventory) {
+            throw new RuntimeException('Restored tables or row counts differ from the snapshot inventory.');
+        }
+        return ['tables' => count($tables), 'rows' => array_sum($actual)];
     } finally {
-        $db->select_db($currentDatabase);
         $db->query("DROP DATABASE IF EXISTS `{$temporaryDatabase}`");
     }
 }

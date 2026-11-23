@@ -12,6 +12,7 @@
 
 require __DIR__ . '/../src/includes/schema.php';
 require __DIR__ . '/../src/includes/sql_backup.php';
+require_once __DIR__ . '/../src/includes/external_backup.php';
 
 function backup_restore_fail(string $message): never
 {
@@ -131,6 +132,8 @@ try {
         $db->query($statement);
     }
     backup_restore_pass('the canonical schema is installed in the source database');
+    $db->query('CREATE TABLE empty_cells (id INT PRIMARY KEY, txt VARCHAR(16), bin BLOB)');
+    $db->query("INSERT INTO empty_cells VALUES (1, '', X''), (2, NULL, NULL), (3, 'ñ', X'0061')");
 
     $password_hash = password_hash('restore-fixture-password', PASSWORD_DEFAULT);
     $insert_user = $db->prepare(
@@ -242,6 +245,54 @@ try {
         backup_restore_fail('the dump is empty');
     }
     backup_restore_pass('the dump is generated from a consistent read-only snapshot');
+    $inventory = external_backup_snapshot_inventory($dump);
+    $verified = external_backup_verify_sql($admin, $dump, $inventory);
+    if ($verified['tables'] !== count($tables) || $inventory['empty_cells'] !== 3) {
+        backup_restore_fail('the snapshot inventory differs from the fixture');
+    }
+    foreach (['rows', 'table'] as $mismatch) {
+        $wrong = $inventory;
+        if ($mismatch === 'rows') {
+            $wrong['empty_cells']++;
+        } else {
+            unset($wrong['empty_cells']);
+        }
+        try {
+            external_backup_verify_sql($admin, $dump, $wrong);
+            backup_restore_fail("verification accepted a {$mismatch} mismatch");
+        } catch (RuntimeException $exception) {
+            if (!str_contains($exception->getMessage(), 'differ from the snapshot')) {
+                throw $exception;
+            }
+        }
+    }
+    backup_restore_pass('verified snapshot inventory; table and row mismatches are rejected');
+    putenv("OPNG_VERIFY_DB_HOST=$host");
+    putenv("OPNG_VERIFY_DB_PORT=$port");
+    putenv("OPNG_VERIFY_DB_USER=$user");
+    putenv("OPNG_VERIFY_DB_PASS=$password");
+    putenv('OPNG_BACKUP_KEY=' . base64_encode(random_bytes(32)));
+    $directory = sys_get_temp_dir() . '/opng_verify_fixture_' . bin2hex(random_bytes(8));
+    if (!mkdir($directory, 0700)) {
+        backup_restore_fail('could not create verification fixture directory');
+    }
+    try {
+        foreach (['sql', 'enc'] as $extension) {
+            $file = $directory . '/fixture.' . $extension;
+            file_put_contents($file, $extension === 'enc' ? external_backup_encrypt($dump) : $dump);
+            file_put_contents($file . '.sha256', hash('sha256', $dump) . '  ' . basename($file) . "\n");
+            $report = external_backup_verify_file($file);
+            if ($report !== $verified + ['encrypted' => $extension === 'enc']) {
+                throw new RuntimeException('file verification returned unexpected inventory totals');
+            }
+        }
+    } finally {
+        foreach (glob($directory . '/fixture.*') ?: [] as $file) {
+            unlink($file);
+        }
+        rmdir($directory);
+    }
+    backup_restore_pass('plain and encrypted snapshot files verify on the disposable server');
     if ($dump_database !== $source) {
         backup_restore_fail('the dump reports the wrong source database');
     }

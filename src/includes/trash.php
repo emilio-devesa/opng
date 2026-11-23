@@ -60,7 +60,7 @@ function trash_thread_root_id(mysqli $db, string $entryId): ?string
  *
  * @return int number of rows newly marked as deleted
  */
-function trash_soft_delete_thread(mysqli $db, string $entryId): int
+function trash_soft_delete_thread(mysqli $db, string $entryId, int $actorId, string $role): int
 {
     $rootId = trash_thread_root_id($db, $entryId);
     if ($rootId === null) {
@@ -68,13 +68,16 @@ function trash_soft_delete_thread(mysqli $db, string $entryId): int
     }
 
     $stmt = $db->prepare(
-        'UPDATE entries SET deleted_at = NOW()
-         WHERE (id = ? OR root_id = ?) AND deleted_at IS NULL'
+        "UPDATE entries member
+         LEFT JOIN entries root ON root.id = ?
+         SET member.deleted_at = NOW()
+         WHERE (member.id = ? OR member.root_id = ?) AND member.deleted_at IS NULL
+           AND (? = 'admin' OR (? = 'user' AND root.user_id = ?))"
     );
     if (!$stmt) {
         return 0;
     }
-    $stmt->bind_param('ss', $rootId, $rootId);
+    $stmt->bind_param('sssssi', $rootId, $rootId, $rootId, $role, $role, $actorId);
     $stmt->execute();
     $updated = max(0, $stmt->affected_rows);
     $stmt->close();

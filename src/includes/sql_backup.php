@@ -141,7 +141,9 @@ function sql_backup_dump(
         // replacing them with NULL is valid for every supported schema.
         $redacted_columns = ['reset_token' => true, 'reset_token_expires' => true];
 
+        $inventory = [];
         foreach ($tables as $table_name) {
+            $inventory[$table_name] = 0;
             $quoted_table = '`' . str_replace('`', '``', $table_name) . '`';
             $schema_result = $db->query('SHOW CREATE TABLE ' . $quoted_table);
             $schema_row = $schema_result->fetch_assoc();
@@ -165,6 +167,7 @@ function sql_backup_dump(
             $batch_rows = [];
             $batch_bytes = 0;
             while ($row = $result->fetch_assoc()) {
+                $inventory[$table_name]++;
                 $values = [];
                 foreach ($fields as $field) {
                     $column_name = $field->name;
@@ -201,6 +204,8 @@ function sql_backup_dump(
         }
 
         $write($stream, "SET FOREIGN_KEY_CHECKS=1;\n");
+        // A SQL comment keeps ordinary mysql imports backwards compatible.
+        $write($stream, '-- OPNG-SNAPSHOT-v1 ' . json_encode((object) $inventory, JSON_THROW_ON_ERROR) . "\n");
         $db->commit();
     } catch (Throwable $exception) {
         try {
@@ -257,7 +262,7 @@ function sql_backup_value(mixed $value, int $type): string
         MYSQLI_TYPE_BIT,
         MYSQLI_TYPE_GEOMETRY,
     ];
-    $hex = '0x' . bin2hex($value);
+    $hex = $value === '' ? "X''" : '0x' . bin2hex($value);
     if (in_array($type, $binary_types, true)) {
         return $hex;
     }

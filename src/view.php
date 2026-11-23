@@ -43,7 +43,7 @@ try {
     $stmt = $db->prepare(
         "SELECT e.id, e.user_id, e.language, e.text, e.topic, e.date,
                 e.parent_id, e.root_id, e.depth, e.deleted_at, e.expires_at,
-                e.visibility, e.protection_hash,
+                e.visibility, e.protection_hash, root.user_id AS root_owner_id,
                 EXISTS(
                     SELECT 1 FROM entries c
                     WHERE c.parent_id = e.id
@@ -51,6 +51,7 @@ try {
                       AND (c.expires_at IS NULL OR c.expires_at > NOW())
                 ) AS has_children
          FROM entries e
+         LEFT JOIN entries root ON root.id = COALESCE(e.root_id, e.id)
          WHERE e.id = ?"
     );
     $stmt->bind_param("s", $id);
@@ -118,7 +119,8 @@ $selected_language = $language === 'Java/C/C++' ? 'C++' : $language;
 $current_user_id = $user_id;
 $owner_id = $array['user_id'] !== null ? (int) $array['user_id'] : null;
 $can_edit = paste_owner_can_manage($current_user_id, (string) $role, $owner_id);
-$can_delete = $can_edit;
+$root_owner_id = isset($array['root_owner_id']) ? (int) $array['root_owner_id'] : null;
+$can_delete = paste_owner_can_manage($current_user_id, (string) $role, $root_owner_id);
 $is_thread_root = (int) ($array['depth'] ?? 0) === 0;
 $visibility_value = entry_visibility_valid($array['visibility'] ?? null)
     ? (string) $array['visibility']

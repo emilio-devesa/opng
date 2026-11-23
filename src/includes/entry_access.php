@@ -144,6 +144,14 @@ function entry_public_filter_sql(string $alias = 'entries'): string
 }
 
 /**
+ * SQL predicate for API detail. A read token does not unlock a paste.
+ */
+function entry_api_content_filter_sql(): string
+{
+    return entry_public_filter_sql('entries') . ' AND entries.protection_hash IS NULL';
+}
+
+/**
  * Whether the account may see this entry at all (before the password check).
  */
 /**

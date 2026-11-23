@@ -167,7 +167,8 @@ try {
     trash_seed_counters($db);
     trash_assert(trash_counter_state($db) === ['bytes' => 39, 'entries' => 4], 'counters start from the authoritative rows');
 
-    $updated = trash_soft_delete_thread($db, 'trash-reply');
+    trash_assert(trash_soft_delete_thread($db, 'trash-reply', $reply_id, 'user') === 0, 'reply owner cannot trash the thread');
+    $updated = trash_soft_delete_thread($db, 'trash-reply', $owner_id, 'user');
     trash_assert($updated === 3, 'deleting a reply moves the whole thread to the trash');
     $live = $db->query("SELECT deleted_at FROM entries WHERE id = 'live-root'")->fetch_assoc();
     trash_assert(is_array($live) && $live['deleted_at'] === null, 'unrelated threads stay live');
@@ -190,7 +191,7 @@ try {
     $live_count = (int) $db->query('SELECT COUNT(*) AS total FROM entries WHERE deleted_at IS NULL')->fetch_assoc()['total'];
     trash_assert($live_count === 4, 'the restored thread is live again');
 
-    trash_soft_delete_thread($db, 'trash-root');
+    trash_soft_delete_thread($db, 'trash-root', $reply_id, 'admin');
     $refused = false;
     try {
         $refused = trash_purge_thread($db, 'live-root') === false;
@@ -214,7 +215,7 @@ try {
     trash_insert_entry($db, 'old-root', null, 'old-root', 0, $owner_id, $owner_name, 'old root');
     trash_insert_entry($db, 'old-reply', 'old-root', 'old-root', 1, $reply_id, $reply_name, 'old reply');
     trash_seed_counters($db);
-    trash_soft_delete_thread($db, 'old-root');
+    trash_soft_delete_thread($db, 'old-root', $owner_id, 'admin');
     $old = gmdate('Y-m-d H:i:s', time() - (30 * 86400));
     $db->query("UPDATE entries SET deleted_at = '{$old}' WHERE root_id = 'old-root'");
     $result = trash_purge_expired($db, 7);

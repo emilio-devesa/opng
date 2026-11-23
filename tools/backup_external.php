@@ -45,19 +45,18 @@ if ($configErrors !== []) {
 }
 
 try {
-    $db = new mysqli($mysql_server, $mysql_username, $mysql_password, $mysql_dbname);
-    $db->set_charset('utf8mb4');
-
     if ($verifyPath !== null) {
-        $result = external_backup_verify_file($db, $verifyPath);
+        $result = external_backup_verify_file($verifyPath);
         echo "Verified backup: {$result['tables']} table(s), {$result['rows']} row(s)"
             . ($result['encrypted'] ? ' (encrypted)' : '') . ".\n";
     } else {
+        $db = new mysqli($mysql_server, $mysql_username, $mysql_password, $mysql_dbname);
+        $db->set_charset('utf8mb4');
         $result = external_backup_run($db);
         audit_log_record($db, null, 'backup.external_cli', $result['name']);
         echo "Backup written: {$result['name']} ({$result['bytes']} bytes, sha256 {$result['checksum']}).\n";
+        $db->close();
     }
-    $db->close();
     exit(0);
 } catch (mysqli_sql_exception | RuntimeException $exception) {
     fwrite(STDERR, 'ERROR: ' . $exception->getMessage() . "\n");

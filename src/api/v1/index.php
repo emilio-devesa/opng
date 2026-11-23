@@ -174,8 +174,7 @@ try {
     $stmt = $db->prepare(
         'SELECT id, topic, language, date, author_label, text
          FROM entries
-         WHERE id = ? AND ' . entry_public_filter_sql('entries') . '
-         LIMIT 1'
+         WHERE id = ? AND ' . entry_api_content_filter_sql() . ' LIMIT 1'
     );
     if (!$stmt) {
         throw new RuntimeException('API entry statement could not be prepared.');
