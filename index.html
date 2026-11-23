@@ -229,7 +229,7 @@
       <header class="section-head">
         <p class="eyebrow">Quick start</p>
         <h2>Up and running in minutes</h2>
-        <p>Choose the classic shared-hosting package or the Apple Container deployment. Both use the same schema and configuration file.</p>
+        <p>Try v1.2.0 on loopback in a fresh directory. Both recipes generate private credentials, keep the MFA key across restarts and install the schema with a separate migration account.</p>
       </header>
 
       <div class="quick-grid">
@@ -238,12 +238,9 @@
             <h3>Classic hosting</h3>
             <button class="copy-button" type="button" data-copy-target="snippet-classic">Copy</button>
           </header>
-          <pre id="snippet-classic" tabindex="0" aria-label="Classic hosting commands"><code>git clone https://github.com/emilio-devesa/opng.git
-cd opng
-cp src/config.example.php src/config.php
-# Edit src/config.php with your database credentials
-php src/install.php
-php -S 127.0.0.1:8080 -t src</code></pre>
+          <p>Start MySQL or MariaDB locally. Have PHP, the mysql client, Git and OpenSSL on PATH. Enter the database administrator password when prompted. The database <code>opng</code> must not already exist. For shared hosting, use the <a href="https://github.com/emilio-devesa/opng/blob/v1.2.0/docs/INSTALL-CLASSIC.md">classic provisioning guide</a>.</p>
+          <pre id="snippet-classic" tabindex="0" aria-label="Classic hosting commands"><code>curl -fsSLO https://emilio-devesa.github.io/opng/quick-start.sh
+sh quick-start.sh classic</code></pre>
         </article>
 
         <article class="code-card">
@@ -251,14 +248,15 @@ php -S 127.0.0.1:8080 -t src</code></pre>
             <h3>Apple Container</h3>
             <button class="copy-button" type="button" data-copy-target="snippet-container">Copy</button>
           </header>
-          <pre id="snippet-container" tabindex="0" aria-label="Apple Container commands"><code>cp deploy/apple-container/.env.example deploy/apple-container/.env
-# Set the database password and application secrets
-bash deploy/apple-container/start.sh --build
-# Open http://127.0.0.1:8080</code></pre>
+          <p>On a Mac with Apple Container, Git and OpenSSL, use an empty installation (no existing OPNG containers, network or volumes). The <a href="./quick-start.sh">setup script</a> provisions MariaDB privately and starts the app with a DML-only account. See the <a href="https://github.com/emilio-devesa/opng/blob/v1.2.0/docs/APPLE-CONTAINER.md">container guide</a> for operating instructions.</p>
+          <pre id="snippet-container" tabindex="0" aria-label="Apple Container commands"><code>container system start
+curl -fsSLO https://emilio-devesa.github.io/opng/quick-start.sh
+sh quick-start.sh apple</code></pre>
         </article>
       </div>
 
       <div class="requirements">
+        <p>Open <a href="http://127.0.0.1:8080">127.0.0.1:8080</a>, sign in as <code>admin@example.test</code> using <code>opng-local/admin-password</code>, and enroll your authenticator. Keep the generated files private and outside the web root. For another classic session, load <code>runtime.env</code> with <code>set -a; . ./runtime.env; set +a</code> from <code>opng-local</code> before starting PHP.</p>
         <h3>Requirements</h3>
         <ul>
           <li>PHP <strong>8.2.35</strong>, <strong>8.3.36</strong>, <strong>8.4.27</strong> or <strong>8.5.12</strong> and later patch releases.</li>
