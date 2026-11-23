@@ -173,6 +173,15 @@ def exercise(first, second, sql, directory):
     fresh.request("/auth/mfa.php", dict(csrf_token=csrf(challenge), mfa_code=otp(secret)))
     assert fresh.request("/auth/security.php")[0] == 200
     assert fresh.request("/view.php?id="+entry)[0] == 200
+    recovered = Browser(second)
+    challenge = recovered.login("admin")[2]
+    recovered.request("/auth/mfa.php", dict(csrf_token=csrf(challenge), mfa_code=codes[0]))
+    status, location, _ = recovered.request("/admin/admin.php")
+    assert status == 200 and location.endswith("/admin/admin.php")
+    replay = Browser(first)
+    challenge = replay.login("admin")[2]
+    replay.request("/auth/mfa.php", dict(csrf_token=csrf(challenge), mfa_code=codes[0]))
+    assert replay.request("/auth/security.php")[0] == 403
     stale = Browser(first)
     challenge = stale.login("admin")[2]
     sql("UPDATE users SET session_version=session_version+1 WHERE username='admin'")

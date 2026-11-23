@@ -60,7 +60,7 @@ async function signIn(page) {
     await page.fill("#email", email);
     await page.fill("#password", password);
     await Promise.all([
-        page.waitForURL((url) => !url.pathname.endsWith("/auth/login.php"), { timeout: 15000 }),
+        page.waitForURL(base + "/index.php", { timeout: 15000 }),
         page.click("button[type=submit]"),
     ]);
 }
@@ -96,6 +96,10 @@ try {
             }
             if (!response || response.status() >= 400) {
                 fail(`${label(target)}: unexpected HTTP status ${response ? response.status() : "none"}`);
+                continue;
+            }
+            if (target.requiresLogin && new URL(response.url()).pathname !== target.path) {
+                fail(`${label(target)}: redirected away from the authenticated admin page`);
                 continue;
             }
 
