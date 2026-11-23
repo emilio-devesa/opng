@@ -203,3 +203,15 @@ login. Reloading the enrollment form keeps its setup key; cancelling or
 starting a new login generates a different key on the next enrollment.
 If two sessions confirm enrollment concurrently, only the first successful
 confirmation installs the factor and receives its recovery codes.
+
+## Paste expiry and trash
+
+`entries.expires_at` is a UTC instant stored as a `DATETIME`, including values
+in existing or imported databases. No historical values are rewritten. When
+importing known local-time deadlines, convert them to UTC before import.
+The entry is unavailable from the expiry second onwards. Editing keeps its
+current expiry unless a new preset or “Never” is explicitly selected.
+
+Restoration and purge take the same global storage-counter lock before
+resolving their target rows. Restoring leaves quotas charged; only a purge
+releases bytes and entries.

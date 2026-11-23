@@ -48,7 +48,7 @@ try {
                     SELECT 1 FROM entries c
                     WHERE c.parent_id = e.id
                       AND c.deleted_at IS NULL
-                      AND (c.expires_at IS NULL OR c.expires_at > NOW())
+                      AND (c.expires_at IS NULL OR c.expires_at > UTC_TIMESTAMP())
                 ) AS has_children
          FROM entries e
          LEFT JOIN entries root ON root.id = COALESCE(e.root_id, e.id)
@@ -293,7 +293,7 @@ require(__DIR__ . "/includes/layout_header.php");
                 <div><dt data-i18n="id">ID:</dt><dd><?php echo htmlspecialchars($array['id'], ENT_QUOTES, 'UTF-8'); ?></dd></div>
                 <div><dt data-i18n="visibility_label">Visibility:</dt><dd data-i18n="<?php echo htmlspecialchars($visibility_key, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars(ucfirst($visibility_value), ENT_QUOTES, 'UTF-8'); ?></dd></div>
                 <?php if ($expires_at_value !== null): ?>
-                <div><dt data-i18n="expiry_label">Expires:</dt><dd><?php echo opng_datetime_html($expires_at_value); ?></dd></div>
+                <div><dt data-i18n="expiry_label">Expires:</dt><dd><?php echo opng_datetime_html($expires_at_value, null, true); ?></dd></div>
                 <?php endif; ?>
                 <?php if ($has_protection): ?>
                 <div><dt data-i18n="protection_status_label">Protection:</dt><dd data-i18n="protection_status_enabled">Password protected</dd></div>
@@ -394,8 +394,9 @@ require(__DIR__ . "/includes/layout_header.php");
                     </select>
                     <label for="edit_expiry" data-i18n="expiry_label">Expires:</label>
                     <select id="edit_expiry" name="expiry">
+                        <option value="keep" selected data-i18n="expiry_keep">Keep current expiry</option>
                         <?php foreach (entry_expiry_options() as $value => $label_key): ?>
-                        <option value="<?php echo htmlspecialchars($value, ENT_QUOTES, 'UTF-8'); ?>" data-i18n="<?php echo htmlspecialchars($label_key, ENT_QUOTES, 'UTF-8'); ?>"<?php echo $value === entry_expiry_option_for($expires_at_value) ? ' selected' : ''; ?>>
+                        <option value="<?php echo htmlspecialchars($value, ENT_QUOTES, 'UTF-8'); ?>" data-i18n="<?php echo htmlspecialchars($label_key, ENT_QUOTES, 'UTF-8'); ?>">
                             <?php echo htmlspecialchars($value === 'never' ? 'Never' : $value, ENT_QUOTES, 'UTF-8'); ?>
                         </option>
                         <?php endforeach; ?>

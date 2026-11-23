@@ -92,24 +92,33 @@ function trash_soft_delete_thread(mysqli $db, string $entryId, int $actorId, str
  */
 function trash_restore_thread(mysqli $db, string $entryId): int
 {
-    $rootId = trash_thread_root_id($db, $entryId);
-    if ($rootId === null) {
-        return 0;
+    $db->begin_transaction();
+    try {
+        // Stabilize purge membership before reading even the thread root.
+        if (global_quota_lock($db) === null) {
+            throw new RuntimeException('Global storage counter is unavailable.');
+        }
+        $rootId = trash_thread_root_id($db, $entryId);
+        $updated = 0;
+        if ($rootId !== null) {
+            $stmt = $db->prepare(
+                'UPDATE entries SET deleted_at = NULL
+                 WHERE (id = ? OR root_id = ?) AND deleted_at IS NOT NULL'
+            );
+            if (!$stmt) {
+                throw new RuntimeException('Trash restore query could not be prepared.');
+            }
+            $stmt->bind_param('ss', $rootId, $rootId);
+            $stmt->execute();
+            $updated = max(0, $stmt->affected_rows);
+            $stmt->close();
+        }
+        $db->commit();
+        return $updated;
+    } catch (Throwable $exception) {
+        $db->rollback();
+        throw $exception;
     }
-
-    $stmt = $db->prepare(
-        'UPDATE entries SET deleted_at = NULL
-         WHERE (id = ? OR root_id = ?) AND deleted_at IS NOT NULL'
-    );
-    if (!$stmt) {
-        return 0;
-    }
-    $stmt->bind_param('ss', $rootId, $rootId);
-    $stmt->execute();
-    $updated = max(0, $stmt->affected_rows);
-    $stmt->close();
-
-    return $updated;
 }
 
 /**

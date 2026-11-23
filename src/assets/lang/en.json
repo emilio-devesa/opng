@@ -356,6 +356,7 @@
     "expiry_30d": "30 days",
     "expiry_7d": "7 days",
     "expiry_label": "Expires",
+    "expiry_keep": "Keep current expiry",
     "expiry_never": "Never",
     "external_backup_bucket": "Bucket",
     "external_backup_cli_help": "Run php tools/backup_external.php from cron for scheduled copies.",

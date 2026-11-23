@@ -55,13 +55,12 @@ if ($validation_error !== null) {
 // Access fields are only meaningful for thread roots. Replies inherit the
 // parent's visibility, expiry and password protection, so their edit form does
 // not post these values and the transaction leaves them untouched (10.5).
-$access_input = entry_access_input($_POST);
+$access_input = entry_access_input($_POST, true);
 if (is_string($access_input)) {
     opng_error_redirect($access_input);
 }
 $visibility = $access_input['visibility'];
 $protection_password = $access_input['password'];
-$expires_at = entry_expiry_from_option($access_input['expiry']);
 $remove_protection = $access_input['remove'];
 
 // Language: allowlist (same as in submit.php)
@@ -219,6 +218,9 @@ try {
     // keeps the inherited values from the parent (10.5).
     $is_root = (int) ($entry['depth'] ?? 0) === 0;
     if ($is_root) {
+        $expires_at = $access_input['expiry'] === 'keep'
+            ? $entry['expires_at']
+            : entry_expiry_from_option($access_input['expiry']);
         $root_id = is_string($entry['root_id'] ?? null) && $entry['root_id'] !== ''
             ? $entry['root_id']
             : $id;

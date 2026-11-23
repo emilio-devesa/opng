@@ -292,7 +292,7 @@ function opng_i18n_apply(string $html): string
  * helper does not shift it. It returns a <time> element with a machine-readable
  * datetime and a title that preserves the raw stored value.
  */
-function opng_datetime_html(string $mysql_datetime, ?string $locale = null): string
+function opng_datetime_html(string $mysql_datetime, ?string $locale = null, bool $utc = false): string
 {
     $raw = trim($mysql_datetime);
     if ($raw === '' || str_starts_with($raw, '0000-00-00')) {
@@ -300,7 +300,7 @@ function opng_datetime_html(string $mysql_datetime, ?string $locale = null): str
     }
 
     try {
-        $date = new DateTimeImmutable($raw);
+        $date = new DateTimeImmutable($raw, $utc ? new DateTimeZone('UTC') : null);
     } catch (Exception) {
         return htmlspecialchars($raw, ENT_QUOTES, 'UTF-8');
     }
@@ -312,8 +312,8 @@ function opng_datetime_html(string $mysql_datetime, ?string $locale = null): str
         'zh' => 'Y-m-d H:i',
         default => 'M j, Y H:i',
     };
-    $display = $date->format($format);
-    $machine = $date->format('Y-m-d\TH:i:s');
+    $display = $date->format($format) . ($utc ? ' UTC' : '');
+    $machine = $date->format('Y-m-d\TH:i:s') . ($utc ? 'Z' : '');
 
     return '<time datetime="' . htmlspecialchars($machine, ENT_QUOTES, 'UTF-8') . '" title="'
         . htmlspecialchars($raw, ENT_QUOTES, 'UTF-8') . '">'

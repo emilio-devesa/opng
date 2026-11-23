@@ -283,19 +283,27 @@ function external_backup_run(mysqli $db): array
  */
 function external_backup_prune_local(array $config): int
 {
-    $files = glob(rtrim($config['directory'], '/') . '/opng-*');
+    $directory = $config['directory'];
+    $files = scandir($directory);
     if ($files === false) {
         return 0;
     }
     $threshold = time() - ($config['retention_days'] * 86400);
     $removed = 0;
-    foreach ($files as $file) {
-        if (str_ends_with($file, '.sha256') || str_ends_with($file, '.tmp')) {
+    foreach ($files as $name) {
+        if (!preg_match('/\Aopng-[0-9]{8}-[0-9]{6}-[0-9a-f]{8}\.(?:sql|enc)\z/', $name)) {
+            continue;
+        }
+        $file = $directory . '/' . $name;
+        if (is_link($file) || !is_file($file)) {
             continue;
         }
         $mtime = @filemtime($file);
         if ($mtime !== false && $mtime < $threshold && @unlink($file)) {
-            @unlink($file . '.sha256');
+            $sidecar = $file . '.sha256';
+            if (!is_link($sidecar) && is_file($sidecar)) {
+                @unlink($sidecar);
+            }
             $removed++;
         }
     }

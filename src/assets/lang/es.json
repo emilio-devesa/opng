@@ -356,6 +356,7 @@
     "expiry_30d": "30 días",
     "expiry_7d": "7 días",
     "expiry_label": "Caduca",
+    "expiry_keep": "Conservar la caducidad actual",
     "expiry_never": "Nunca",
     "external_backup_bucket": "Cubo",
     "external_backup_cli_help": "Ejecuta php tools/backup_external.php desde cron para copias programadas.",

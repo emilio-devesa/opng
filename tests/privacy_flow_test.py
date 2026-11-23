@@ -106,9 +106,20 @@ def exercise(first, second, sql, directory):
     assert user.request("/update.php", edit)[0] == 400
     assert sql("SELECT CONCAT(visibility,':',text) FROM entries") == "private:original"
     assert sql("SELECT protection_hash FROM entries") == stored_hash
+    assert user.request("/update.php", dict(fields, input_ID=entry, remove_protection="yes"))[0] == 200
+    # Simulate elapsed time: neither the root nor its reply has a preset TTL left.
+    assert user.request("/submit.php", dict(fields, parent_id=entry))[0] == 200
+    deadline = sql("SELECT UTC_TIMESTAMP() + INTERVAL 12 HOUR")
+    sql(f"UPDATE entries SET expires_at='{deadline}'")
+    edit = dict(fields, input_ID=entry, input_text="edited")
+    for change in [{}, {"expiry": "keep"}]:
+        assert user.request("/update.php", dict(edit, **change))[0] == 200
+        assert sql("SELECT expires_at FROM entries").splitlines() == [deadline, deadline]
+    assert user.request("/update.php", dict(edit, expiry="never"))[0] == 200
+    assert sql("SELECT COUNT(*) FROM entries WHERE expires_at IS NULL") == "2"
     sql("UPDATE users SET session_version=session_version+1 WHERE username='writer'")
     assert user.request("/submit.php", fields)[1].endswith("/auth/login.php")
-    assert sql("SELECT COUNT(*) FROM entries") == "1"
+    assert sql("SELECT COUNT(*) FROM entries") == "2"
     # Give only this synthetic session a known image challenge. The POST
     # still has to pass the real CSRF, rate-limit and CAPTCHA validators.
     sid = next(c.value for c in guest.cookies if c.name == "opng_session")

@@ -94,6 +94,36 @@ try {
     }
     api_token_pass('listing returns public metadata; API content excludes protected and non-public rows');
 
+    $previousZone = date_default_timezone_get();
+    foreach (['2026-01-15', '2026-07-15'] as $day) {
+        $instant = strtotime($day . ' 12:00:00 UTC');
+        $deadline = entry_expiry_from_option('1h', $instant - 3600);
+        $db->query("UPDATE entries SET expires_at = '{$deadline}' WHERE id = 'live'");
+        foreach (['UTC', 'Europe/Madrid'] as $zone) {
+            date_default_timezone_set($zone);
+            // Numeric offsets also work without MySQL timezone tables.
+            $offset = date('P', $instant);
+            $db->query("SET SESSION time_zone = '{$offset}'");
+            foreach ([-1, 0, 1] as $delta) {
+                $now = $instant + $delta;
+                $db->query('SET timestamp = ' . $now);
+                if (entry_is_expired(['expires_at' => $deadline], $now) !== ($delta >= 0)) {
+                    api_token_fail('detail uses the wrong expiry boundary');
+                }
+                foreach ([entry_public_filter_sql(), entry_api_content_filter_sql()] as $filter) {
+                    $rows = $db->query("SELECT id FROM entries WHERE id = 'live' AND " . $filter);
+                    if ($rows->num_rows !== ($delta < 0 ? 1 : 0)) {
+                        api_token_fail('SQL visibility disagrees with the UTC expiry boundary');
+                    }
+                }
+            }
+        }
+    }
+    date_default_timezone_set($previousZone);
+    $db->query('SET SESSION time_zone = DEFAULT');
+    $db->query('SET timestamp = 0');
+    api_token_pass('winter and summer UTC expiry boundaries agree across listing, detail and API');
+
     $created = api_token_create($db, $user_id, 'CI token', 'read', 30);
     if ($created === null || !api_token_valid_format($created['clear'])) {
         api_token_fail('a token could not be created');

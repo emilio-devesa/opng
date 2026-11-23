@@ -118,12 +118,12 @@ function thread_page_query(string $root_id, ?array $cursor = null): array
     $descendants = "SELECT {$columns} FROM entries
                     WHERE entries.root_id = ?
                       AND entries.deleted_at IS NULL
-                      AND (entries.expires_at IS NULL OR entries.expires_at > NOW())";
+                      AND (entries.expires_at IS NULL OR entries.expires_at > UTC_TIMESTAMP())";
     $root = "SELECT {$columns} FROM entries
              WHERE entries.id = ?
                AND (entries.root_id IS NULL OR entries.root_id <> ?)
                AND entries.deleted_at IS NULL
-               AND (entries.expires_at IS NULL OR entries.expires_at > NOW())";
+               AND (entries.expires_at IS NULL OR entries.expires_at > UTC_TIMESTAMP())";
     $condition_types = '';
     $condition_params = [];
     if ($cursor !== null) {

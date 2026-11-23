@@ -356,6 +356,7 @@
     "expiry_30d": "30 天",
     "expiry_7d": "7 天",
     "expiry_label": "到期",
+    "expiry_keep": "保留当前到期时间",
     "expiry_never": "永不",
     "external_backup_bucket": "存储桶",
     "external_backup_cli_help": "通过 cron 运行 php tools/backup_external.php 以执行计划备份。",

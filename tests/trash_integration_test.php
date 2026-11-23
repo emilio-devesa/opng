@@ -218,7 +218,39 @@ try {
     trash_soft_delete_thread($db, 'old-root', $owner_id, 'admin');
     $old = gmdate('Y-m-d H:i:s', time() - (30 * 86400));
     $db->query("UPDATE entries SET deleted_at = '{$old}' WHERE root_id = 'old-root'");
+    $other = new mysqli($host, $user, $password, $name, $port);
+    $other->query('SET SESSION innodb_lock_wait_timeout = 1');
+    // Hold only the global row. Neither operation may reach the thread.
+    $db->begin_transaction();
+    global_quota_lock($db);
+    foreach ([
+        fn () => trash_restore_thread($other, 'old-reply'),
+        fn () => trash_purge_expired($other, 7),
+    ] as $operation) {
+        $blocked = false;
+        try {
+            $operation();
+        } catch (mysqli_sql_exception $exception) {
+            $blocked = $exception->getCode() === 1205;
+        }
+        trash_assert($blocked, 'the operation waits for the global lock');
+    }
+    $db->commit();
+    trash_assert(trash_restore_thread($other, 'old-reply') === 2, 'restore wins before purge');
+    trash_assert(trash_purge_expired($db, 7)['purged'] === 0, 'purge skips restored rows');
+    $checkCounters = static function () use ($db): void {
+        $rows = $db->query('SELECT COUNT(*), SUM(OCTET_LENGTH(text)) FROM entries')->fetch_row();
+        trash_assert(trash_counter_state($db) === ['bytes' => (int) $rows[1], 'entries' => (int) $rows[0]], 'global totals match rows');
+        $bad = $db->query('SELECT id FROM users WHERE used_bytes <> (SELECT COALESCE(SUM(OCTET_LENGTH(text)),0) FROM entries WHERE user_id = users.id)');
+        trash_assert($bad->num_rows === 0, 'each account matches its rows');
+    };
+    $checkCounters();
+    trash_soft_delete_thread($db, 'old-root', $owner_id, 'admin');
+    $db->query("UPDATE entries SET deleted_at = '{$old}' WHERE root_id = 'old-root'");
     $result = trash_purge_expired($db, 7);
+    trash_assert(trash_restore_thread($other, 'old-reply') === 0, 'restore cannot revive purged rows');
+    $checkCounters();
+    $other->close();
     trash_assert($result['purged'] === 2 && $result['bytes'] === 17, 'the scheduled purge removes only expired trashed rows');
     trash_assert(
         trash_counter_state($db) === ['bytes' => 9, 'entries' => 1],

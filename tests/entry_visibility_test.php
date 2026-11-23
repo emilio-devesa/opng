@@ -41,12 +41,8 @@ visibility_assert(
     entry_expiry_from_option('1h', 1000) === gmdate('Y-m-d H:i:s', 4600),
     'preset expiry options become absolute datetimes'
 );
-visibility_assert(
-    entry_expiry_option_for(gmdate('Y-m-d H:i:s', time() + 3600)) === '1h',
-    'stored expiries map back to their preset'
-);
-visibility_assert(entry_expiry_option_for('') === 'never', 'missing expiries map to never');
-visibility_assert(entry_expiry_option_for('not-a-date') === 'never', 'invalid expiries map to never');
+visibility_assert(entry_access_input([], true)['expiry'] === 'keep', 'omitting expiry on edit preserves it');
+visibility_assert(entry_access_input(['expiry' => 'keep']) === 'error_expiry_invalid', 'keep is only valid on edit');
 
 visibility_assert(entry_is_deleted(['deleted_at' => '2024-01-01 00:00:00']), 'deleted rows are detected');
 visibility_assert(!entry_is_deleted(['deleted_at' => null]), 'live rows are not deleted');
@@ -58,7 +54,7 @@ $filter = entry_public_filter_sql('entries');
 visibility_assert(
     str_contains($filter, 'entries.deleted_at IS NULL')
         && str_contains($filter, "entries.visibility = 'public'")
-        && str_contains($filter, 'entries.expires_at > NOW()'),
+        && str_contains($filter, 'entries.expires_at > UTC_TIMESTAMP()'),
     'the public listing excludes deleted, expired and non-public rows'
 );
 $bad_alias_rejected = false;

@@ -122,7 +122,9 @@ php tools/backup_external.php
 The command writes `opng-YYYYMMDD-HHMMSS-xxxxxxxx.sql` (or `.enc` for an
 encrypted local backup) plus a `.sha256` sidecar, applies the retention window
 and logs a structured `external_backup_completed` event. Local retention removes
-expired plain and encrypted files together with their sidecars. S3 uploads use
+only regular files matching that exact naming format and their regular checksum
+sidecars; temporary files and symbolic links are skipped. Use a directory
+dedicated to OPNG backups and writable only by the backup account. S3 uploads use
 native SigV4 signing and no SDK; objects are uploaded as-is, so use a private
 bucket with bucket-side encryption. The admin page (`admin/external_backup.php`)
 shows the configuration and local files, and can run or verify a backup after

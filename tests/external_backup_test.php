@@ -115,9 +115,16 @@ try {
 }
 backup_assert($tamper_rejected, 'tampered encrypted backups fail authentication');
 
-$old = $directory . '/opng-old.sql';
-$old_enc = $directory . '/opng-old.enc';
-$new = $directory . '/opng-new.sql';
+$old = $directory . '/opng-20260101-123456-abcdef01.sql';
+$old_enc = $directory . '/opng-20260102-123456-abcdef02.enc';
+$new = $directory . '/opng-20260103-123456-abcdef03.sql';
+$foreign = $directory . '/opng-manual.sql';
+$link = $directory . '/opng-20260104-123456-abcdef04.sql';
+foreach ([$foreign, $old . '.tmp'] as $other) {
+    file_put_contents($other, 'not a completed OPNG backup');
+    touch($other, time() - 3 * 86400);
+}
+symlink($foreign, $link);
 file_put_contents($old, 'old');
 file_put_contents($old . '.sha256', 'old-checksum  opng-old.sql');
 file_put_contents($old_enc, 'old-encrypted');
@@ -132,6 +139,7 @@ touch($new, time());
 
 $removed = external_backup_prune_local(['directory' => $directory, 'retention_days' => 1]);
 backup_assert($removed === 2, 'retention removes expired encrypted and plain backups');
+backup_assert(is_file($foreign) && is_link($link) && is_file($old . '.tmp'), 'foreign, linked and temporary files survive retention');
 backup_assert(!is_file($old) && !is_file($old_enc), 'expired backups are deleted');
 backup_assert(
     !is_file($old . '.sha256') && !is_file($old_enc . '.sha256'),

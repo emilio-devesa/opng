@@ -24,13 +24,16 @@ const OPNG_ENTRY_UNLOCK_TTL = 1800;
  * @param array<string, mixed> $input
  * @return array{visibility:string, expiry:string, password:string, remove:bool}|string error key on failure
  */
-function entry_access_input(array $input): array|string
+function entry_access_input(array $input, bool $editing = false): array|string
 {
-    $fields = $input + ['visibility' => 'public', 'expiry' => 'never', 'protection_password' => ''];
+    $fields = $input + ['visibility' => 'public', 'expiry' => $editing ? 'keep' : 'never', 'protection_password' => ''];
     if (!is_string($fields['visibility']) || !entry_visibility_valid($fields['visibility'])) {
         return 'error_visibility_invalid';
     }
-    if (!is_string($fields['expiry']) || !isset(entry_expiry_options()[$fields['expiry']])) {
+    if (
+        !is_string($fields['expiry'])
+        || (!isset(entry_expiry_options()[$fields['expiry']]) && !($editing && $fields['expiry'] === 'keep'))
+    ) {
         return 'error_expiry_invalid';
     }
     $password = $fields['protection_password'];
@@ -106,31 +109,6 @@ function entry_expiry_from_option(mixed $option, ?int $now = null): ?string
 }
 
 /**
- * Normalize an expiry option from a stored absolute value. Used by the edit
- * form when the remaining lifetime does not match a preset exactly.
- */
-function entry_expiry_option_for(?string $expiresAt): string
-{
-    if ($expiresAt === null || $expiresAt === '') {
-        return 'never';
-    }
-
-    try {
-        $expiry = new DateTimeImmutable($expiresAt);
-    } catch (Exception) {
-        return 'never';
-    }
-    $remaining = $expiry->getTimestamp() - time();
-    foreach (['1h' => 3600, '1d' => 86400, '7d' => 604800, '30d' => 2592000] as $option => $seconds) {
-        if (abs($remaining - $seconds) <= 300) {
-            return $option;
-        }
-    }
-
-    return 'never';
-}
-
-/**
  * @param array<string, mixed> $entry
  */
 function entry_is_deleted(array $entry): bool
@@ -149,7 +127,7 @@ function entry_is_expired(array $entry, ?int $now = null): bool
     }
 
     try {
-        return (new DateTimeImmutable($expiresAt))->getTimestamp() <= ($now ?? time());
+        return (new DateTimeImmutable($expiresAt, new DateTimeZone('UTC')))->getTimestamp() <= ($now ?? time());
     } catch (Exception) {
         return true;
     }
@@ -165,7 +143,7 @@ function entry_public_filter_sql(string $alias = 'entries'): string
     }
 
     return "{$alias}.deleted_at IS NULL"
-        . " AND ({$alias}.expires_at IS NULL OR {$alias}.expires_at > NOW())"
+        . " AND ({$alias}.expires_at IS NULL OR {$alias}.expires_at > UTC_TIMESTAMP())"
         . " AND {$alias}.visibility = 'public'";
 }
 
