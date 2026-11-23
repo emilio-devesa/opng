@@ -68,12 +68,17 @@ require(__DIR__ . "/includes/layout_header.php");
             <label for="input_visibility" data-i18n="visibility_label">Visibility:</label>
             <select id="input_visibility" name="visibility">
                 <?php foreach (entry_visibility_options() as $value => $label_key): ?>
+                <?php if ($is_guest && $value === 'private') { continue; } ?>
                 <option value="<?php echo htmlspecialchars($value, ENT_QUOTES, 'UTF-8'); ?>" data-i18n="<?php echo htmlspecialchars($label_key, ENT_QUOTES, 'UTF-8'); ?>">
                     <?php echo htmlspecialchars(ucfirst($value), ENT_QUOTES, 'UTF-8'); ?>
                 </option>
                 <?php endforeach; ?>
             </select>
             <p class="form-help" data-i18n="visibility_help">Unlisted entries are reachable only by link. Private entries are visible to their author and administrators.</p>
+
+            <?php if ($is_guest): ?>
+            <p class="form-help" data-i18n="error_private_requires_login">Sign in to create a private paste.</p>
+            <?php endif; ?>
 
             <label for="input_expiry" data-i18n="expiry_label">Expires:</label>
             <select id="input_expiry" name="expiry">

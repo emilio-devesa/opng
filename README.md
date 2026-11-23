@@ -32,7 +32,7 @@ Open Pastebin NG is **free software** released under the **[GNU GPL license](LIC
 - 🔐 TOTP two-factor authentication for administrators, one-time recovery codes and MFA-confirmed destructive actions
 - 🗑️ Thread-aware trash with a configurable retention window, restore and a scheduled purge
 - 🔑 Personal read-only API tokens (`/api/v1/entries`) with scopes, expiry, revocation and per-token rate limits
-- 👁️ Public, unlisted and private pastes with optional expiry and password protection; replies inherit their parent's access policy
+- 👁️ Guests can create public or unlisted pastes. Sign in to create a private paste. Expiry and password protection are optional; replies inherit their parent's access policy.
 - 🧾 Audit-log viewer with filters, rate-limit/quota observability and structured JSON logs with request IDs
 - 💾 Off-host backups to a mounted directory or any S3-compatible endpoint, with checksums, retention, optional encryption and restore verification
 - 📂 Entries are stored in a **MySQL database**

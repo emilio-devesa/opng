@@ -55,21 +55,14 @@ if ($validation_error !== null) {
 // Access fields are only meaningful for thread roots. Replies inherit the
 // parent's visibility, expiry and password protection, so their edit form does
 // not post these values and the transaction leaves them untouched (10.5).
-$visibility = http_string_parameter($_POST, 'visibility', 16, false) ?? 'public';
-if (!entry_visibility_valid($visibility)) {
-    opng_error_redirect('error_visibility_invalid');
+$access_input = entry_access_input($_POST);
+if (is_string($access_input)) {
+    opng_error_redirect($access_input);
 }
-$expiry_option = http_string_parameter($_POST, 'expiry', 16, false) ?? 'never';
-if (!array_key_exists($expiry_option, entry_expiry_options())) {
-    opng_error_redirect('error_expiry_invalid');
-}
-$protection_password = http_string_parameter($_POST, 'protection_password', 72, false);
-$protection_error = entry_protection_error($protection_password);
-if ($protection_error !== null) {
-    opng_error_redirect($protection_error);
-}
-$expires_at = entry_expiry_from_option($expiry_option);
-$remove_protection = ($_POST['remove_protection'] ?? null) === 'yes';
+$visibility = $access_input['visibility'];
+$protection_password = $access_input['password'];
+$expires_at = entry_expiry_from_option($access_input['expiry']);
+$remove_protection = $access_input['remove'];
 
 // Language: allowlist (same as in submit.php)
 try {
@@ -230,7 +223,7 @@ try {
             ? $entry['root_id']
             : $id;
         $new_protection_hash = $entry['protection_hash'] ?? null;
-        if ($protection_password !== null && $protection_password !== '') {
+        if ($protection_password !== '') {
             $new_protection_hash = entry_protection_hash($protection_password);
         } elseif ($remove_protection) {
             $new_protection_hash = null;

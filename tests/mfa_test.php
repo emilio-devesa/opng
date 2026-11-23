@@ -109,4 +109,12 @@ mfa_assert(
     'recovery codes can be replaced atomically'
 );
 
-echo "MFA regression passed: TOTP vectors, encryption, recovery codes and drift window.\n";
+require_once __DIR__ . '/../src/includes/auth.php';
+foreach ([['expires' => time() - 1, 'session_version' => 1], ['expires' => time() + 60]] as $stale) {
+    $_SESSION = [
+        'mfa_pending' => $stale + ['user_id' => 1, 'enroll_required' => true, 'secret' => $secret],
+        'mfa_enroll' => ['secret' => $secret],
+    ];
+    mfa_assert(auth_pending_mfa() === null && $_SESSION === [], 'expired or unversioned MFA attempts discard all enrollment data');
+}
+echo "MFA regression passed: TOTP vectors, encryption, recovery codes, drift and pending-session expiry.\n";

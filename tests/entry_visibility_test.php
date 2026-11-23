@@ -123,6 +123,18 @@ visibility_assert(
 );
 
 $hash = entry_protection_hash('correct horse');
+visibility_assert(entry_access_input([])['visibility'] === 'public', 'omitted visibility keeps the classic default');
+foreach ([
+    ['visibility' => null], ['visibility' => []], ['visibility' => str_repeat('x', 17)],
+    ['expiry' => []], ['expiry' => 'invalid'], ['protection_password' => []],
+    ['protection_password' => str_repeat('é', 37)], ['remove_protection' => ['yes']],
+] as $bad) {
+    visibility_assert(is_string(entry_access_input($bad)), 'malformed privacy fields return an error');
+}
+visibility_assert(
+    entry_access_input(['protection_password' => str_repeat('é', 36)])['password'] === str_repeat('é', 36),
+    'a valid 72-byte password is preserved verbatim'
+);
 visibility_assert(entry_protection_verify('correct horse', $hash), 'protection hashes verify the password');
 visibility_assert(!entry_protection_verify('wrong horse', $hash), 'protection hashes reject wrong passwords');
 if (defined('PASSWORD_ARGON2ID')) {

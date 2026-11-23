@@ -19,6 +19,32 @@ const OPNG_ENTRY_VISIBILITIES = ['public', 'unlisted', 'private'];
 const OPNG_ENTRY_UNLOCK_TTL = 1800;
 
 /**
+ * Defaults apply to absent fields only. A malformed field must never
+ * silently turn a protected, private or expiring paste into a public one.
+ * @param array<string, mixed> $input
+ * @return array{visibility:string, expiry:string, password:string, remove:bool}|string error key on failure
+ */
+function entry_access_input(array $input): array|string
+{
+    $fields = $input + ['visibility' => 'public', 'expiry' => 'never', 'protection_password' => ''];
+    if (!is_string($fields['visibility']) || !entry_visibility_valid($fields['visibility'])) {
+        return 'error_visibility_invalid';
+    }
+    if (!is_string($fields['expiry']) || !isset(entry_expiry_options()[$fields['expiry']])) {
+        return 'error_expiry_invalid';
+    }
+    $password = $fields['protection_password'];
+    if (!is_string($password) || str_contains($password, "\0") || entry_protection_error($password) !== null) {
+        return 'error_protection_password';
+    }
+    $remove = array_key_exists('remove_protection', $input);
+    if ($remove && ($input['remove_protection'] !== 'yes' || $password !== '')) {
+        return 'error_protection_password';
+    }
+    return ['visibility' => $fields['visibility'], 'expiry' => $fields['expiry'], 'password' => $password, 'remove' => $remove];
+}
+
+/**
  * Whether a visibility value is accepted by the schema.
  */
 function entry_visibility_valid(mixed $visibility): bool

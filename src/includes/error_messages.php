@@ -39,6 +39,7 @@ const OPNG_ERROR_KEYS = [
     'error_paste_rate_limit',
     'error_password_rate_limit',
     'error_permission',
+    'error_private_requires_login',
     'error_protection_password',
     'error_protection_required',
     'error_registration',
@@ -84,7 +85,7 @@ function opng_error_key(string $candidate): string
 function opng_error_status(string $key): int
 {
     return match ($key) {
-        'error_permission' => 403,
+        'error_permission', 'error_private_requires_login' => 403,
         'error_reauth' => 403,
         'error_mfa_code', 'error_protection_required',
         'error_protection_password_invalid', 'error_mfa_first_admin' => 403,

@@ -188,11 +188,11 @@ function global_quota_allows(int $usedBytes, int $newBytes, ?int $quotaBytes = n
  * same transaction as each write, so locking an account no longer scans its
  * entries (PERF-10). The username is returned for the entry author label.
  *
- * @return array{role: string, used_bytes: int, username: string}|null
+ * @return array{role: string, used_bytes: int, username: string, session_version: int}|null
  */
 function lock_user_quota(mysqli $db, int $userId): ?array
 {
-    $stmt = $db->prepare('SELECT role, used_bytes, username FROM users WHERE id = ? FOR UPDATE');
+    $stmt = $db->prepare('SELECT role, used_bytes, username, session_version FROM users WHERE id = ? FOR UPDATE');
     try {
         $stmt->bind_param('i', $userId);
         if (!$stmt->execute()) {
@@ -215,6 +215,7 @@ function lock_user_quota(mysqli $db, int $userId): ?array
     return [
         'role' => (string) $account['role'],
         'used_bytes' => (int) ($account['used_bytes'] ?? 0),
+        'session_version' => (int) $account['session_version'],
         'username' => is_string($account['username'] ?? null) ? $account['username'] : 'Guest',
     ];
 }

@@ -433,14 +433,16 @@ jobs:
           OPNG_TEST_DB_PASS: ci-root-password
         run: php tests/lock_order_integration_test.php
 
-      - name: Verify concurrent writes, quota and counters
+      - name: Verify concurrent writes, quota, counters and privacy flows
         env:
           OPNG_TEST_ALLOW_DATABASE_FIXTURES: '1'
           OPNG_TEST_DB_HOST: 127.0.0.1
           OPNG_TEST_DB_PORT: '3306'
           OPNG_TEST_DB_USER: root
           OPNG_TEST_DB_PASS: ci-root-password
-        run: php tests/write_concurrency_integration_test.php
+        run: |
+          php tests/write_concurrency_integration_test.php
+          python3 tests/privacy_flow_test.py
 
       - name: Verify database/schema.sql matches the CLI installer
         env:
@@ -626,14 +628,16 @@ jobs:
           OPNG_TEST_DB_PASS: ci-root-password
         run: php tests/lock_order_integration_test.php
 
-      - name: Verify concurrent writes, quota and counters
+      - name: Verify concurrent writes, quota, counters and privacy flows
         env:
           OPNG_TEST_ALLOW_DATABASE_FIXTURES: '1'
           OPNG_TEST_DB_HOST: 127.0.0.1
           OPNG_TEST_DB_PORT: '3306'
           OPNG_TEST_DB_USER: root
           OPNG_TEST_DB_PASS: ci-root-password
-        run: php tests/write_concurrency_integration_test.php
+        run: |
+          php tests/write_concurrency_integration_test.php
+          python3 tests/privacy_flow_test.py
 
       - name: Verify database/schema.sql matches the CLI installer
         env:

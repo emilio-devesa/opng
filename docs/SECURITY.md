@@ -194,3 +194,12 @@ deployments should upgrade using [UPGRADING.md](UPGRADING.md).
 - Destructive administrative actions distinguish an unreachable service from a
   wrong password: an unavailable rate-limit or users table returns the generic
   `error_service_unavailable` (503) instead of `error_reauth` (403).
+
+## MFA enrollment and pending sessions
+
+Each administrator MFA challenge is bound to the account version that passed
+password verification. A password or role change invalidates the pending
+login. Reloading the enrollment form keeps its setup key; cancelling or
+starting a new login generates a different key on the next enrollment.
+If two sessions confirm enrollment concurrently, only the first successful
+confirmation installs the factor and receives its recovery codes.

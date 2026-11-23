@@ -454,7 +454,7 @@ function mfa_verify_user_code(mysqli $db, int $userId, string $code): bool
  *
  * @param list<string> $recoveryCodes
  */
-function mfa_enable_for_user(mysqli $db, int $userId, string $secret, array $recoveryCodes): bool
+function mfa_enable_for_user(mysqli $db, int $userId, int $version, string $secret, array $recoveryCodes): bool
 {
     $encrypted = mfa_encrypt_secret($secret);
     if ($encrypted === null) {
@@ -464,16 +464,16 @@ function mfa_enable_for_user(mysqli $db, int $userId, string $secret, array $rec
     try {
         $db->begin_transaction();
         $stmt = $db->prepare(
-            'UPDATE users
+            "UPDATE users
              SET mfa_secret = ?, mfa_enabled = 1, mfa_enrolled_at = NOW(),
                  session_version = session_version + 1
-             WHERE id = ?'
+             WHERE id = ? AND role = 'admin' AND session_version = ? AND mfa_enabled = 0"
         );
         if (!$stmt) {
             $db->rollback();
             return false;
         }
-        $stmt->bind_param('si', $encrypted, $userId);
+        $stmt->bind_param('sii', $encrypted, $userId, $version);
         $stmt->execute();
         $updated = $stmt->affected_rows === 1;
         $stmt->close();

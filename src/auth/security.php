@@ -45,6 +45,8 @@ $enroll_secret = null;
 $security_enrollment = $_SESSION['mfa_security_enroll'] ?? null;
 if (
     !is_array($security_enrollment)
+    || ($security_enrollment['user_id'] ?? null) !== $user_id
+    || ($security_enrollment['session_version'] ?? null) !== (int) $_SESSION['session_version']
     || !is_string($security_enrollment['secret'] ?? null)
     || !is_int($security_enrollment['expires'] ?? null)
     || $security_enrollment['expires'] < time()
@@ -75,6 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $enabled = mfa_enable_for_user(
                     $db,
                     $user_id,
+                    $security_enrollment['session_version'],
                     $security_enrollment['secret'],
                     $recovery_codes
                 );
@@ -85,9 +88,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ''
                 );
                 if (!$enabled) {
+                    unset($_SESSION['mfa_security_enroll']);
+                    $security_enrollment = null;
+                    $recovery_codes = [];
                     $form_error_key = 'error_mfa_unavailable';
                 } else {
                     unset($_SESSION['mfa_security_enroll']);
+                    $_SESSION['session_version'] = $security_enrollment['session_version'] + 1;
                     $mfa_enabled = true;
                 }
             }
@@ -136,8 +143,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['enroll'])) {
     if ($is_admin && !$mfa_enabled) {
         if (mfa_key() === null) {
             $form_error_key = 'error_mfa_unavailable';
-        } else {
+        } elseif ($security_enrollment === null) {
             $security_enrollment = [
+                'user_id' => $user_id,
+                'session_version' => (int) $_SESSION['session_version'],
                 'secret' => mfa_generate_secret(),
                 'expires' => time() + 900,
             ];

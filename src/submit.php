@@ -57,36 +57,33 @@ if ($parent_id !== null && !http_valid_entry_id($parent_id)) {
 // Visibility, expiry and password protection apply to new roots. Replies
 // inherit all three from their parent inside the transaction, so a reply can
 // never make a private or protected thread public.
-$visibility = http_string_parameter($_POST, 'visibility', 16, false) ?? 'public';
-if (!entry_visibility_valid($visibility)) {
-    opng_error_redirect('error_visibility_invalid');
+$access_input = entry_access_input($_POST);
+if (is_string($access_input)) {
+    opng_error_redirect($access_input);
 }
-$expiry_option = http_string_parameter($_POST, 'expiry', 16, false) ?? 'never';
-if (!array_key_exists($expiry_option, entry_expiry_options())) {
-    opng_error_redirect('error_expiry_invalid');
-}
-$protection_password = http_string_parameter($_POST, 'protection_password', 72, false);
-$protection_error = entry_protection_error($protection_password);
-if ($protection_error !== null) {
-    opng_error_redirect($protection_error);
-}
-$expires_at = entry_expiry_from_option($expiry_option);
-$protection_hash = $protection_password !== null && $protection_password !== ''
+$visibility = $access_input['visibility'];
+$protection_password = $access_input['password'];
+$expires_at = entry_expiry_from_option($access_input['expiry']);
+$protection_hash = $protection_password !== ''
     ? entry_protection_hash($protection_password)
     : null;
 
-$user_id = $_SESSION['user_id'] ?? null;
-if ($user_id !== null) {
-    $user_id = http_positive_integer($user_id);
-    if ($user_id === null) {
-        opng_error_redirect('error_auth_unavailable');
-    }
-}
-
-// Connect to the database
+// db_connect() may revoke a stale identity. Do not downgrade an in-flight
+// authenticated POST to a guest submission or attribute it to the old user.
+$had_identity = isset($_SESSION['user_id']);
 $db = db_connect();
 if (!$db) {
     opng_error_redirect('error_database_unavailable');
+}
+$user_id = http_positive_integer($_SESSION['user_id'] ?? null);
+if ($had_identity && $user_id === null) {
+    $db->close();
+    header('Location: auth/login.php');
+    exit;
+}
+if ($user_id === null && $visibility === 'private') {
+    $db->close();
+    opng_error_redirect('error_private_requires_login');
 }
 
 try {
@@ -152,6 +149,13 @@ try {
             $transaction_started = false;
             $db->close();
             opng_error_redirect('error_database_operation');
+        }
+        if ($usage['session_version'] !== (int) $_SESSION['session_version']) {
+            $db->rollback();
+            $db->close();
+            session_forget_account();
+            header('Location: auth/login.php');
+            exit;
         }
         if (!user_quota_allows($usage, 0, $text_bytes)) {
             $db->rollback();

@@ -29,7 +29,7 @@ if ($pending === null) {
     header('Location: login.php');
     exit;
 }
-if (!$pending['enroll_required']) {
+if (!$pending['enroll_required'] || $pending['secret'] === null) {
     header('Location: mfa.php');
     exit;
 }
@@ -53,20 +53,7 @@ if (mfa_key() === null) {
     exit;
 }
 
-$enrollment = $_SESSION['mfa_enroll'] ?? null;
-if (
-    !is_array($enrollment)
-    || !is_string($enrollment['secret'] ?? null)
-    || !is_int($enrollment['expires'] ?? null)
-    || $enrollment['expires'] < time()
-) {
-    $enrollment = [
-        'secret' => mfa_generate_secret(),
-        'expires' => time() + 900,
-    ];
-    $_SESSION['mfa_enroll'] = $enrollment;
-}
-$secret = $enrollment['secret'];
+$secret = $pending['secret'];
 $otpauth = mfa_otpauth_uri($secret, $pending['username']);
 
 $form_error_key = '';
@@ -101,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $status = opng_error_status($form_error_key);
     } else {
         $recovery_codes = mfa_generate_recovery_codes();
-        $enabled = mfa_enable_for_user($db, $pending['user_id'], $secret, $recovery_codes);
+        $enabled = mfa_enable_for_user($db, $pending['user_id'], $pending['session_version'], $secret, $recovery_codes);
         audit_log_record(
             $db,
             $pending['user_id'],
@@ -109,14 +96,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ''
         );
         if (!$enabled) {
+            auth_clear_pending_mfa();
             $db->close();
             opng_error_redirect('error_mfa_unavailable', '../error.php');
         }
 
-        unset($_SESSION['mfa_enroll']);
         rate_limit_clear($db, 'mfa_enroll', 'user:' . $pending['user_id'], 300);
         $redirect = auth_safe_redirect($pending['redirect']);
-        $completed = auth_complete_pending_mfa($db);
+        $completed = auth_complete_pending_mfa($db, true);
         $db->close();
         if (!$completed) {
             auth_clear_pending_mfa();
