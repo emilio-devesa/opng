@@ -16,6 +16,7 @@ The `gh-pages` branch contains only the published site:
 | Path | Purpose |
 |---|---|
 | `index.html` | Single-page project site |
+| `quick-start.sh` | Local classic and Apple Container recipes pinned to the advertised release |
 | `assets/site.css` | Site styles and dark-mode support |
 | `assets/site.js` | Theme toggle, mobile navigation, copy buttons and sticky-header state |
 | `assets/screenshots/` | Screenshots copied from the repository `screenshots/` directory |

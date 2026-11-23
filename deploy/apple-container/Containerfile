@@ -45,6 +45,7 @@ COPY deploy/apple-container/php-fpm.conf /usr/local/etc/php-fpm.d/zz-opng.conf
 COPY deploy/apple-container/nginx.conf /etc/nginx/nginx.conf
 COPY deploy/apple-container/supervisord.conf /etc/supervisord.conf
 COPY deploy/apple-container/entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY deploy/apple-container/check-runtime.php /usr/local/lib/opng/check-runtime.php
 COPY deploy/apple-container/healthcheck.sh /usr/local/bin/healthcheck.sh
 
 # The real config.php is excluded by .containerignore/.dockerignore. Always

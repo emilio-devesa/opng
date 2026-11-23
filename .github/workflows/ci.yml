@@ -165,7 +165,9 @@ jobs:
         run: php tests/release_contract_test.php
 
       - name: Apple Container contracts regression test
-        run: php tests/container_contract_test.php
+        run: |
+          php tests/container_contract_test.php
+          sh tests/container_migration_test.sh
 
   accessibility:
     name: HTML validation and axe accessibility

@@ -10,3 +10,4 @@
 </IfModule>
 
 Options -Indexes
+CGIPassAuth On

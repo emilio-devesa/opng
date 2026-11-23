@@ -65,6 +65,7 @@ Backup written inside ${app_container}:
   /backups/${name}.sha256
 
 Copy it to the host with:
-  container cp ${app_container}:/backups/${name} .
-  container cp ${app_container}:/backups/${name}.sha256 .
+  umask 077
+  container exec ${app_container} cat /backups/${name} > ${name}
+  container exec ${app_container} cat /backups/${name}.sha256 > ${name}.sha256
 EOT

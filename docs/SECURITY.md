@@ -167,11 +167,10 @@ deployments should upgrade using [UPGRADING.md](UPGRADING.md).
   minimal capability set is sufficient on engines that support it.
 - Never bake secrets into the image. Use `--env-file` with mode `0600` or the
   host secret store.
-- `OPNG_AUTO_MIGRATE=1` warns at startup when `OPNG_INSTALL_DB_USER` or
-  `OPNG_INSTALL_DB_PASS` is missing. In production, provide a dedicated
-  migration account so the runtime account can keep DML-only privileges; the
-  warning is intentional and the container still starts for single-account
-  development deployments.
+- With `OPNG_AUTO_MIGRATE=1`, the host starts a disposable installer before
+  creating the web container. No root or installer settings are passed to the
+  web container. Its entrypoint requires a direct, schema-scoped DML grant.
+  See [Apple Container provisioning](APPLE-CONTAINER.md) for existing volumes.
 
 ## Known limitations
 
@@ -215,3 +214,16 @@ current expiry unless a new preset or “Never” is explicitly selected.
 Restoration and purge take the same global storage-counter lock before
 resolving their target rows. Restoring leaves quotas charged; only a purge
 releases bytes and entries.
+
+The supplied access log formats omit the query string and Referer. The reset
+page sends `Referrer-Policy: no-referrer`, including on its redirect. Nginx
+omits the error log for this exact route because upstream errors can include
+the raw request line. A backend outage here gets a direct 503 instead of
+redispatch to another PHP route. Look up its `X-OPNG-Trace` response header in
+the access log. On Apache, enable `mod_unique_id` for the equivalent trace.
+PHP-FPM records script, status and application request ID, without query or
+headers from the client.
+
+Apply the same policy at any additional proxy, APM or hosting log collector.
+For an executable check of the supplied profiles, see
+[the deployment HTTP test](DEPLOYMENT-HTTP-TEST.md).

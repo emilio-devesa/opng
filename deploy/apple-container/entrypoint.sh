@@ -1,8 +1,8 @@
 #!/bin/sh
 # Open Pastebin NG - container entrypoint (F3).
 #
-# Prepares the tmpfs paths required by --read-only, waits for MariaDB, applies
-# pending migrations when OPNG_AUTO_MIGRATE=1, optionally creates the first
+# Prepares the tmpfs paths required by --read-only, waits for MariaDB, checks runtime grants,
+# optionally creates the first
 # administrator, then hands control to supervisord.
 set -eu
 
@@ -22,9 +22,10 @@ fail() {
 : "${OPNG_DB_NAME:=opng}"
 : "${OPNG_DB_USER:=opng}"
 : "${OPNG_DB_PASS:=}"
-: "${OPNG_AUTO_MIGRATE:=0}"
 
 [ -n "$OPNG_DB_PASS" ] || fail "OPNG_DB_PASS is empty; set it from the environment file or secret store."
+php -r 'require "src/includes/mfa.php"; exit(mfa_key() === null ? 1 : 0);' \
+    || fail "Set OPNG_MFA_KEY to a persistent base64-encoded 32-byte key. For existing MFA accounts use their original key."
 
 # The root filesystem is expected to be read-only. These paths must be tmpfs
 # mounts; create them if the container is running with a writable rootfs for
@@ -74,25 +75,7 @@ while ! MYSQL_PWD="$OPNG_DB_PASS" mariadb-admin ping \
     sleep 1
 done
 
-if [ "$OPNG_AUTO_MIGRATE" = "1" ]; then
-    if [ -z "${OPNG_INSTALL_DB_USER:-}" ] || [ -z "${OPNG_INSTALL_DB_PASS:-}" ]; then
-        log "WARNING: OPNG_AUTO_MIGRATE=1 without OPNG_INSTALL_DB_USER/OPNG_INSTALL_DB_PASS."
-        log "WARNING: the runtime account will keep DDL on its own database; set a dedicated migration account in production."
-    fi
-    log "applying schema bootstrap and pending migrations"
-    # A fresh MariaDB volume has no tables, and 0001_baseline is only a marker.
-    # src/install.php is idempotent, so it installs the baseline on first boot
-    # and then applies every pending migration on later boots. The container
-    # app account has DDL on its own database; a separate OPNG_INSTALL_DB_*
-    # account is honoured when provided.
-    OPNG_INSTALL_DB_USER="${OPNG_INSTALL_DB_USER:-$OPNG_DB_USER}" \
-    OPNG_INSTALL_DB_PASS="${OPNG_INSTALL_DB_PASS:-$OPNG_DB_PASS}" \
-    OPNG_INSTALL_DB_HOST="${OPNG_INSTALL_DB_HOST:-$db_host}" \
-    OPNG_INSTALL_DB_PORT="${OPNG_INSTALL_DB_PORT:-$db_port}" \
-        php src/install.php || fail "schema bootstrap/migrations failed; the container will not start"
-else
-    log "OPNG_AUTO_MIGRATE is not 1; skipping schema bootstrap and migrations"
-fi
+php /usr/local/lib/opng/check-runtime.php || fail "Runtime requires only SELECT, INSERT, UPDATE and DELETE on the configured database. Check account provisioning and connectivity."
 
 # Create the first administrator only when all three variables are present.
 # create_admin.php is idempotent with --if-empty and does not prompt when the
@@ -109,6 +92,7 @@ fi
 
 # Never expose bootstrap credentials to PHP-FPM/worker processes.
 unset OPNG_ADMIN_USERNAME OPNG_ADMIN_EMAIL OPNG_ADMIN_PASSWORD 2>/dev/null || true
+unset OPNG_INSTALL_DB_HOST OPNG_INSTALL_DB_PORT OPNG_INSTALL_DB_NAME OPNG_INSTALL_DB_USER OPNG_INSTALL_DB_PASS
 
 log "starting supervisord (Nginx on 8080, PHP-FPM on 127.0.0.1:9000)"
 exec supervisord -n -c /etc/supervisord.conf

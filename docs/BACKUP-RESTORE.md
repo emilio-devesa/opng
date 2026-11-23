@@ -242,7 +242,7 @@ In Apple Container, mount the persistent `opng-backups` volume at `/backups`:
 
 ```bash
 container exec opng-app php tools/backup.php /backups/opng-$(date +%F).sql
-container exec opng-app php tools/restore.php --file=/backups/opng-2026-11-05.sql
+./deploy/apple-container/restore.sh /backups/opng-2026-11-05.sql
 ```
 
 Back up **before** replacing the application container or restoring the

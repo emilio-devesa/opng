@@ -137,8 +137,7 @@ foreach ([
     'umask 027',
     'OPNG_DB_PASS is empty',
     'mariadb-admin ping',
-    'OPNG_AUTO_MIGRATE',
-    'php src/install.php',
+    '/usr/local/lib/opng/check-runtime.php',
     'OPNG_INSTALL_DB_USER',
     'php tools/create_admin.php',
     '--if-empty',
@@ -156,14 +155,8 @@ expect_container(
     $failures
 );
 expect_container(
-    str_contains($entrypoint, 'WARNING: OPNG_AUTO_MIGRATE=1 without OPNG_INSTALL_DB_USER/OPNG_INSTALL_DB_PASS')
-        && str_contains($entrypoint, 'runtime account will keep DDL'),
-    'entrypoint.sh warns when auto-migration reuses the runtime account (SEC-25)',
-    $failures
-);
-expect_container(
-    (bool) preg_match('/if \[ -z "\$\{OPNG_INSTALL_DB_USER:-\}" \].*?OPNG_INSTALL_DB_PASS/s', $entrypoint),
-    'entrypoint.sh checks both OPNG_INSTALL_DB_USER and OPNG_INSTALL_DB_PASS before migrating',
+    !str_contains($entrypoint, 'src/install.php'),
+    'the web entrypoint cannot migrate with runtime credentials (SEC-25)',
     $failures
 );
 
@@ -189,7 +182,8 @@ foreach ([
     '--tmpfs /run',
     '--tmpfs /var/lib/nginx',
     '--tmpfs /var/lib/php/sessions',
-    'grep -v \'^OPNG_DB_ROOT_PASSWORD=\'',
+    'container run --rm',
+    '--env-file "$migrate_env" --entrypoint php "$image" src/install.php',
     'chmod 600 "$app_env"',
     'healthcheck.sh',
 ] as $needle) {
@@ -213,8 +207,9 @@ expect_container(
 
 $restore = container_file($container . '/restore.sh', $failures);
 expect_container(
-    str_contains($restore, 'container cp')
-    && str_contains($restore, 'php tools/restore.php')
+    str_contains($restore, 'container exec "$app_container" cat')
+    && str_contains($restore, 'tools/restore.php')
+    && str_contains($restore, 'container run --rm')
     && str_contains($restore, '--checksum=')
     && str_contains($restore, '--force'),
     'restore.sh copies the dump, verifies its checksum and optionally skips confirmation',
@@ -251,8 +246,8 @@ expect_container(
     $failures
 );
 expect_container(
-    !is_file($container . '/opng.env'),
-    'deploy/apple-container/opng.env (real secrets) is not committed',
+    str_contains(container_file($root . '/.gitignore', $failures), '/deploy/apple-container/opng.env'),
+    'Git excludes the local container environment',
     $failures
 );
 

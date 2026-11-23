@@ -1,5 +1,6 @@
 # Local configuration (never commit credentials)
 src/config.php
+/deploy/apple-container/opng.env
 
 # Dependencies / tooling
 /vendor/

@@ -33,18 +33,19 @@ Edit `deploy/apple-container/opng.env`:
 - Set a unique `OPNG_DB_PASS` and `OPNG_DB_ROOT_PASSWORD` (at least 12 bytes,
   preferably generated with `openssl rand -base64 32`).
 - Keep `OPNG_DB_HOST=opng-db`.
+- Set `OPNG_MFA_KEY` before the first start. Generate it once with
+  `openssl rand -base64 32`; keep it across restarts and back it up separately.
+  If MFA is already enrolled, use its original key.
 - Set the first administrator values. The entrypoint creates the account only
   when all three are present and no administrator exists.
 - Leave `OPNG_FORCE_HTTPS` empty while testing on `http://127.0.0.1:8080`.
   Set it to `1` only when a TLS proxy terminates HTTPS in front of the app;
   otherwise the session cookie is marked `Secure` and login fails.
 - Set `OPNG_PUBLIC_URL` to the URL users actually open.
-- `OPNG_AUTO_MIGRATE=1` runs the idempotent installer on start: it creates the
-  baseline schema on a fresh volume and applies pending migrations on later
-  boots. Set a separate `OPNG_INSTALL_DB_USER`/`OPNG_INSTALL_DB_PASS` account if
-  you do not want the application account to keep DDL privileges. When those
-  variables are missing, the entrypoint logs a warning and reuses the runtime
-  account for the migration.
+- Set a unique `OPNG_INSTALL_DB_PASS` for `OPNG_INSTALL_DB_USER`.
+  `OPNG_AUTO_MIGRATE=1` runs the installer in a disposable container when
+  creating the app, including replacement for upgrade. Restarting the same
+  container never migrates. Set `0` for an externally managed schema.
 - Set `OPNG_HASH_KEY` (`openssl rand -base64 32`) so audit and rate-limit
   identifiers use HMAC-SHA-256. The doctor warns while it is missing.
 
@@ -54,6 +55,36 @@ The file contains secrets. It is excluded from the image context
 
 ## 2. Build and start
 
+Start the database alone, then provision dedicated accounts. Use the same
+`--env FILE` for both calls to `start.sh` if overriding the default.
+
+```bash
+./deploy/apple-container/start.sh --db-only
+container exec -it opng-db sh -c 'MYSQL_HISTFILE=/dev/null exec mariadb -uroot -p'
+```
+
+In MariaDB, substitute the passwords from the private env file and adapt the
+names if needed. The defaults below use `opng` as both database and runtime
+username. No root or schema-changing grant belongs to the web process.
+
+```sql
+CREATE USER 'opng'@'%' IDENTIFIED BY 'replace-runtime-password';
+GRANT SELECT, INSERT, UPDATE, DELETE ON opng.* TO 'opng'@'%';
+CREATE USER 'opng_migrator'@'%' IDENTIFIED BY 'replace-migration-password';
+GRANT SELECT, INSERT, UPDATE, CREATE, ALTER, INDEX, DROP, REFERENCES
+  ON opng.* TO 'opng_migrator'@'%';
+```
+
+**Existing volumes:** back up first and stop the old app; do not recreate
+the database. For the existing dedicated runtime account, retain its password
+and replace the `CREATE USER 'opng'` step with
+`REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'opng'@'%';`. Apply the runtime
+grant above, remove any roles, and provision the migrator if missing.
+Do not use an account shared with another application. For a database name
+with `_`, escape each underscore as `\_` in the `GRANT` scope. Avoid global
+or inherited privileges (including MariaDB PUBLIC grants). Recreate the app
+container so that an old image or environment cannot be reused.
+
 ```bash
 ./deploy/apple-container/start.sh --build
 ```
@@ -62,11 +93,11 @@ The script:
 
 1. Creates the private `opng-net` network.
 2. Creates the `opng-db-data` and `opng-backups` volumes (20 GB each).
-3. Starts `mariadb:11` with the database/user from the environment file. Port
+3. Starts `mariadb:11` with the database from the environment file. Port
    3306 is **not** published to the host.
 4. Builds `opng-app:1.2.0` from `deploy/apple-container/Containerfile` when it
    is missing or `--build` is given.
-5. Starts the app with `--read-only` and tmpfs for `/tmp`, `/run`,
+5. Runs any requested migration with `--rm`, then starts the app with `--read-only` and tmpfs for `/tmp`, `/run`,
    `/var/lib/nginx` and `/var/lib/php/sessions`, publishing only
    `127.0.0.1:8080`.
 6. Waits up to 60 seconds for `/healthz.php`.
@@ -140,11 +171,15 @@ Backups are written to the `opng-backups` volume at `/backups`, with a
 `.sha256` sidecar. Copy them off the host regularly:
 
 ```bash
-container cp opng-app:/backups/before-upgrade.sql .
-container cp opng-app:/backups/before-upgrade.sql.sha256 .
+umask 077
+container exec opng-app cat /backups/before-upgrade.sql > before-upgrade.sql
+container exec opng-app cat /backups/before-upgrade.sql.sha256 > before-upgrade.sql.sha256
 ```
 
-Restore a local file (it is copied into `/backups` first):
+Restore a local file or a dump under `/backups`. The host stages the dump in
+a private temporary directory and mounts it read-only for the restore task.
+Use `OPNG_ENV_FILE` and `OPNG_IMAGE` if using a custom env file or image.
+Allow enough host temporary space for the dump.
 
 ```bash
 ./deploy/apple-container/restore.sh ./before-upgrade.sql
@@ -166,30 +201,31 @@ Container has no built-in scheduler.
 # 1. Back up first.
 ./deploy/apple-container/backup.sh --name before-upgrade.sql
 
-# 2. Pull or build the new image.
-./deploy/apple-container/start.sh --build --image opng-app:1.0.1
+# 2. Build a distinct tag while the previous app is still running.
+container build -t opng-app:upgrade -f deploy/apple-container/Containerfile .
 
-# 3. The entrypoint applies pending migrations (OPNG_AUTO_MIGRATE=1) and the
-#    healthcheck must pass.
+# 3. After verifying the backup, replace only the app. Use the same env file,
+#    container names and volumes as the original installation.
+./deploy/apple-container/stop.sh --keep-db --remove
+# On the first upgrade from a single-account installation, update grants
+# as described in section 2 before starting the replacement.
+./deploy/apple-container/start.sh --image opng-app:upgrade
 container exec opng-app /usr/local/bin/healthcheck.sh
 ```
 
-Because the app container keeps the same name, recreate it to change the image:
-
-```bash
-./deploy/apple-container/stop.sh --keep-db --remove
-OPNG_IMAGE=opng-app:1.0.1 ./deploy/apple-container/start.sh
-```
+Use a unique tag per upgrade and keep the previous image for rollback.
+Environment-file changes also require recreating the app container.
 
 The database lives in `opng-db-data` and survives app container replacement.
 Never delete that volume without a verified backup.
 
 Rollback:
 
-1. Stop and remove the app container.
-2. Start the previous image tag.
-3. If the migration was incompatible, restore the pre-upgrade dump with
-   `restore.sh`.
+1. Stop and remove the app container, keeping MariaDB and both volumes.
+2. If the schema is incompatible with the previous app, restore a verified
+   pre-upgrade dump from the host with `restore.sh` before serving traffic.
+3. Start the previous image tag against its compatible schema. Keep the web
+   account DML-only; do not re-enable single-account migrations.
 4. Run the healthcheck and smoke test.
 
 ## 7. Security

@@ -14,12 +14,14 @@ repo_root="$(CDPATH= cd -- "$script_dir/../.." && pwd)"
 env_file="$script_dir/opng.env"
 image="${OPNG_IMAGE:-opng-app:1.2.0}"
 build=0
+db_only=0
 
 usage() {
     cat <<'EOT'
-Usage: start.sh [--build] [--env FILE] [--image IMAGE]
+Usage: start.sh [--db-only] [--build] [--env FILE] [--image IMAGE]
 
   --build        Rebuild the application image before starting it
+  --db-only      Start MariaDB for account provisioning; do not start the app
   --env FILE     Environment file (default: deploy/apple-container/opng.env)
   --image IMAGE  Application image name (default: opng-app:1.2.0)
 
@@ -29,6 +31,10 @@ EOT
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
+        --db-only)
+            db_only=1
+            shift
+            ;;
         --build)
             build=1
             shift
@@ -91,6 +97,11 @@ db_volume="${OPNG_DB_VOLUME:-opng-db-data}"
 backup_volume="${OPNG_BACKUP_VOLUME:-opng-backups}"
 publish="${OPNG_PUBLISH:-127.0.0.1:8080:8080}"
 
+if [ "$build" -eq 1 ] && container inspect "$app_container" >/dev/null 2>&1; then
+    echo "ERROR: --build cannot update the existing ${app_container}. Follow the app-only replacement procedure in docs/APPLE-CONTAINER.md." >&2
+    exit 1
+fi
+
 if ! container network ls -q | grep -Fxq "$network"; then
     echo "Creating network ${network}"
     container network create "$network" >/dev/null
@@ -106,22 +117,22 @@ fi
 
 db_env="$(mktemp "${TMPDIR:-/tmp}/opng-db-env.XXXXXX")"
 app_env="$(mktemp "${TMPDIR:-/tmp}/opng-app-env.XXXXXX")"
+migrate_env="$(mktemp "${TMPDIR:-/tmp}/opng-migrate-env.XXXXXX")"
 cleanup() {
-    rm -f "$db_env" "$app_env"
+    rm -f "$db_env" "$app_env" "$migrate_env"
 }
 trap cleanup EXIT HUP INT TERM
 
 {
     printf 'MARIADB_DATABASE=%s\n' "$OPNG_DB_NAME"
-    printf 'MARIADB_USER=%s\n' "$OPNG_DB_USER"
-    printf 'MARIADB_PASSWORD=%s\n' "$OPNG_DB_PASS"
     printf 'MARIADB_ROOT_PASSWORD=%s\n' "$OPNG_DB_ROOT_PASSWORD"
     printf 'TZ=%s\n' "${TZ:-UTC}"
 } > "$db_env"
 chmod 600 "$db_env"
 
-# The root password is never handed to the application container.
-grep -v '^OPNG_DB_ROOT_PASSWORD=' "$env_file" > "$app_env"
+# Emit canonical assignments only. Never forward installer settings or root
+# credentials, even when the host env file also contains shell directives.
+awk '/^(OPNG_[A-Z0-9_]+|TZ)=/ && !/^OPNG_(DB_ROOT_|INSTALL_|AUTO_MIGRATE=)/' "$env_file" > "$app_env"
 chmod 600 "$app_env"
 
 if container inspect "$db_container" >/dev/null 2>&1; then
@@ -139,6 +150,14 @@ else
         mariadb:11 >/dev/null
 fi
 
+attempt=0
+until container exec "$db_container" healthcheck.sh --connect --innodb_initialized >/dev/null 2>&1; do
+    attempt=$((attempt + 1))
+    [ "$attempt" -lt 60 ] || { echo "ERROR: MariaDB is not ready." >&2; exit 1; }
+    sleep 1
+done
+[ "$db_only" -eq 0 ] || exit 0
+
 if [ "$build" -eq 1 ] || ! container image inspect "$image" >/dev/null 2>&1; then
     echo "Building application image ${image}"
     container build -t "$image" -f "$script_dir/Containerfile" "$repo_root"
@@ -152,6 +171,26 @@ if container inspect "$app_container" >/dev/null 2>&1; then
         echo "Application container ${app_container} is already running"
     fi
 else
+    if [ "${OPNG_AUTO_MIGRATE:-0}" = 1 ]; then
+        : "${OPNG_INSTALL_DB_USER:?Set the dedicated migration user}"
+        : "${OPNG_INSTALL_DB_PASS:?Set the dedicated migration password}"
+        if [ "$OPNG_INSTALL_DB_USER" = "$OPNG_DB_USER" ] || [ "$OPNG_INSTALL_DB_USER" = root ]; then
+            echo "ERROR: the installer requires a separate, non-root account." >&2
+            exit 1
+        fi
+        host="${OPNG_DB_HOST%:*}"
+        port=3306
+        case "$OPNG_DB_HOST" in *:*) port="${OPNG_DB_HOST##*:}";; esac
+        {
+            printf 'OPNG_DB_NAME=%s\n' "$OPNG_DB_NAME"
+            printf 'OPNG_INSTALL_DB_HOST=%s\n' "${OPNG_INSTALL_DB_HOST:-$host}"
+            printf 'OPNG_INSTALL_DB_PORT=%s\n' "${OPNG_INSTALL_DB_PORT:-$port}"
+            printf 'OPNG_INSTALL_DB_USER=%s\n' "$OPNG_INSTALL_DB_USER"
+            printf 'OPNG_INSTALL_DB_PASS=%s\n' "$OPNG_INSTALL_DB_PASS"
+        } > "$migrate_env"
+        container run --rm --network "$network" --read-only --tmpfs /tmp \
+            --env-file "$migrate_env" --entrypoint php "$image" src/install.php
+    fi
     echo "Starting application container ${app_container}"
     container run -d --name "$app_container" \
         --network "$network" \
