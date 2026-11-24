@@ -436,7 +436,7 @@
     "trash_intro": "Deleted threads stay here for a limited time. Restoring a thread brings every reply back.",
     "trash_purge": "Purge permanently",
     "trash_purge_expired_button": "Purge expired threads now",
-    "trash_purge_expired_help": "Deletes every thread older than the retention window. The current password is required.",
+    "trash_purge_expired_help": "Deletes expired threads in bounded batches. Run again or wait for the scheduled purge to continue. The current password is required.",
     "trash_purged": "Thread permanently deleted",
     "trash_purged_expired": "Expired threads permanently deleted",
     "trash_restore": "Restore",

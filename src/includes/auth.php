@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/csrf.php';
 require_once __DIR__ . '/mfa.php';
+require_once __DIR__ . '/entry_access.php';
 
 const OPNG_MFA_PENDING_TTL = 300;
 
@@ -23,6 +24,9 @@ function auth_login_user(array $user): void
     $_SESSION['role'] = (string) $user['role'];
     $_SESSION['session_version'] = (int) ($user['session_version'] ?? 0);
     $_SESSION['opng_authenticated_at'] = time();
+    // Protected-thread unlocks belong to the authenticated identity. A new
+    // login must not inherit unlocks granted to a previous browser user.
+    entry_clear_unlocked();
     csrf_rotate();
     auth_clear_pending_mfa();
     unset($_SESSION['redirect_after_login'], $_SESSION['mfa_security_enroll']);

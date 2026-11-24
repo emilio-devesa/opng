@@ -64,9 +64,6 @@ if (is_string($access_input)) {
 $visibility = $access_input['visibility'];
 $protection_password = $access_input['password'];
 $expires_at = entry_expiry_from_option($access_input['expiry']);
-$protection_hash = $protection_password !== ''
-    ? entry_protection_hash($protection_password)
-    : null;
 
 // db_connect() may revoke a stale identity. Do not downgrade an in-flight
 // authenticated POST to a guest submission or attribute it to the old user.
@@ -109,6 +106,14 @@ try {
             $db->close();
             opng_error_redirect('captcha_incorrect');
         }
+    }
+
+    // Hashing is deliberately deferred until the request has passed rate
+    // limiting, CAPTCHA and the private-entry check. Replies inherit the
+    // parent's protection, so they never need a new hash (P02).
+    $protection_hash = null;
+    if ($parent_id === null && $protection_password !== '') {
+        $protection_hash = entry_protection_hash($protection_password);
     }
 
     // Global soft cap for all paste text, configurable with

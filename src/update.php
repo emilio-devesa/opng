@@ -79,6 +79,38 @@ if (!$db) {
     opng_error_redirect('error_database_unavailable');
 }
 
+// Hashing is expensive, so prepare it before the transaction and outside every
+// lock. This preflight only decides whether the request is worth hashing:
+// the requester must already be the owner or an administrator, and the entry
+// must be a thread root. Authorization and the final state are revalidated
+// inside the locked transaction (P02).
+$protection_hash = null;
+$preflightUser = http_positive_integer($_SESSION['user_id'] ?? null);
+$preflightRole = is_string($_SESSION['role'] ?? null) ? $_SESSION['role'] : 'guest';
+$preflight = $db->prepare('SELECT user_id, depth FROM entries WHERE id = ?');
+if ($preflight && $preflightUser !== null) {
+    $preflight->bind_param('s', $id);
+    $preflight->execute();
+    $preflightResult = $preflight->get_result();
+    $preflightRow = $preflightResult ? $preflightResult->fetch_assoc() : null;
+    if ($preflightResult instanceof mysqli_result) {
+        $preflightResult->free();
+    }
+    $preflight->close();
+    if (
+        is_array($preflightRow)
+        && (int) ($preflightRow['depth'] ?? 0) === 0
+        && $protection_password !== ''
+        && paste_owner_can_manage(
+            $preflightUser,
+            $preflightRole,
+            $preflightRow['user_id'] !== null ? (int) $preflightRow['user_id'] : null
+        )
+    ) {
+        $protection_hash = entry_protection_hash($protection_password);
+    }
+}
+
 $transaction_started = false;
 try {
     $db->begin_transaction();
@@ -226,7 +258,10 @@ try {
             : $id;
         $new_protection_hash = $entry['protection_hash'] ?? null;
         if ($protection_password !== '') {
-            $new_protection_hash = entry_protection_hash($protection_password);
+            if ($protection_hash === null) {
+                throw new RuntimeException('Protection hash was not prepared before the lock.');
+            }
+            $new_protection_hash = $protection_hash;
         } elseif ($remove_protection) {
             $new_protection_hash = null;
         }

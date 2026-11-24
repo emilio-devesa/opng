@@ -103,6 +103,35 @@ To check the real rendering cost manually:
 
 This is a qualitative check of the intended UX, not a portable timing number.
 
+## Phase 4 changes (v1.3.0)
+
+These findings are structural and covered by contract or integration tests;
+they are not query-plan benchmarks.
+
+- **P01 — external backup streaming.** The previous encrypted format built the
+  whole ciphertext and its base64 payload in memory. The `OPNGBK2` format
+  encrypts and decrypts the dump in 1 MiB frames, and uploads and verification
+  run through streams. On a
+  32 MiB synthetic dump, measured with `memory_get_peak_usage(true)` under PHP
+  8.4.17: a reproduction of the previous one-piece encryption peaked at
+  **151.4 MiB**; the new streaming encryption and decryption peaked at
+  **10.0 MiB**. Streaming the
+  same 32 MiB SQL dump through `schema_split_sql_stream()` peaked at
+  **2.0 MiB**. `OPNGBK1` files remain readable.
+- **P02 — protection hashing outside locks.** `submit.php` hashes the
+  protection password only after rate limiting, CAPTCHA and the private-entry
+  check, and `update.php` hashes it before opening the transaction only when the
+  session already matches the owner or an administrator. The hash is no longer
+  computed while holding `storage_counters`, account or entry locks, and an
+  unauthorized request no longer triggers it.
+- **P03 — bounded trash purge.** Each thread is deleted in its own transaction.
+  A run stops after `OPNG_TRASH_PURGE_BATCH` threads or a time budget and
+  reports `remaining`; the next scheduled run resumes the backlog.
+- **P04 — admitted API use.** `api_token_authenticate()` no longer writes.
+  `last_used_at` is updated only after scope and rate-limit admission and at
+  most once per minute per token, so read traffic and rejected requests do not
+  turn every call into a row write.
+
 ## Non-benchmark findings
 
 - **PERF-11** is a correctness fix (cache invalidation on registration), not a

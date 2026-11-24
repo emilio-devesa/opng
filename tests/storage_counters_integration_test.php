@@ -24,8 +24,8 @@ function storage_counters_pass(string $message): void
 }
 
 if (getenv('OPNG_TEST_ALLOW_DATABASE_FIXTURES') !== '1') {
-    echo "SKIP: set OPNG_TEST_ALLOW_DATABASE_FIXTURES=1 to run the storage counter test.\n";
-    exit(0);
+    require_once __DIR__ . '/fixture_skip.php';
+    fixture_skip("set OPNG_TEST_ALLOW_DATABASE_FIXTURES=1 to run the storage counter test.");
 }
 
 $host = getenv('OPNG_TEST_DB_HOST') ?: '127.0.0.1';
@@ -34,8 +34,8 @@ $user = getenv('OPNG_TEST_DB_USER') ?: '';
 $password = getenv('OPNG_TEST_DB_PASS') ?: '';
 
 if ($user === '') {
-    fwrite(STDERR, "SKIP: set OPNG_TEST_DB_USER (and OPNG_TEST_DB_PASS) to run the storage counter test.\n");
-    exit(0);
+    fwrite(STDERR, "FAIL: set OPNG_TEST_DB_USER (and OPNG_TEST_DB_PASS) to run the storage counter test.\n");
+    exit(1);
 }
 
 $name = 'opng_counters_' . strtolower(bin2hex(random_bytes(4)));
@@ -49,8 +49,8 @@ try {
     $admin = new mysqli($host, $user, $password, null, $port);
     $admin->set_charset('utf8mb4');
 } catch (mysqli_sql_exception $exception) {
-    fwrite(STDERR, 'SKIP: could not connect to the disposable test server: ' . $exception->getMessage() . "\n");
-    exit(0);
+    fwrite(STDERR, 'FAIL: could not connect to the disposable test server: ' . $exception->getMessage() . "\n");
+    exit(1);
 }
 
 try {

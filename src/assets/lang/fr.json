@@ -436,7 +436,7 @@
     "trash_intro": "Les fils supprimés restent ici pendant une durée limitée. Restaurer un fil ramène toutes ses réponses.",
     "trash_purge": "Purger définitivement",
     "trash_purge_expired_button": "Purger maintenant les fils expirés",
-    "trash_purge_expired_help": "Supprime chaque fil plus ancien que la fenêtre de rétention. Le mot de passe actuel est requis.",
+    "trash_purge_expired_help": "Supprime les fils expirés par lots limités. Relancez l'opération ou attendez la purge planifiée pour continuer. Le mot de passe actuel est requis.",
     "trash_purged": "Fil supprimé définitivement",
     "trash_purged_expired": "Fils expirés supprimés définitivement",
     "trash_restore": "Restaurer",

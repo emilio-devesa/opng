@@ -436,7 +436,7 @@
     "trash_intro": "Os tópicos eliminados permanecem aqui por tempo limitado. Restaurar um tópico recupera todas as respostas.",
     "trash_purge": "Purgar permanentemente",
     "trash_purge_expired_button": "Purgar agora os tópicos expirados",
-    "trash_purge_expired_help": "Elimina todos os tópicos mais antigos do que a janela de retenção. É necessária a palavra-passe atual.",
+    "trash_purge_expired_help": "Elimina os tópicos expirados em lotes limitados. Execute novamente ou aguarde a purga agendada para continuar. É necessária a palavra-passe atual.",
     "trash_purged": "Tópico eliminado permanentemente",
     "trash_purged_expired": "Tópicos expirados eliminados permanentemente",
     "trash_restore": "Restaurar",

@@ -75,6 +75,78 @@ assert_perf(
     $failures
 );
 
+$hashPosition = is_string($submit) ? strpos($submit, 'entry_protection_hash($protection_password)') : false;
+$ratePosition = is_string($submit) ? strpos($submit, 'rate_limit_hit(') : false;
+$submitTransaction = is_string($submit) ? strpos($submit, '$db->begin_transaction()') : false;
+assert_perf(
+    $hashPosition !== false
+        && $ratePosition !== false
+        && $submitTransaction !== false
+        && $hashPosition > $ratePosition
+        && $hashPosition < $submitTransaction,
+    'paste creation hashes the protection password after admission and outside the transaction',
+    $failures
+);
+
+$updateHash = is_string($update) ? strpos($update, 'entry_protection_hash($protection_password)') : false;
+$updateTransaction = is_string($update) ? strpos($update, '$db->begin_transaction()') : false;
+$updatePermission = is_string($update) ? strpos($update, 'paste_owner_can_manage(') : false;
+assert_perf(
+    $updateHash !== false
+        && $updateTransaction !== false
+        && $updatePermission !== false
+        && $updatePermission < $updateHash
+        && $updateHash < $updateTransaction,
+    'paste edits hash only for a plausible owner/admin and before the transaction and its locks',
+    $failures
+);
+
+$apiTokens = file_get_contents($root . '/src/includes/api_tokens.php');
+$authenticateStart = is_string($apiTokens) ? strpos($apiTokens, 'function api_token_authenticate') : false;
+$authenticateEnd = is_string($apiTokens) ? strpos($apiTokens, 'function api_token_touch') : false;
+assert_perf(
+    $authenticateStart !== false
+        && $authenticateEnd !== false
+        && !str_contains(
+            substr($apiTokens, $authenticateStart, $authenticateEnd - $authenticateStart),
+            'UPDATE api_tokens'
+        )
+        && str_contains($apiTokens, 'INTERVAL 60 SECOND'),
+    'bearer authentication does not write; admitted use is recorded separately and throttled',
+    $failures
+);
+
+$apiIndex = file_get_contents($root . '/src/api/v1/index.php');
+$apiRatePosition = is_string($apiIndex) ? strpos($apiIndex, 'rate_limit_hit(') : false;
+$apiTouchPosition = is_string($apiIndex) ? strpos($apiIndex, 'api_token_touch(') : false;
+assert_perf(
+    $apiRatePosition !== false
+        && $apiTouchPosition !== false
+        && $apiTouchPosition > $apiRatePosition,
+    'the API records last use only after the rate limiter admits the request',
+    $failures
+);
+
+$externalBackup = file_get_contents($root . '/src/includes/external_backup.php');
+assert_perf(
+    is_string($externalBackup)
+        && str_contains($externalBackup, 'function external_backup_encrypt_stream')
+        && str_contains($externalBackup, 'function external_backup_decrypt_stream')
+        && str_contains($externalBackup, 'function external_backup_s3_put_stream')
+        && str_contains($externalBackup, 'function external_backup_verify_stream'),
+    'external backups encrypt, decrypt, upload and verify through streams',
+    $failures
+);
+
+$trash = file_get_contents($root . '/src/includes/trash.php');
+assert_perf(
+    is_string($trash)
+        && str_contains($trash, '$maxSeconds')
+        && str_contains($trash, "'remaining' => \$remaining"),
+    'the trash purge is bounded by time and reports the remaining backlog',
+    $failures
+);
+
 foreach ($failures as $failure) {
     fwrite(STDERR, "FAIL: {$failure}\n");
 }

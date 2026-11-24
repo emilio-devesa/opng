@@ -6,6 +6,7 @@ ob_start();
 
 require __DIR__ . '/../src/includes/session.php';
 require __DIR__ . '/../src/includes/csrf.php';
+require __DIR__ . '/../src/includes/auth.php';
 
 $_SERVER['HTTPS'] = 'off';
 $_SERVER['SERVER_PORT'] = '80';
@@ -85,12 +86,33 @@ $_SESSION['user_id'] = 7;
 $_SESSION['username'] = 'someone';
 $_SESSION['role'] = 'admin';
 $_SESSION['session_version'] = 3;
+$_SESSION['opng_unlocked'] = ['entry-a' => time() + 600];
 session_forget_account();
 if (isset($_SESSION['user_id'], $_SESSION['username'], $_SESSION['role'], $_SESSION['session_version'])) {
     fwrite(STDERR, "FAIL: session_forget_account() kept authenticated identity keys\n");
     exit(1);
 }
-echo "PASS: session_forget_account() drops the authenticated identity\n";
+if (isset($_SESSION['opng_unlocked'])) {
+    fwrite(STDERR, "FAIL: session_forget_account() kept unlocks granted to the revoked identity\n");
+    exit(1);
+}
+echo "PASS: session_forget_account() drops the authenticated identity and its unlocks\n";
+
+$_SESSION['opng_unlocked'] = ['entry-b' => time() + 600];
+auth_login_user([
+    'id' => 9,
+    'username' => 'new-identity',
+    'role' => 'user',
+    'session_version' => 0,
+]);
+if (
+    ($_SESSION['user_id'] ?? null) !== 9
+    || isset($_SESSION['opng_unlocked'])
+) {
+    fwrite(STDERR, "FAIL: a new login inherited protected-thread unlocks\n");
+    exit(1);
+}
+echo "PASS: a new login clears protected-thread unlocks from the previous identity\n";
 
 $session_source = file_get_contents(__DIR__ . '/../src/includes/session.php');
 $db_source = file_get_contents(__DIR__ . '/../src/includes/db.php');

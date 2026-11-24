@@ -7,8 +7,10 @@
  *
  * - CLI only.
  * - Without an argument it uses OPNG_TRASH_RETENTION_DAYS (7 by default).
- * - Runs in one transaction that follows the global lock order
- *   storage_counters -> users -> entries and updates the counters exactly.
+ * - Removes expired threads in bounded batches. Each thread is one transaction
+ *   that follows the global lock order storage_counters -> users -> entries and
+ *   updates the counters exactly. A run stops after a thread/time budget, so
+ *   cron or a systemd timer resumes the backlog on the next invocation.
  * - Intended for cron or a systemd timer; the admin panel exposes a manual run.
  */
 
@@ -38,7 +40,10 @@ try {
     $result = trash_purge_expired($db, $days);
     audit_log_record($db, null, 'trash.purge_expired', 'entries:' . $result['purged']);
     $db->close();
-    echo "Purged {$result['purged']} entr(ies) and released {$result['bytes']} bytes.\n";
+    echo "Purged {$result['purged']} entr(ies) from {$result['threads']} thread(s) and released {$result['bytes']} bytes.\n";
+    if ($result['remaining'] > 0) {
+        echo "{$result['remaining']} expired thread(s) remain; run the command again or wait for the next schedule.\n";
+    }
     exit(0);
 } catch (mysqli_sql_exception | RuntimeException $exception) {
     fwrite(STDERR, 'ERROR: ' . $exception->getMessage() . "\n");

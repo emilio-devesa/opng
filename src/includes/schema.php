@@ -86,18 +86,93 @@ function schema_migration_files(string $directory): array
 function schema_split_sql(string $sql): array
 {
     $statements = [];
+    $stream = fopen('php://temp', 'w+b');
+    if ($stream === false) {
+        throw new RuntimeException('SQL stream is unavailable.');
+    }
+    try {
+        $offset = 0;
+        $length = strlen($sql);
+        while ($offset < $length) {
+            $written = fwrite($stream, substr($sql, $offset));
+            if ($written === false || $written === 0) {
+                throw new RuntimeException('SQL stream could not be written.');
+            }
+            $offset += $written;
+        }
+        if (fseek($stream, 0) !== 0) {
+            throw new RuntimeException('SQL stream is not seekable.');
+        }
+        schema_split_sql_stream($stream, static function (string $statement) use (&$statements): void {
+            $statements[] = $statement;
+        });
+    } finally {
+        fclose($stream);
+    }
+
+    return $statements;
+}
+
+/**
+ * Split SQL statements from a stream with bounded memory.
+ *
+ * @param resource $stream
+ * @param callable(string): void $emit
+ */
+function schema_split_sql_stream($stream, callable $emit): void
+{
+    if (!is_resource($stream)) {
+        throw new InvalidArgumentException('SQL source is not a readable stream.');
+    }
+    $buffer = '';
+    $position = 0;
+    $eof = false;
+    $fill = static function (int $length) use (&$buffer, &$position, &$eof, $stream): void {
+        while (strlen($buffer) - $position < $length && !$eof) {
+            $chunk = fread($stream, 65536);
+            if ($chunk === false) {
+                throw new RuntimeException('SQL stream could not be read.');
+            }
+            if ($chunk === '') {
+                if (feof($stream)) {
+                    $eof = true;
+                    break;
+                }
+                continue;
+            }
+            // Drop the bytes already consumed before growing the buffer. This
+            // runs once per 64 KiB read, not once per character.
+            $buffer = substr($buffer, $position);
+            $position = 0;
+            $buffer .= $chunk;
+        }
+    };
+    $peek = static function (int $offset) use (&$buffer, &$position, $fill): ?string {
+        $fill($offset + 1);
+
+        return $buffer[$position + $offset] ?? null;
+    };
+    $next = static function () use (&$buffer, &$position, $fill): ?string {
+        $fill(1);
+        if (!isset($buffer[$position])) {
+            return null;
+        }
+        $char = $buffer[$position];
+        $position++;
+
+        return $char;
+    };
+
     $current = '';
-    $length = strlen($sql);
     $single = false;
     $double = false;
     $backtick = false;
     $line_comment = false;
     $block_comment = false;
 
-    for ($index = 0; $index < $length; $index++) {
-        $char = $sql[$index];
-        $next = $index + 1 < $length ? $sql[$index + 1] : '';
-        $after_next = $index + 2 < $length ? $sql[$index + 2] : '';
+    while (($char = $next()) !== null) {
+        $following = $peek(0) ?? '';
+        $after_next = $peek(1) ?? '';
 
         if ($line_comment) {
             if ($char === "\n") {
@@ -108,24 +183,22 @@ function schema_split_sql(string $sql): array
         }
 
         if ($block_comment) {
-            if ($char === '*' && $next === '/') {
+            if ($char === '*' && $following === '/') {
                 $block_comment = false;
-                $index++;
+                $next();
             }
             continue;
         }
 
         if ($single) {
             $current .= $char;
-            if ($char === '\\' && $next !== '') {
-                $current .= $next;
-                $index++;
+            if ($char === '\\' && $following !== '') {
+                $current .= $next();
                 continue;
             }
             if ($char === "'") {
-                if ($next === "'") {
-                    $current .= $next;
-                    $index++;
+                if ($following === "'") {
+                    $current .= $next();
                     continue;
                 }
                 $single = false;
@@ -135,15 +208,13 @@ function schema_split_sql(string $sql): array
 
         if ($double) {
             $current .= $char;
-            if ($char === '\\' && $next !== '') {
-                $current .= $next;
-                $index++;
+            if ($char === '\\' && $following !== '') {
+                $current .= $next();
                 continue;
             }
             if ($char === '"') {
-                if ($next === '"') {
-                    $current .= $next;
-                    $index++;
+                if ($following === '"') {
+                    $current .= $next();
                     continue;
                 }
                 $double = false;
@@ -154,9 +225,8 @@ function schema_split_sql(string $sql): array
         if ($backtick) {
             $current .= $char;
             if ($char === '`') {
-                if ($next === '`') {
-                    $current .= $next;
-                    $index++;
+                if ($following === '`') {
+                    $current .= $next();
                     continue;
                 }
                 $backtick = false;
@@ -164,18 +234,18 @@ function schema_split_sql(string $sql): array
             continue;
         }
 
-        if ($char === '-' && $next === '-' && ($after_next === '' || ctype_space($after_next))) {
+        if ($char === '-' && $following === '-' && ($after_next === '' || ctype_space($after_next))) {
             $line_comment = true;
-            $index++;
+            $next();
             continue;
         }
         if ($char === '#') {
             $line_comment = true;
             continue;
         }
-        if ($char === '/' && $next === '*') {
+        if ($char === '/' && $following === '*') {
             $block_comment = true;
-            $index++;
+            $next();
             continue;
         }
         if ($char === "'") {
@@ -196,7 +266,7 @@ function schema_split_sql(string $sql): array
         if ($char === ';') {
             $statement = trim($current);
             if ($statement !== '') {
-                $statements[] = $statement;
+                $emit($statement);
             }
             $current = '';
             continue;
@@ -207,10 +277,8 @@ function schema_split_sql(string $sql): array
 
     $statement = trim($current);
     if ($statement !== '') {
-        $statements[] = $statement;
+        $emit($statement);
     }
-
-    return $statements;
 }
 
 /**

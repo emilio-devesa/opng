@@ -192,7 +192,8 @@ function api_token_bearer_from_server(): ?string
 }
 
 /**
- * Authenticate a bearer token and update last_used_at.
+ * Authenticate a bearer token. Recording use is a separate, admitted step so
+ * rate-limited requests do not amplify writes (P04).
  *
  * @return array{token_id: int, user_id: int, username: string, role: string, scopes: string}|null
  */
@@ -241,12 +242,6 @@ function api_token_authenticate(mysqli $db, ?string $token): ?array
     }
 
     $tokenId = (int) $row['id'];
-    $update = $db->prepare('UPDATE api_tokens SET last_used_at = NOW() WHERE id = ?');
-    if ($update) {
-        $update->bind_param('i', $tokenId);
-        $update->execute();
-        $update->close();
-    }
 
     return [
         'token_id' => $tokenId,
@@ -255,6 +250,28 @@ function api_token_authenticate(mysqli $db, ?string $token): ?array
         'role' => (string) ($row['role'] ?? 'user'),
         'scopes' => (string) ($row['scopes'] ?? 'read'),
     ];
+}
+
+/**
+ * Record an admitted use. last_used_at means the last admitted request, not
+ * every attempt, and is refreshed at most once per minute per token so a
+ * read-only API does not turn every read into a row write (P04).
+ */
+function api_token_touch(mysqli $db, int $tokenId): bool
+{
+    $stmt = $db->prepare(
+        'UPDATE api_tokens SET last_used_at = NOW()
+         WHERE id = ?
+           AND (last_used_at IS NULL OR last_used_at < NOW() - INTERVAL 60 SECOND)'
+    );
+    if (!$stmt) {
+        return false;
+    }
+    $stmt->bind_param('i', $tokenId);
+    $ok = $stmt->execute();
+    $stmt->close();
+
+    return (bool) $ok;
 }
 
 function api_token_scope_allows(string $scopes, string $required): bool

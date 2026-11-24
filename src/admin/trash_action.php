@@ -80,7 +80,8 @@ try {
         exit;
     }
 
-    $result = trash_purge_expired($db);
+    // Keep the web request bounded; the scheduled command drains any backlog.
+    $result = trash_purge_expired($db, null, OPNG_TRASH_PURGE_BATCH, 10);
     audit_log_record(
         $db,
         $session_user_id,

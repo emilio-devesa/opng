@@ -436,7 +436,7 @@
     "trash_intro": "已删除的主题会在此保留一段时间。恢复主题会带回所有回复。",
     "trash_purge": "永久清除",
     "trash_purge_expired_button": "立即清除过期主题",
-    "trash_purge_expired_help": "删除所有早于保留期限的主题。需要当前密码。",
+    "trash_purge_expired_help": "分批删除已过期的主题。请再次运行或等待计划清理继续。需要当前密码。",
     "trash_purged": "主题已永久删除",
     "trash_purged_expired": "过期主题已永久删除",
     "trash_restore": "恢复",

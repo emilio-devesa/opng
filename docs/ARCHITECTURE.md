@@ -36,7 +36,7 @@ an edit, an admin deletion or an account-role change.
 | `src/admin/drop_id.php` | global counter → entry owner (if any) → entry `FOR UPDATE` → soft-delete the whole thread |
 | `src/admin/user_action.php` | global counter → target user → administrator rows (`ORDER BY id`) → entries |
 | `src/admin/empty.php` | global counter → every `users` counter → entries (batched delete) |
-| `src/includes/trash.php` purge | global counter → affected users (`ORDER BY id`) → trashed entries (batched delete) |
+| `src/includes/trash.php` purge | per thread: global counter → affected users (`ORDER BY id`) → trashed entries |
 
 Rules for new code:
 
@@ -168,22 +168,27 @@ large admin backup.
 - **Trash and retention** (`includes/trash.php`, `auth/trash*.php`,
   `admin/trash*.php`, `tools/trash_purge.php`): whole-thread soft delete,
   restore, an immediate administrator purge that refuses live rows, and a
-  scheduled purge that releases the global/account counters only after the rows
-  are deleted. Counters stay charged while a thread is in the trash.
+  scheduled purge that removes one thread per transaction, releases the
+  global/account counters only after the rows are deleted and resumes a large
+  backlog across bounded runs. Counters stay charged while a thread is in the
+  trash.
 - **Visibility and protection** (`includes/entry_access.php`, `src/unlock.php`):
   server-side public/unlisted/private checks, absolute expiry, Argon2id password
   protection and session unlock per thread root. Replies copy the parent's
   access fields; editing a root propagates them to the thread.
 - **API tokens** (`includes/api_tokens.php`, `src/api/v1/`): SHA-256 token
-  storage, `read`/`write` scopes, expiry, revocation, per-token rate limits and
-  a read-only v1 router that reuses the public visibility filter.
+  storage, `read`/`write` scopes, expiry, revocation, per-token rate limits,
+  throttled `last_used_at` after admission and a read-only v1 router that reuses
+  the public visibility filter.
 - **Observability** (`includes/logging.php`, `admin/audit.php`): single-line JSON
   logs with request IDs, an audit viewer with filters and a rate-limit/quota
   panel.
 - **External backups** (`includes/external_backup.php`,
   `admin/external_backup*.php`, `tools/backup_external.php`): local or
   S3-compatible targets, SHA-256 checksums, retention, optional local
-  AES-256-GCM encryption and disposable-schema restore verification.
+  AES-256-GCM encryption and disposable-schema restore verification. Dumps,
+  encryption, uploads and verification are streamed; encrypted files use the
+  chunked `OPNGBK2` format and `OPNGBK1` remains readable.
 
 ## Error documents and UI polish
 

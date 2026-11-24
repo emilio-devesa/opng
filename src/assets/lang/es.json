@@ -436,7 +436,7 @@
     "trash_intro": "Los hilos eliminados permanecen aquí por tiempo limitado. Restaurar un hilo recupera todas sus respuestas.",
     "trash_purge": "Purgar permanentemente",
     "trash_purge_expired_button": "Purgar hilos caducados ahora",
-    "trash_purge_expired_help": "Elimina todos los hilos más antiguos que la ventana de retención. Se requiere la contraseña actual.",
+    "trash_purge_expired_help": "Elimina los hilos caducados por lotes acotados. Vuelve a ejecutarlo o espera a la purga programada para continuar. Se requiere la contraseña actual.",
     "trash_purged": "Hilo eliminado permanentemente",
     "trash_purged_expired": "Hilos caducados eliminados permanentemente",
     "trash_restore": "Restaurar",

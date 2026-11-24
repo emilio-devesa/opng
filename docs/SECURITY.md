@@ -125,14 +125,22 @@ deployments should upgrade using [UPGRADING.md](UPGRADING.md).
   including when the selected entry is a reply. Authors see their own
   trashed threads; administrators can restore or purge any trashed thread. Purge
   refuses live rows, keeps the `storage_counters → users → entries` lock order
-  and releases counters only after the rows are physically deleted. Set
+  and releases counters only after the rows are physically deleted. The
+  scheduled purge removes one thread per transaction, stops after a thread or
+  time budget and resumes with the remaining backlog on the next run, so a
+  large backlog does not hold the global lock for the whole purge. Set
   `OPNG_TRASH_RETENTION_DAYS` and schedule `tools/trash_purge.php`.
 - API tokens are shown once and stored as SHA-256 hashes. The v1 API requires
   the `read` scope, lists only public live entries, withholds password-protected
   bodies even from valid read tokens, applies a per-token rate
-  limit and never accepts methods other than `GET`. Revocation is immediate and
-  keeps the row for audit. Create, list and revoke tokens from the account
-  security page; administrators can review and revoke every token.
+  limit and never accepts methods other than `GET`. `last_used_at` means the
+  last admitted request, not every attempt, and is refreshed at most once per
+  minute per token so rate-limited requests cannot amplify writes. Revocation is
+  immediate and keeps the row for audit. Create, list and revoke tokens from the
+  account security page; administrators can review and revoke every token.
+- Protected-thread unlocks are tied to the authenticated identity. Signing in as
+  a different account and revoking the current identity both clear the unlock
+  list, so an anonymous session cannot inherit a previous user's unlocks.
 
 ### Backups
 
@@ -213,7 +221,8 @@ current expiry unless a new preset or “Never” is explicitly selected.
 
 Restoration and purge take the same global storage-counter lock before
 resolving their target rows. Restoring leaves quotas charged; only a purge
-releases bytes and entries.
+releases bytes and entries. A purge run takes the lock once per thread, not for
+the whole backlog.
 
 The supplied access log formats omit the query string and Referer. The reset
 page sends `Referrer-Policy: no-referrer`, including on its redirect. Nginx

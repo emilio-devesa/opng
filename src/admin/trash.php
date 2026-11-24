@@ -54,7 +54,7 @@ require(__DIR__ . '/../includes/layout_header.php');
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
         <input type="hidden" name="action" value="purge_expired">
         <button type="submit" class="danger" data-i18n="trash_purge_expired_button">Purge expired threads now</button>
-        <span class="form-help" data-i18n="trash_purge_expired_help">Deletes every thread older than the retention window. The current password is required.</span>
+        <span class="form-help" data-i18n="trash_purge_expired_help">Deletes expired threads in bounded batches. Run again or wait for the scheduled purge to continue. The current password is required.</span>
     </form>
 
     <?php if ($threads === []): ?>

@@ -244,100 +244,169 @@ function trash_lock_accounts(mysqli $db, array $accounts): void
 }
 
 /**
- * Physically delete every trashed thread older than the retention window.
+ * Physically delete expired trashed threads in bounded batches.
  *
- * @return array{purged: int, bytes: int}
+ * Each thread is removed in its own transaction after taking the global
+ * counter and its accounts in the documented order. The run stops after
+ * $batchSize threads or $maxSeconds, so a large backlog cannot hold the global
+ * lock for the whole purge; the next run resumes with the remaining roots
+ * (P03).
+ *
+ * @return array{purged: int, bytes: int, threads: int, remaining: int}
  */
-function trash_purge_expired(mysqli $db, ?int $days = null, int $batchSize = OPNG_TRASH_PURGE_BATCH): array
-{
+function trash_purge_expired(
+    mysqli $db,
+    ?int $days = null,
+    int $batchSize = OPNG_TRASH_PURGE_BATCH,
+    int $maxSeconds = 20
+): array {
     $days = $days ?? trash_retention_days();
     $batchSize = max(1, min($batchSize, 5000));
+    $maxSeconds = max(1, min($maxSeconds, 300));
     $cutoff = gmdate('Y-m-d H:i:s', time() - ($days * 86400));
+    $started = time();
     $purged = 0;
     $bytes = 0;
+    $threads = 0;
 
-    $db->begin_transaction();
-    try {
-        if (global_quota_lock($db) === null) {
-            throw new RuntimeException('Global storage counter is unavailable.');
-        }
-
-        // Aggregate before deleting so the counters receive exact deltas.
-        $stmt = $db->prepare(
-            'SELECT user_id, COALESCE(SUM(OCTET_LENGTH(text)), 0) AS bytes, COUNT(*) AS entries
-             FROM entries
-             WHERE deleted_at IS NOT NULL AND deleted_at < ?
-             GROUP BY user_id'
-        );
-        if (!$stmt) {
-            throw new RuntimeException('Trash aggregate query could not be prepared.');
-        }
-        $stmt->bind_param('s', $cutoff);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $accounts = [];
-        $totalBytes = 0;
-        $totalEntries = 0;
-        while ($row = $result->fetch_assoc()) {
-            $accountId = $row['user_id'] !== null ? (int) $row['user_id'] : null;
-            $accountBytes = (int) ($row['bytes'] ?? 0);
-            $accountEntries = (int) ($row['entries'] ?? 0);
-            $totalBytes += $accountBytes;
-            $totalEntries += $accountEntries;
-            if ($accountId !== null) {
-                $accounts[$accountId] = $accountBytes;
+    while ($threads < $batchSize && time() - $started < $maxSeconds) {
+        $db->begin_transaction();
+        try {
+            if (global_quota_lock($db) === null) {
+                throw new RuntimeException('Global storage counter is unavailable.');
             }
-        }
-        $result->free();
-        $stmt->close();
 
-        if ($totalEntries === 0) {
-            $db->commit();
-            return ['purged' => 0, 'bytes' => 0];
-        }
+            // Pick one expired root. The global counter serializes purge and
+            // restore, so this thread's membership is stable until commit.
+            $stmt = $db->prepare(
+                'SELECT id FROM entries
+                 WHERE deleted_at IS NOT NULL AND deleted_at < ?
+                   AND (root_id = id OR root_id IS NULL)
+                 ORDER BY deleted_at ASC, id ASC
+                 LIMIT 1'
+            );
+            if (!$stmt) {
+                throw new RuntimeException('Trash root query could not be prepared.');
+            }
+            $stmt->bind_param('s', $cutoff);
+            if (!$stmt->execute()) {
+                throw new RuntimeException('Trash root query failed.');
+            }
+            $result = $stmt->get_result();
+            if (!$result instanceof mysqli_result) {
+                throw new RuntimeException('Trash root result is unavailable.');
+            }
+            $root = $result->fetch_assoc();
+            $result->free();
+            $stmt->close();
+            if (!is_array($root) || !is_string($root['id'] ?? null)) {
+                $db->commit();
+                break;
+            }
+            $rootId = (string) $root['id'];
 
-        // Lock accounts in ascending id order, after the global counter.
-        trash_lock_accounts($db, $accounts);
+            // Aggregate only trashed rows of this thread. A live row is never
+            // removed by the scheduled purge.
+            $stmt = $db->prepare(
+                'SELECT user_id, COALESCE(SUM(OCTET_LENGTH(text)), 0) AS bytes, COUNT(*) AS entries
+                 FROM entries
+                 WHERE (id = ? OR root_id = ?) AND deleted_at IS NOT NULL
+                 GROUP BY user_id'
+            );
+            if (!$stmt) {
+                throw new RuntimeException('Thread aggregate query could not be prepared.');
+            }
+            $stmt->bind_param('ss', $rootId, $rootId);
+            if (!$stmt->execute()) {
+                throw new RuntimeException('Thread aggregate query failed.');
+            }
+            $result = $stmt->get_result();
+            if (!$result instanceof mysqli_result) {
+                throw new RuntimeException('Thread aggregate result is unavailable.');
+            }
+            $accounts = [];
+            $totalBytes = 0;
+            $totalEntries = 0;
+            while ($row = $result->fetch_assoc()) {
+                $accountId = $row['user_id'] !== null ? (int) $row['user_id'] : null;
+                $accountBytes = (int) ($row['bytes'] ?? 0);
+                $totalBytes += $accountBytes;
+                $totalEntries += (int) ($row['entries'] ?? 0);
+                if ($accountId !== null) {
+                    $accounts[$accountId] = $accountBytes;
+                }
+            }
+            $result->free();
+            $stmt->close();
 
-        do {
+            if ($totalEntries === 0) {
+                $db->commit();
+                break;
+            }
+
+            // Lock accounts in ascending id order, after the global counter
+            // and before the entries delete (ROB-15).
+            trash_lock_accounts($db, $accounts);
+
             $delete = $db->prepare(
-                'DELETE FROM entries WHERE deleted_at IS NOT NULL AND deleted_at < ?
-                 ORDER BY id LIMIT ' . $batchSize
+                'DELETE FROM entries
+                 WHERE (id = ? OR root_id = ?) AND deleted_at IS NOT NULL'
             );
             if (!$delete) {
                 throw new RuntimeException('Trash purge query could not be prepared.');
             }
-            $delete->bind_param('s', $cutoff);
-            $delete->execute();
-            $deletedBatch = max(0, $delete->affected_rows);
-            $delete->close();
-            $purged += $deletedBatch;
-        } while ($deletedBatch === $batchSize);
-
-        if (
-            !global_quota_consume($db, -$totalBytes)
-            || !global_entry_consume($db, -$totalEntries)
-        ) {
-            throw new RuntimeException('Global counters could not be updated after the purge.');
-        }
-        foreach ($accounts as $accountId => $accountBytes) {
-            if (!user_quota_consume($db, $accountId, -$accountBytes)) {
-                throw new RuntimeException('Account counters could not be updated after the purge.');
+            $delete->bind_param('ss', $rootId, $rootId);
+            if (!$delete->execute()) {
+                throw new RuntimeException('Trash purge delete failed.');
             }
-        }
+            $delete->close();
 
-        $db->commit();
-        $bytes = $totalBytes;
-    } catch (Throwable $exception) {
-        try {
-            $db->rollback();
-        } catch (Throwable $rollbackException) {
-            opng_log_exception('trash_purge_rollback_failed', $rollbackException);
+            if (
+                !global_quota_consume($db, -$totalBytes)
+                || !global_entry_consume($db, -$totalEntries)
+            ) {
+                throw new RuntimeException('Global counters could not be updated after the purge.');
+            }
+            foreach ($accounts as $accountId => $accountBytes) {
+                if (!user_quota_consume($db, $accountId, -$accountBytes)) {
+                    throw new RuntimeException('Account counters could not be updated after the purge.');
+                }
+            }
+
+            $db->commit();
+            $purged += $totalEntries;
+            $bytes += $totalBytes;
+            $threads++;
+        } catch (Throwable $exception) {
+            try {
+                $db->rollback();
+            } catch (Throwable $rollbackException) {
+                opng_log_exception('trash_purge_rollback_failed', $rollbackException);
+            }
+            throw $exception;
         }
-        throw $exception;
     }
 
-    return ['purged' => $purged, 'bytes' => $bytes];
+    $remaining = 0;
+    $stmt = $db->prepare(
+        'SELECT COUNT(*) AS total FROM entries
+         WHERE deleted_at IS NOT NULL AND deleted_at < ?
+           AND (root_id = id OR root_id IS NULL)'
+    );
+    if ($stmt) {
+        $stmt->bind_param('s', $cutoff);
+        if ($stmt->execute()) {
+            $result = $stmt->get_result();
+            $row = $result ? $result->fetch_assoc() : null;
+            if ($result instanceof mysqli_result) {
+                $result->free();
+            }
+            $remaining = is_array($row) ? (int) ($row['total'] ?? 0) : 0;
+        }
+        $stmt->close();
+    }
+
+    return ['purged' => $purged, 'bytes' => $bytes, 'threads' => $threads, 'remaining' => $remaining];
 }
 
 /**

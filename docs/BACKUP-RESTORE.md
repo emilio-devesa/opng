@@ -121,7 +121,11 @@ php tools/backup_external.php
 
 The command writes `opng-YYYYMMDD-HHMMSS-xxxxxxxx.sql` (or `.enc` for an
 encrypted local backup) plus a `.sha256` sidecar, applies the retention window
-and logs a structured `external_backup_completed` event. Local retention removes
+and logs a structured `external_backup_completed` event. Dumps, encryption and
+S3 uploads are processed as streams, so memory use stays bounded instead of
+growing with the dump size. New encrypted files use the chunked `OPNGBK2`
+format, where every 1 MiB frame has its own IV, authentication tag and chunk
+index. `OPNGBK1` files written by earlier releases remain readable. Local retention removes
 only regular files matching that exact naming format and their regular checksum
 sidecars; temporary files and symbolic links are skipped. Use a directory
 dedicated to OPNG backups and writable only by the backup account. S3 uploads use
@@ -129,9 +133,11 @@ native SigV4 signing and no SDK; objects are uploaded as-is, so use a private
 bucket with bucket-side encryption. The admin page (`admin/external_backup.php`)
 shows the configuration and local files, and can run or verify a backup after
 password + MFA reauthentication. The automatic verifier requires the original
-`.sha256` sidecar, authenticates encrypted files, and checks the exact table
-names and per-table row counts against the inventory at the end of the new
-SQL dump. The inventory comes from the exported snapshot, not today's live
+`.sha256` sidecar, decrypts and splits the dump as a stream, and checks the
+exact table names and per-table row counts against the inventory at the end of
+the new SQL dump. The decrypted dump is staged in a temporary file rather than
+held in memory, so verification of a multi-gigabyte backup does not need a
+matching PHP memory limit. The inventory comes from the exported snapshot, not today's live
 database. Old dumps without this inventory remain manually restorable; their
 completeness cannot be certified by this check.
 

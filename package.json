@@ -8,7 +8,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.10.2",
-    "html-validate": "^9.7.1",
+    "html-validate": "^11.21.1",
     "playwright": "^1.55.0"
   }
 }

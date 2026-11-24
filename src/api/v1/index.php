@@ -79,6 +79,10 @@ if ($limit_result === RateLimitResult::Limited) {
     api_error(429, 'rate_limited', 'Too many requests.');
 }
 
+// Record the admitted use only after scope and rate-limit admission. The helper
+// throttles repeated updates, so read traffic does not write on every request.
+api_token_touch($db, (int) $identity['token_id']);
+
 $uri_path = parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
 $uri_path = is_string($uri_path) ? $uri_path : '';
 $marker = '/api/v1';

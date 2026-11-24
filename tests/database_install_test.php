@@ -19,8 +19,8 @@ if ($case_mode !== 0) {
     // duplicates, which is only observable on a case-sensitive server. MAMP
     // and other macOS installs use lower_case_table_names=2; skip instead of
     // failing an environment the CI MySQL job already covers.
-    echo "SKIP: database_install_test requires lower_case_table_names=0; this server reports {$case_mode}.\n";
-    exit(0);
+    require_once __DIR__ . '/fixture_skip.php';
+    fixture_skip("database_install_test requires lower_case_table_names=0; this server reports {$case_mode}.");
 }
 
 $result = $db->query(

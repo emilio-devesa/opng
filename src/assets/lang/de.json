@@ -436,7 +436,7 @@
     "trash_intro": "Gelöschte Threads bleiben hier für begrenzte Zeit. Die Wiederherstellung bringt jede Antwort zurück.",
     "trash_purge": "Endgültig bereinigen",
     "trash_purge_expired_button": "Abgelaufene Threads jetzt bereinigen",
-    "trash_purge_expired_help": "Löscht jeden Thread, der älter als die Aufbewahrungsfrist ist. Das aktuelle Kennwort ist erforderlich.",
+    "trash_purge_expired_help": "Löscht abgelaufene Threads in begrenzten Stapeln. Erneut ausführen oder auf die geplante Bereinigung warten. Das aktuelle Kennwort ist erforderlich.",
     "trash_purged": "Thread endgültig gelöscht",
     "trash_purged_expired": "Abgelaufene Threads endgültig gelöscht",
     "trash_restore": "Wiederherstellen",

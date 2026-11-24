@@ -19,7 +19,13 @@ require_once __DIR__ . '/sql_backup.php';
 require_once __DIR__ . '/schema.php';
 require_once __DIR__ . '/logging.php';
 
-const OPNG_EXTERNAL_BACKUP_MAGIC = "OPNGBK1\n";
+const OPNG_EXTERNAL_BACKUP_MAGIC_V1 = "OPNGBK1\n";
+// OPNGBK2 is a chunked, authenticated format. Each frame carries its own
+// plaintext length, IV and GCM tag, so encryption and decryption never need the
+// whole dump in memory. OPNGBK1 backups remain readable.
+const OPNG_EXTERNAL_BACKUP_MAGIC = "OPNGBK2\n";
+const OPNG_EXTERNAL_BACKUP_CHUNK_BYTES = 1048576;
+const OPNG_EXTERNAL_BACKUP_MAX_CHUNK_BYTES = 16777216;
 
 /**
  * @return array{
@@ -139,32 +145,259 @@ function external_backup_key(): ?string
     return is_string($decoded) && strlen($decoded) === 32 ? $decoded : null;
 }
 
-function external_backup_encrypt(string $plain): string
+/**
+ * @param resource $stream
+ */
+function external_backup_write_all($stream, string $contents): void
+{
+    $offset = 0;
+    $length = strlen($contents);
+    while ($offset < $length) {
+        $written = fwrite($stream, substr($contents, $offset));
+        if ($written === false || $written === 0) {
+            throw new RuntimeException('Backup stream could not be written.');
+        }
+        $offset += $written;
+    }
+}
+
+/**
+ * Read exactly $length bytes, or return null at a clean EOF when allowed.
+ *
+ * @param resource $stream
+ */
+function external_backup_read_exact($stream, int $length, bool $allowEof = false): ?string
+{
+    $buffer = '';
+    while (strlen($buffer) < $length) {
+        $chunk = fread($stream, $length - strlen($buffer));
+        if ($chunk === false) {
+            throw new RuntimeException('Backup stream could not be read.');
+        }
+        if ($chunk === '') {
+            if (feof($stream)) {
+                if ($allowEof && $buffer === '') {
+                    return null;
+                }
+                throw new RuntimeException('Encrypted backup is truncated.');
+            }
+            continue;
+        }
+        $buffer .= $chunk;
+    }
+
+    return $buffer;
+}
+
+/**
+ * Hash a seekable plaintext stream and return its size.
+ *
+ * @param resource $stream
+ * @return array{checksum: string, bytes: int}
+ */
+function external_backup_stream_checksum($stream): array
+{
+    if (fseek($stream, 0) !== 0) {
+        throw new RuntimeException('Backup stream is not seekable.');
+    }
+    $context = hash_init('sha256');
+    $bytes = 0;
+    while (!feof($stream)) {
+        $chunk = fread($stream, OPNG_EXTERNAL_BACKUP_CHUNK_BYTES);
+        if ($chunk === false) {
+            throw new RuntimeException('Backup stream could not be read.');
+        }
+        if ($chunk === '') {
+            if (feof($stream)) {
+                break;
+            }
+            continue;
+        }
+        hash_update($context, $chunk);
+        $bytes += strlen($chunk);
+    }
+    if (fseek($stream, 0) !== 0) {
+        throw new RuntimeException('Backup stream is not seekable.');
+    }
+
+    return ['checksum' => hash_final($context), 'bytes' => $bytes];
+}
+
+/**
+ * @param resource $input
+ * @param resource $output
+ */
+function external_backup_stream_copy($input, $output): int
+{
+    if (fseek($input, 0) !== 0) {
+        throw new RuntimeException('Backup stream is not seekable.');
+    }
+    $bytes = 0;
+    while (!feof($input)) {
+        $chunk = fread($input, OPNG_EXTERNAL_BACKUP_CHUNK_BYTES);
+        if ($chunk === false) {
+            throw new RuntimeException('Backup stream could not be read.');
+        }
+        if ($chunk === '') {
+            if (feof($input)) {
+                break;
+            }
+            continue;
+        }
+        external_backup_write_all($output, $chunk);
+        $bytes += strlen($chunk);
+    }
+    if (fseek($input, 0) !== 0) {
+        throw new RuntimeException('Backup stream is not seekable.');
+    }
+
+    return $bytes;
+}
+
+/**
+ * Encrypt a plaintext stream with chunked AES-256-GCM.
+ *
+ * @param resource $input
+ * @param resource $output
+ */
+function external_backup_encrypt_stream($input, $output): int
 {
     $key = external_backup_key();
     if ($key === null) {
         throw new RuntimeException('OPNG_BACKUP_KEY is not configured.');
     }
-    $iv = random_bytes(12);
-    $tag = '';
-    $cipher = openssl_encrypt($plain, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
-    if (!is_string($cipher) || strlen($tag) !== 16) {
-        throw new RuntimeException('Backup encryption failed.');
+    if (fseek($input, 0) !== 0) {
+        throw new RuntimeException('Backup stream is not seekable.');
+    }
+    external_backup_write_all($output, OPNG_EXTERNAL_BACKUP_MAGIC);
+    $index = 0;
+    $total = 0;
+    while (!feof($input)) {
+        $chunk = fread($input, OPNG_EXTERNAL_BACKUP_CHUNK_BYTES);
+        if ($chunk === false) {
+            throw new RuntimeException('Backup stream could not be read.');
+        }
+        if ($chunk === '') {
+            if (feof($input)) {
+                break;
+            }
+            continue;
+        }
+        $iv = random_bytes(12);
+        $tag = '';
+        $cipher = openssl_encrypt(
+            $chunk,
+            'aes-256-gcm',
+            $key,
+            OPENSSL_RAW_DATA,
+            $iv,
+            $tag,
+            pack('N', $index),
+            16
+        );
+        if (!is_string($cipher) || strlen($tag) !== 16) {
+            throw new RuntimeException('Backup encryption failed.');
+        }
+        external_backup_write_all(
+            $output,
+            pack('N', strlen($chunk)) . $iv . $tag . $cipher
+        );
+        $total += strlen($chunk);
+        $index++;
+    }
+    external_backup_write_all($output, pack('N', 0));
+    if (fseek($input, 0) !== 0) {
+        throw new RuntimeException('Backup stream is not seekable.');
     }
 
-    return OPNG_EXTERNAL_BACKUP_MAGIC . base64_encode($iv . $tag . $cipher);
+    return $total;
 }
 
-function external_backup_decrypt(string $payload): string
+/**
+ * @param resource $input
+ * @param resource $output
+ */
+function external_backup_decrypt_stream($input, $output): int
 {
-    if (!str_starts_with($payload, OPNG_EXTERNAL_BACKUP_MAGIC)) {
-        return $payload;
-    }
     $key = external_backup_key();
     if ($key === null) {
         throw new RuntimeException('OPNG_BACKUP_KEY is required to read this backup.');
     }
-    $raw = base64_decode(substr($payload, strlen(OPNG_EXTERNAL_BACKUP_MAGIC)), true);
+    if (fseek($input, 0) !== 0) {
+        throw new RuntimeException('Backup stream is not seekable.');
+    }
+    $header = external_backup_read_exact($input, strlen(OPNG_EXTERNAL_BACKUP_MAGIC));
+    if ($header === OPNG_EXTERNAL_BACKUP_MAGIC_V1) {
+        $payload = stream_get_contents($input);
+        if (!is_string($payload)) {
+            throw new RuntimeException('Backup stream could not be read.');
+        }
+        $plain = external_backup_decrypt_v1_payload($payload, $key);
+        external_backup_write_all($output, $plain);
+        if (fseek($input, 0) !== 0) {
+            throw new RuntimeException('Backup stream is not seekable.');
+        }
+
+        return strlen($plain);
+    }
+    if ($header !== OPNG_EXTERNAL_BACKUP_MAGIC) {
+        throw new RuntimeException('Encrypted backup marker is invalid.');
+    }
+
+    $index = 0;
+    $total = 0;
+    while (true) {
+        $lengthBytes = external_backup_read_exact($input, 4, true);
+        if ($lengthBytes === null) {
+            throw new RuntimeException('Encrypted backup is truncated.');
+        }
+        $unpacked = unpack('Nlength', $lengthBytes);
+        if (!is_array($unpacked) || !isset($unpacked['length'])) {
+            throw new RuntimeException('Encrypted backup chunk header is invalid.');
+        }
+        $length = (int) $unpacked['length'];
+        if ($length === 0) {
+            $extra = fread($input, 1);
+            if ($extra === false || $extra !== '') {
+                throw new RuntimeException('Encrypted backup has trailing data.');
+            }
+            break;
+        }
+        if ($length < 1 || $length > OPNG_EXTERNAL_BACKUP_MAX_CHUNK_BYTES) {
+            throw new RuntimeException('Encrypted backup chunk size is invalid.');
+        }
+        $iv = external_backup_read_exact($input, 12);
+        $tag = external_backup_read_exact($input, 16);
+        $cipher = external_backup_read_exact($input, $length);
+        if (!is_string($iv) || !is_string($tag) || !is_string($cipher)) {
+            throw new RuntimeException('Encrypted backup is truncated.');
+        }
+        $plain = openssl_decrypt(
+            $cipher,
+            'aes-256-gcm',
+            $key,
+            OPENSSL_RAW_DATA,
+            $iv,
+            $tag,
+            pack('N', $index)
+        );
+        if (!is_string($plain)) {
+            throw new RuntimeException('Encrypted backup could not be decrypted.');
+        }
+        external_backup_write_all($output, $plain);
+        $total += strlen($plain);
+        $index++;
+    }
+    if (fseek($input, 0) !== 0) {
+        throw new RuntimeException('Backup stream is not seekable.');
+    }
+
+    return $total;
+}
+
+function external_backup_decrypt_v1_payload(string $payload, string $key): string
+{
+    $raw = base64_decode($payload, true);
     if (!is_string($raw) || strlen($raw) < 29) {
         throw new RuntimeException('Encrypted backup is truncated.');
     }
@@ -177,6 +410,62 @@ function external_backup_decrypt(string $payload): string
     }
 
     return $plain;
+}
+
+function external_backup_encrypt(string $plain): string
+{
+    $input = fopen('php://temp', 'w+b');
+    $output = fopen('php://temp/maxmemory:4194304', 'w+b');
+    if ($input === false || $output === false) {
+        throw new RuntimeException('Backup temporary stream is unavailable.');
+    }
+    try {
+        external_backup_write_all($input, $plain);
+        external_backup_encrypt_stream($input, $output);
+        if (fseek($output, 0) !== 0) {
+            throw new RuntimeException('Backup stream is not seekable.');
+        }
+        $payload = stream_get_contents($output);
+        if (!is_string($payload)) {
+            throw new RuntimeException('Backup stream could not be read.');
+        }
+
+        return $payload;
+    } finally {
+        fclose($input);
+        fclose($output);
+    }
+}
+
+function external_backup_decrypt(string $payload): string
+{
+    if (
+        !str_starts_with($payload, OPNG_EXTERNAL_BACKUP_MAGIC)
+        && !str_starts_with($payload, OPNG_EXTERNAL_BACKUP_MAGIC_V1)
+    ) {
+        return $payload;
+    }
+    $input = fopen('php://temp', 'w+b');
+    $output = fopen('php://temp/maxmemory:4194304', 'w+b');
+    if ($input === false || $output === false) {
+        throw new RuntimeException('Backup temporary stream is unavailable.');
+    }
+    try {
+        external_backup_write_all($input, $payload);
+        external_backup_decrypt_stream($input, $output);
+        if (fseek($output, 0) !== 0) {
+            throw new RuntimeException('Backup stream is not seekable.');
+        }
+        $plain = stream_get_contents($output);
+        if (!is_string($plain)) {
+            throw new RuntimeException('Backup stream could not be read.');
+        }
+
+        return $plain;
+    } finally {
+        fclose($input);
+        fclose($output);
+    }
 }
 
 /**
@@ -201,78 +490,89 @@ function external_backup_run(mysqli $db): array
     }
     try {
         sql_backup_dump($db, $stream, sql_backup_max_seconds(), sql_backup_max_bytes());
-        rewind($stream);
-        $dump = stream_get_contents($stream);
-    } finally {
-        fclose($stream);
-    }
-    if (!is_string($dump) || $dump === '') {
-        throw new RuntimeException('Backup dump is empty.');
-    }
+        $hashed = external_backup_stream_checksum($stream);
+        if ($hashed['bytes'] < 1) {
+            throw new RuntimeException('Backup dump is empty.');
+        }
+        $checksum = $hashed['checksum'];
+        $dumpBytes = $hashed['bytes'];
+        $name = 'opng-' . gmdate('Ymd-His') . '-' . bin2hex(random_bytes(4));
 
-    $name = 'opng-' . gmdate('Ymd-His') . '-' . bin2hex(random_bytes(4));
-    $checksum = hash('sha256', $dump);
-    $payload = $dump;
-    if ($config['target'] === 'local' && $config['key'] !== '') {
-        $payload = external_backup_encrypt($dump);
-        $name .= '.enc';
-    } else {
+        if ($config['target'] === 'local') {
+            $encrypted = $config['key'] !== '';
+            $name .= $encrypted ? '.enc' : '.sql';
+            $path = rtrim($config['directory'], '/') . '/' . $name;
+            $temporary = tempnam($config['directory'], '.opng-backup-');
+            if ($temporary === false) {
+                throw new RuntimeException('Backup temporary file could not be created.');
+            }
+            @chmod($temporary, 0600);
+            $output = fopen($temporary, 'wb');
+            if ($output === false) {
+                @unlink($temporary);
+                throw new RuntimeException('Backup file could not be written.');
+            }
+            try {
+                $payloadBytes = $encrypted
+                    ? external_backup_encrypt_stream($stream, $output)
+                    : external_backup_stream_copy($stream, $output);
+                if (!fflush($output)) {
+                    throw new RuntimeException('Backup file could not be flushed.');
+                }
+            } catch (Throwable $exception) {
+                fclose($output);
+                @unlink($temporary);
+                throw $exception;
+            }
+            fclose($output);
+            if (!@rename($temporary, $path)) {
+                @unlink($temporary);
+                throw new RuntimeException('Backup file could not be finalized.');
+            }
+            $checksumLine = $checksum . '  ' . $name . "\n";
+            if (@file_put_contents($path . '.sha256', $checksumLine, LOCK_EX) === false) {
+                throw new RuntimeException('Backup checksum could not be written.');
+            }
+            external_backup_prune_local($config);
+            opng_log('info', 'external_backup_completed', [
+                'target' => 'local',
+                'name' => $name,
+                'bytes' => $payloadBytes,
+                'checksum' => $checksum,
+            ]);
+
+            return [
+                'target' => 'local',
+                'name' => $name,
+                'path' => $path,
+                'url' => null,
+                'checksum' => $checksum,
+                'bytes' => $payloadBytes,
+            ];
+        }
+
         $name .= '.sql';
-    }
-
-    if ($config['target'] === 'local') {
-        $path = rtrim($config['directory'], '/') . '/' . $name;
-        $temporary = $path . '.tmp';
-        $written = @file_put_contents($temporary, $payload, LOCK_EX);
-        if (!is_int($written) || $written !== strlen($payload)) {
-            @unlink($temporary);
-            throw new RuntimeException('Backup file could not be written.');
-        }
-        @chmod($temporary, 0600);
-        if (!@rename($temporary, $path)) {
-            @unlink($temporary);
-            throw new RuntimeException('Backup file could not be finalized.');
-        }
-        $checksumLine = $checksum . '  ' . $name . "\n";
-        if (@file_put_contents($path . '.sha256', $checksumLine, LOCK_EX) === false) {
-            throw new RuntimeException('Backup checksum could not be written.');
-        }
-        external_backup_prune_local($config);
+        $objectKey = trim($config['s3_prefix'], '/');
+        $objectKey = $objectKey === '' ? $name : $objectKey . '/' . $name;
+        $url = external_backup_s3_put_stream($stream, $dumpBytes, $objectKey, $config, $checksum);
         opng_log('info', 'external_backup_completed', [
-            'target' => 'local',
+            'target' => 's3',
             'name' => $name,
-            'bytes' => strlen($payload),
+            'bytes' => $dumpBytes,
             'checksum' => $checksum,
         ]);
 
         return [
-            'target' => 'local',
+            'target' => 's3',
             'name' => $name,
-            'path' => $path,
-            'url' => null,
+            'path' => null,
+            'url' => $url,
             'checksum' => $checksum,
-            'bytes' => strlen($payload),
+            'bytes' => $dumpBytes,
         ];
+    } finally {
+        fclose($stream);
     }
-
-    $objectKey = trim($config['s3_prefix'], '/');
-    $objectKey = $objectKey === '' ? $name : $objectKey . '/' . $name;
-    $url = external_backup_s3_put($payload, $objectKey, $config);
-    opng_log('info', 'external_backup_completed', [
-        'target' => 's3',
-        'name' => $name,
-        'bytes' => strlen($payload),
-        'checksum' => $checksum,
-    ]);
-
-    return [
-        'target' => 's3',
-        'name' => $name,
-        'path' => null,
-        'url' => $url,
-        'checksum' => $checksum,
-        'bytes' => strlen($payload),
-    ];
 }
 
 /**
@@ -319,28 +619,65 @@ function external_backup_prune_local(array $config): int
  */
 function external_backup_s3_put(string $body, string $objectKey, array $config): string
 {
+    $stream = fopen('php://temp', 'w+b');
+    if ($stream === false) {
+        throw new RuntimeException('Backup temporary stream is unavailable.');
+    }
+    try {
+        external_backup_write_all($stream, $body);
+
+        return external_backup_s3_put_stream($stream, strlen($body), $objectKey, $config);
+    } finally {
+        fclose($stream);
+    }
+}
+
+/**
+ * Upload a seekable stream with SigV4 without materializing its body.
+ *
+ * @param resource $stream
+ * @param array<string, mixed> $config
+ */
+function external_backup_s3_put_stream(
+    $stream,
+    int $size,
+    string $objectKey,
+    array $config,
+    ?string $payloadHash = null
+): string {
+    if ($size < 0) {
+        throw new RuntimeException('S3 upload size is invalid.');
+    }
     $endpoint = rtrim($config['s3_endpoint'], '/');
     $parsed = parse_url($endpoint);
     if (!is_array($parsed) || !is_string($parsed['host'] ?? null)) {
         throw new RuntimeException('S3 endpoint is invalid.');
     }
     $scheme = strtolower((string) ($parsed['scheme'] ?? 'https'));
+    if (!in_array($scheme, ['http', 'https'], true)) {
+        throw new RuntimeException('S3 endpoint must use HTTP or HTTPS.');
+    }
     $host = $parsed['host'];
-    $port = isset($parsed['port']) ? ':' . $parsed['port'] : '';
+    $portNumber = isset($parsed['port'])
+        ? (int) $parsed['port']
+        : ($scheme === 'https' ? 443 : 80);
+    $portSuffix = isset($parsed['port']) ? ':' . (int) $parsed['port'] : '';
     $basePath = rtrim((string) ($parsed['path'] ?? ''), '/');
     $encodedKey = implode('/', array_map('rawurlencode', explode('/', $objectKey)));
 
     if ($config['s3_path_style']) {
         $canonicalUri = $basePath . '/' . rawurlencode($config['s3_bucket']) . '/' . $encodedKey;
-        $hostHeader = $host . $port;
+        $hostHeader = $host . $portSuffix;
+        $connectHost = $host;
     } else {
         $canonicalUri = $basePath . '/' . $encodedKey;
-        $hostHeader = $config['s3_bucket'] . '.' . $host . $port;
+        $hostHeader = $config['s3_bucket'] . '.' . $host . $portSuffix;
+        $connectHost = $config['s3_bucket'] . '.' . $host;
     }
     $now = time();
     $amzDate = gmdate('Ymd\THis\Z', $now);
     $dateStamp = gmdate('Ymd', $now);
-    $payloadHash = hash('sha256', $body);
+    $payloadHash = $payloadHash ?? external_backup_stream_checksum($stream)['checksum'];
     $headers = [
         'host' => $hostHeader,
         'x-amz-content-sha256' => $payloadHash,
@@ -371,29 +708,79 @@ function external_backup_s3_put(string $body, string $objectKey, array $config):
         'x-amz-content-sha256: ' . $payloadHash,
         'x-amz-date: ' . $amzDate,
         'Host: ' . $hostHeader,
-        'Content-Length: ' . strlen($body),
+        'Content-Length: ' . $size,
     ];
-    $context = stream_context_create([
-        'http' => [
-            'method' => 'PUT',
-            'header' => implode("\r\n", $headerLines),
-            'content' => $body,
-            'timeout' => $config['timeout'],
-            'ignore_errors' => true,
-        ],
-        'ssl' => [
+    $contextOptions = [];
+    if ($scheme === 'https') {
+        $contextOptions['ssl'] = [
             'verify_peer' => true,
             'verify_peer_name' => true,
-        ],
-    ]);
-    $url = $scheme . '://' . $hostHeader . $canonicalUri;
-    $response = @file_get_contents($url, false, $context);
-    $statusLine = $http_response_header[0] ?? '';
-    if (preg_match('/\AHTTP\/\S+\s+(\d{3})/', $statusLine, $match) !== 1 || (int) $match[1] >= 300) {
-        throw new RuntimeException('S3 upload failed: ' . $statusLine . ' ' . (string) $response);
+            'peer_name' => $connectHost,
+            'SNI_enabled' => true,
+        ];
+    }
+    $context = stream_context_create($contextOptions);
+    $transport = $scheme === 'https' ? 'ssl' : 'tcp';
+    $socket = @stream_socket_client(
+        $transport . '://' . $connectHost . ':' . $portNumber,
+        $errno,
+        $errstr,
+        (float) $config['timeout'],
+        STREAM_CLIENT_CONNECT,
+        $context
+    );
+    if ($socket === false) {
+        throw new RuntimeException('S3 upload connection failed: ' . $errstr);
+    }
+    stream_set_timeout($socket, (int) $config['timeout']);
+    try {
+        $request = "PUT {$canonicalUri} HTTP/1.1\r\n"
+            . implode("\r\n", $headerLines)
+            . "\r\nConnection: close\r\n\r\n";
+        external_backup_write_all($socket, $request);
+        if (fseek($stream, 0) !== 0) {
+            throw new RuntimeException('Backup stream is not seekable.');
+        }
+        $sent = 0;
+        while ($sent < $size) {
+            $chunk = fread($stream, min(OPNG_EXTERNAL_BACKUP_CHUNK_BYTES, $size - $sent));
+            if ($chunk === false || $chunk === '') {
+                throw new RuntimeException('Backup stream ended before its declared size.');
+            }
+            external_backup_write_all($socket, $chunk);
+            $sent += strlen($chunk);
+        }
+        $statusLine = fgets($socket, 8192);
+        if (
+            !is_string($statusLine)
+            || preg_match('/\AHTTP\/\S+\s+(\d{3})/', $statusLine, $match) !== 1
+        ) {
+            throw new RuntimeException('S3 upload returned an invalid response.');
+        }
+        $status = (int) $match[1];
+        while (($line = fgets($socket, 8192)) !== false) {
+            if ($line === "\r\n" || $line === "\n") {
+                break;
+            }
+        }
+        $body = '';
+        while (!feof($socket) && strlen($body) < 8192) {
+            $part = fread($socket, 8192);
+            if ($part === false || $part === '') {
+                break;
+            }
+            $body .= $part;
+        }
+        if ($status >= 300) {
+            throw new RuntimeException(
+                'S3 upload failed: ' . trim($statusLine) . ' ' . trim(substr($body, 0, 512))
+            );
+        }
+    } finally {
+        fclose($socket);
     }
 
-    return $url;
+    return $scheme . '://' . $hostHeader . $canonicalUri;
 }
 
 /**
@@ -407,46 +794,92 @@ function external_backup_verify_file(string $path): array
     if (!is_file($path) || !is_readable($path)) {
         throw new RuntimeException('Backup file is not readable.');
     }
-    $payload = file_get_contents($path);
-    if (!is_string($payload)) {
+    $input = fopen($path, 'rb');
+    if ($input === false) {
         throw new RuntimeException('Backup file could not be read.');
     }
-
-    $checksumFile = $path . '.sha256';
-    $encrypted = str_ends_with($path, '.enc');
-    if ($encrypted !== str_starts_with($payload, OPNG_EXTERNAL_BACKUP_MAGIC)) {
-        throw new RuntimeException('Backup encryption marker does not match the file format.');
-    }
-    $plain = $encrypted ? external_backup_decrypt($payload) : $payload;
-    $line = is_file($checksumFile) ? file_get_contents($checksumFile) : false;
-    if (
-        !is_string($line)
-        || !preg_match('/\A([a-f0-9]{64})  [^\r\n]+\r?\n?\z/', $line, $match)
-        || !hash_equals($match[1], hash('sha256', $plain))
-    ) {
-        throw new RuntimeException('Backup checksum is missing, invalid or does not match.');
-    }
-
-    $inventory = external_backup_snapshot_inventory($plain);
-    $host = getenv('OPNG_VERIFY_DB_HOST');
-    $user = getenv('OPNG_VERIFY_DB_USER');
-    $password = getenv('OPNG_VERIFY_DB_PASS');
-    $port = filter_var(getenv('OPNG_VERIFY_DB_PORT') ?: '3306', FILTER_VALIDATE_INT, [
-        'options' => ['min_range' => 1, 'max_range' => 65535],
-    ]);
-    if (!$host || !$user || $password === false || $port === false) {
-        throw new RuntimeException('Configure OPNG_VERIFY_DB_* for an isolated restore server.');
-    }
-    $db = new mysqli($host, $user, $password, null, $port);
+    $plainStream = null;
     try {
-        $db->set_charset('utf8mb4');
-        $result = external_backup_verify_sql($db, $plain, $inventory);
-    } finally {
-        $db->close();
-    }
-    $result['encrypted'] = $encrypted;
+        $header = fread($input, strlen(OPNG_EXTERNAL_BACKUP_MAGIC));
+        if ($header === false) {
+            throw new RuntimeException('Backup file could not be read.');
+        }
+        $encrypted = str_ends_with($path, '.enc');
+        $payloadEncrypted = $header === OPNG_EXTERNAL_BACKUP_MAGIC
+            || $header === OPNG_EXTERNAL_BACKUP_MAGIC_V1;
+        if ($encrypted !== $payloadEncrypted) {
+            throw new RuntimeException('Backup encryption marker does not match the file format.');
+        }
 
-    return $result;
+        if ($encrypted) {
+            $plainStream = tmpfile();
+            if ($plainStream === false) {
+                throw new RuntimeException('Backup temporary stream is unavailable.');
+            }
+            rewind($input);
+            external_backup_decrypt_stream($input, $plainStream);
+            $plain = $plainStream;
+        } else {
+            rewind($input);
+            $plain = $input;
+        }
+
+        $hashed = external_backup_stream_checksum($plain);
+        $checksumFile = $path . '.sha256';
+        $line = is_file($checksumFile) ? file_get_contents($checksumFile) : false;
+        if (
+            !is_string($line)
+            || !preg_match('/\A([a-f0-9]{64})  [^\r\n]+\r?\n?\z/', $line, $match)
+            || !hash_equals($match[1], $hashed['checksum'])
+        ) {
+            throw new RuntimeException('Backup checksum is missing, invalid or does not match.');
+        }
+
+        $inventory = external_backup_snapshot_inventory_from_stream($plain);
+        $host = getenv('OPNG_VERIFY_DB_HOST');
+        $user = getenv('OPNG_VERIFY_DB_USER');
+        $password = getenv('OPNG_VERIFY_DB_PASS');
+        $port = filter_var(getenv('OPNG_VERIFY_DB_PORT') ?: '3306', FILTER_VALIDATE_INT, [
+            'options' => ['min_range' => 1, 'max_range' => 65535],
+        ]);
+        if (!$host || !$user || $password === false || $port === false) {
+            throw new RuntimeException('Configure OPNG_VERIFY_DB_* for an isolated restore server.');
+        }
+        $db = new mysqli($host, $user, $password, null, $port);
+        try {
+            $db->set_charset('utf8mb4');
+            $result = external_backup_verify_stream($db, $plain, $inventory);
+        } finally {
+            $db->close();
+        }
+        $result['encrypted'] = $encrypted;
+
+        return $result;
+    } finally {
+        if (is_resource($plainStream)) {
+            fclose($plainStream);
+        }
+        fclose($input);
+    }
+}
+
+/**
+ * @param array<string|int, mixed> $tables
+ * @return array<string|int, int>
+ */
+function external_backup_decode_inventory(array $tables): array
+{
+    if ($tables === []) {
+        throw new RuntimeException('Invalid snapshot inventory.');
+    }
+    foreach ($tables as $rows) {
+        if (!is_int($rows) || $rows < 0) {
+            throw new RuntimeException('Invalid row count in snapshot inventory.');
+        }
+    }
+    ksort($tables, SORT_STRING);
+
+    return $tables;
 }
 
 /**
@@ -458,16 +891,40 @@ function external_backup_snapshot_inventory(string $sql): array
         throw new RuntimeException('Snapshot inventory missing; completeness cannot be verified.');
     }
     $tables = json_decode($match[1], true);
-    if (!is_array($tables) || $tables === []) {
+    if (!is_array($tables)) {
         throw new RuntimeException('Invalid snapshot inventory.');
     }
-    foreach ($tables as $rows) {
-        if (!is_int($rows) || $rows < 0) {
-            throw new RuntimeException('Invalid row count in snapshot inventory.');
-        }
+
+    return external_backup_decode_inventory($tables);
+}
+
+/**
+ * Read the inventory from the tail of a plaintext dump stream.
+ *
+ * @param resource $stream
+ * @return array<string|int, int>
+ */
+function external_backup_snapshot_inventory_from_stream($stream): array
+{
+    $stat = fstat($stream);
+    $size = is_array($stat) ? (int) $stat['size'] : -1;
+    if ($size < 0) {
+        throw new RuntimeException('Snapshot inventory is unavailable.');
     }
-    ksort($tables, SORT_STRING);
-    return $tables;
+    $tailLength = min($size, 1048576);
+    if (fseek($stream, $size - $tailLength) !== 0) {
+        throw new RuntimeException('Snapshot inventory is unavailable.');
+    }
+    $tail = stream_get_contents($stream, $tailLength);
+    if (!is_string($tail) || !preg_match('/^-- OPNG-SNAPSHOT-v1 (\{[^\r\n]*\})\r?\n?\z/m', $tail, $match)) {
+        throw new RuntimeException('Snapshot inventory missing; completeness cannot be verified.');
+    }
+    $tables = json_decode($match[1], true);
+    if (!is_array($tables)) {
+        throw new RuntimeException('Invalid snapshot inventory.');
+    }
+
+    return external_backup_decode_inventory($tables);
 }
 
 /**
@@ -478,6 +935,28 @@ function external_backup_snapshot_inventory(string $sql): array
  */
 function external_backup_verify_sql(mysqli $db, string $sql, array $inventory): array
 {
+    $stream = fopen('php://temp/maxmemory:4194304', 'w+b');
+    if ($stream === false) {
+        throw new RuntimeException('Backup temporary stream is unavailable.');
+    }
+    try {
+        external_backup_write_all($stream, $sql);
+
+        return external_backup_verify_stream($db, $stream, $inventory);
+    } finally {
+        fclose($stream);
+    }
+}
+
+/**
+ * Import a plaintext dump stream without materializing it.
+ *
+ * @param resource $stream
+ * @param array<string|int, int> $inventory
+ * @return array{tables: int, rows: int}
+ */
+function external_backup_verify_stream(mysqli $db, $stream, array $inventory): array
+{
     $temporaryDatabase = 'opng_verify_' . bin2hex(random_bytes(6));
     if (!$db->query("CREATE DATABASE `{$temporaryDatabase}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")) {
         throw new RuntimeException('Restore verification requires CREATE DATABASE privileges.');
@@ -487,11 +966,14 @@ function external_backup_verify_sql(mysqli $db, string $sql, array $inventory): 
         if (!$db->select_db($temporaryDatabase)) {
             throw new RuntimeException('The disposable verification database could not be selected.');
         }
-        foreach (schema_split_sql($sql) as $statement) {
+        if (fseek($stream, 0) !== 0) {
+            throw new RuntimeException('Backup stream is not seekable.');
+        }
+        schema_split_sql_stream($stream, static function (string $statement) use ($db): void {
             if (!$db->query($statement)) {
                 throw new RuntimeException('Restore verification import failed: ' . $db->error);
             }
-        }
+        });
 
         $tablesResult = $db->query(
             "SELECT TABLE_NAME FROM information_schema.TABLES

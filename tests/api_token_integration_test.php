@@ -25,8 +25,8 @@ function api_token_pass(string $message): void
 }
 
 if (getenv('OPNG_TEST_ALLOW_DATABASE_FIXTURES') !== '1') {
-    echo "SKIP: set OPNG_TEST_ALLOW_DATABASE_FIXTURES=1 to run the API token integration test.\n";
-    exit(0);
+    require_once __DIR__ . '/fixture_skip.php';
+    fixture_skip("set OPNG_TEST_ALLOW_DATABASE_FIXTURES=1 to run the API token integration test.");
 }
 
 $host = getenv('OPNG_TEST_DB_HOST') ?: '127.0.0.1';
@@ -35,8 +35,8 @@ $user = getenv('OPNG_TEST_DB_USER') ?: '';
 $password = getenv('OPNG_TEST_DB_PASS') ?: '';
 
 if ($user === '') {
-    fwrite(STDERR, "SKIP: set OPNG_TEST_DB_USER (and OPNG_TEST_DB_PASS) to run the API token integration test.\n");
-    exit(0);
+    fwrite(STDERR, "FAIL: set OPNG_TEST_DB_USER (and OPNG_TEST_DB_PASS) to run the API token integration test.\n");
+    exit(1);
 }
 
 $name = 'opng_tokens_' . strtolower(bin2hex(random_bytes(4)));
@@ -50,8 +50,8 @@ try {
     $admin = new mysqli($host, $user, $password, null, $port);
     $admin->set_charset('utf8mb4');
 } catch (mysqli_sql_exception $exception) {
-    fwrite(STDERR, 'SKIP: could not connect to the disposable test server: ' . $exception->getMessage() . "\n");
-    exit(0);
+    fwrite(STDERR, 'FAIL: could not connect to the disposable test server: ' . $exception->getMessage() . "\n");
+    exit(1);
 }
 
 try {
@@ -163,10 +163,46 @@ try {
     $last_used = $db->query(
         'SELECT last_used_at FROM api_tokens WHERE id = ' . (int) $created['id']
     )->fetch_assoc();
-    if (!is_array($last_used) || !is_string($last_used['last_used_at'] ?? null)) {
-        api_token_fail('authentication did not record last_used_at');
+    if (!is_array($last_used) || $last_used['last_used_at'] !== null) {
+        api_token_fail('authentication must not record last_used_at before admission');
     }
-    api_token_pass('bearer authentication returns the identity and records last use');
+    if (!api_token_touch($db, (int) $created['id'])) {
+        api_token_fail('an admitted request could not record last_used_at');
+    }
+    $last_used = $db->query(
+        'SELECT last_used_at FROM api_tokens WHERE id = ' . (int) $created['id']
+    )->fetch_assoc();
+    if (!is_array($last_used) || !is_string($last_used['last_used_at'] ?? null)) {
+        api_token_fail('the admitted request did not record last_used_at');
+    }
+    $db->query(
+        "UPDATE api_tokens SET last_used_at = '2020-01-01 00:00:00' WHERE id = " . (int) $created['id']
+    );
+    api_token_touch($db, (int) $created['id']);
+    $refreshed = $db->query(
+        'SELECT last_used_at FROM api_tokens WHERE id = ' . (int) $created['id']
+    )->fetch_assoc();
+    if (!is_array($refreshed) || (string) ($refreshed['last_used_at'] ?? '') === '2020-01-01 00:00:00') {
+        api_token_fail('an old last_used_at was not refreshed');
+    }
+    $db->query(
+        'UPDATE api_tokens SET last_used_at = NOW() WHERE id = ' . (int) $created['id']
+    );
+    $before = $db->query(
+        'SELECT last_used_at FROM api_tokens WHERE id = ' . (int) $created['id']
+    )->fetch_assoc();
+    api_token_touch($db, (int) $created['id']);
+    $after = $db->query(
+        'SELECT last_used_at FROM api_tokens WHERE id = ' . (int) $created['id']
+    )->fetch_assoc();
+    if (
+        !is_array($before)
+        || !is_array($after)
+        || (string) ($before['last_used_at'] ?? '') !== (string) ($after['last_used_at'] ?? '')
+    ) {
+        api_token_fail('last_used_at was rewritten inside the one-minute window');
+    }
+    api_token_pass('bearer authentication returns the identity and admitted use is throttled');
 
     if (api_token_authenticate($db, 'opng_' . str_repeat('0', 64)) !== null) {
         api_token_fail('an unknown token was accepted');

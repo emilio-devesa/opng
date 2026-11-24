@@ -94,8 +94,8 @@ function trash_counter_state(mysqli $db): array
 }
 
 if (getenv('OPNG_TEST_ALLOW_DATABASE_FIXTURES') !== '1') {
-    echo "SKIP: set OPNG_TEST_ALLOW_DATABASE_FIXTURES=1 to run the trash integration test.\n";
-    exit(0);
+    require_once __DIR__ . '/fixture_skip.php';
+    fixture_skip("set OPNG_TEST_ALLOW_DATABASE_FIXTURES=1 to run the trash integration test.");
 }
 
 $host = getenv('OPNG_TEST_DB_HOST') ?: '127.0.0.1';
@@ -104,8 +104,8 @@ $user = getenv('OPNG_TEST_DB_USER') ?: '';
 $password = getenv('OPNG_TEST_DB_PASS') ?: '';
 
 if ($user === '') {
-    fwrite(STDERR, "SKIP: set OPNG_TEST_DB_USER (and OPNG_TEST_DB_PASS) to run the trash integration test.\n");
-    exit(0);
+    fwrite(STDERR, "FAIL: set OPNG_TEST_DB_USER (and OPNG_TEST_DB_PASS) to run the trash integration test.\n");
+    exit(1);
 }
 
 $name = 'opng_trash_' . strtolower(bin2hex(random_bytes(4)));
@@ -127,8 +127,8 @@ try {
     $admin = new mysqli($host, $user, $password, null, $port);
     $admin->set_charset('utf8mb4');
 } catch (mysqli_sql_exception $exception) {
-    fwrite(STDERR, 'SKIP: could not connect to the disposable test server: ' . $exception->getMessage() . "\n");
-    exit(0);
+    fwrite(STDERR, 'FAIL: could not connect to the disposable test server: ' . $exception->getMessage() . "\n");
+    exit(1);
 }
 
 try {
@@ -256,6 +256,30 @@ try {
         trash_counter_state($db) === ['bytes' => 9, 'entries' => 1],
         'the scheduled purge keeps the counters aligned'
     );
+
+    // A large backlog is drained by bounded runs that resume on the next call.
+    foreach (['batch-a', 'batch-b', 'batch-c'] as $index => $batchId) {
+        trash_insert_entry($db, $batchId, null, $batchId, 0, $owner_id, $owner_name, 'batch ' . $index);
+    }
+    trash_seed_counters($db);
+    foreach (['batch-a', 'batch-b', 'batch-c'] as $batchId) {
+        trash_soft_delete_thread($db, $batchId, $owner_id, 'admin');
+    }
+    $db->query(
+        "UPDATE entries SET deleted_at = '{$old}' WHERE id IN ('batch-a', 'batch-b', 'batch-c')"
+    );
+    $firstRun = trash_purge_expired($db, 7, 2, 20);
+    trash_assert(
+        $firstRun['threads'] === 2 && $firstRun['purged'] === 2 && $firstRun['remaining'] === 1,
+        'a bounded purge stops after its thread budget and reports the backlog'
+    );
+    $checkCounters();
+    $secondRun = trash_purge_expired($db, 7, 2, 20);
+    trash_assert(
+        $secondRun['threads'] === 1 && $secondRun['remaining'] === 0,
+        'the next purge run resumes and drains the remaining backlog'
+    );
+    $checkCounters();
 
     $db->close();
     $admin->query("DROP DATABASE `{$name}`");

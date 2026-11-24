@@ -2,11 +2,17 @@ name: CI
 
 on:
   push:
-    branches: [main, master, v0.8-development, v0.9-development, v1.0-development, v1.1-development, v1.2.0-development]
+    branches: [main, master, 'v*-development']
   pull_request:
 
 permissions:
   contents: read
+
+# A push and its pull_request event describe the same branch. Keep one run for
+# the newest commit instead of validating both copies.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 
 jobs:
   lint:
@@ -289,6 +295,8 @@ jobs:
         run: composer phpcs
 
   database-install:
+    env:
+      OPNG_TEST_REQUIRE_DATABASE_FIXTURES: '1'
     name: MySQL Linux installation and privilege test
     runs-on: ubuntu-latest
     services:
@@ -488,6 +496,8 @@ jobs:
           test "$(mysql --protocol=TCP -h 127.0.0.1 -uroot -pci-root-password --batch --skip-column-names -e "SELECT COUNT(*) FROM opng_ambiguous.entries WHERE id = 2")" = "1"
 
   database-mariadb:
+    env:
+      OPNG_TEST_REQUIRE_DATABASE_FIXTURES: '1'
     name: MariaDB Linux installation and privilege test
     runs-on: ubuntu-latest
     services:

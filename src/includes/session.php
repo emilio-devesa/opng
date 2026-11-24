@@ -107,7 +107,10 @@ function session_forget_account(): void
         $_SESSION['username'],
         $_SESSION['role'],
         $_SESSION['session_version'],
-        $_SESSION['opng_authenticated_at']
+        $_SESSION['opng_authenticated_at'],
+        // Unlocks were granted to the identity that is being revoked. They do
+        // not belong to the surviving anonymous session (H01).
+        $_SESSION['opng_unlocked']
     );
 
     if (session_status() === PHP_SESSION_ACTIVE && !headers_sent()) {

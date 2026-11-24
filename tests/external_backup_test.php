@@ -102,18 +102,44 @@ backup_assert(
 backup_assert(external_backup_decrypt($encrypted) === $plain, 'encrypted backups decrypt to the original');
 backup_assert(external_backup_decrypt($plain) === $plain, 'unencrypted backups pass through');
 
-$tampered = base64_decode(substr($encrypted, strlen(OPNG_EXTERNAL_BACKUP_MAGIC)), true);
-if (!is_string($tampered)) {
-    backup_fail('encrypted payload is valid base64');
+$tampered = $encrypted;
+$headerLength = strlen(OPNG_EXTERNAL_BACKUP_MAGIC);
+$frameLength = unpack('Nlength', substr($tampered, $headerLength, 4))['length'] ?? 0;
+if (!is_int($frameLength) || $frameLength < 1) {
+    backup_fail('encrypted payload carries a chunk frame');
 }
-$tampered[strlen($tampered) - 1] = chr(ord($tampered[strlen($tampered) - 1]) ^ 0x01);
+$cipherLast = $headerLength + 4 + 12 + 16 + $frameLength - 1;
+$tampered[$cipherLast] = chr(ord($tampered[$cipherLast]) ^ 0x01);
 $tamper_rejected = false;
 try {
-    external_backup_decrypt(OPNG_EXTERNAL_BACKUP_MAGIC . base64_encode($tampered));
+    external_backup_decrypt($tampered);
 } catch (RuntimeException) {
     $tamper_rejected = true;
 }
 backup_assert($tamper_rejected, 'tampered encrypted backups fail authentication');
+
+$truncated = substr($encrypted, 0, -6);
+$truncation_rejected = false;
+try {
+    external_backup_decrypt($truncated);
+} catch (RuntimeException) {
+    $truncation_rejected = true;
+}
+backup_assert($truncation_rejected, 'truncated encrypted backups are rejected');
+
+// OPNGBK1 files written by earlier releases must remain readable.
+$legacyIv = random_bytes(12);
+$legacyTag = '';
+$legacyKey = external_backup_key();
+if ($legacyKey === null) {
+    backup_fail('the backup key is configured');
+}
+$legacyCipher = openssl_encrypt($plain, 'aes-256-gcm', $legacyKey, OPENSSL_RAW_DATA, $legacyIv, $legacyTag);
+if (!is_string($legacyCipher)) {
+    backup_fail('the legacy fixture could be encrypted');
+}
+$legacy = OPNG_EXTERNAL_BACKUP_MAGIC_V1 . base64_encode($legacyIv . $legacyTag . $legacyCipher);
+backup_assert(external_backup_decrypt($legacy) === $plain, 'legacy OPNGBK1 backups remain readable');
 
 $old = $directory . '/opng-20260101-123456-abcdef01.sql';
 $old_enc = $directory . '/opng-20260102-123456-abcdef02.enc';
