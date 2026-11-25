@@ -122,7 +122,10 @@ def exercise(first, second, sql, directory):
     assert sql("SELECT COUNT(*) FROM entries") == "2"
     # Give only this synthetic session a known image challenge. The POST
     # still has to pass the real CSRF, rate-limit and CAPTCHA validators.
-    sid = next(c.value for c in guest.cookies if c.name == "opng_session")
+    # PHP percent-encodes cookie values that need it; the session module
+    # decodes them on the next request, but this subprocess receives the raw
+    # value and would reject an encoded ID.
+    sid = urllib.parse.unquote(next(c.value for c in guest.cookies if c.name == "opng_session"))
     subprocess.run(["php", "-d", f"session.save_path={directory}", "-r",
                     'require "includes/captcha.php"; session_id($argv[1]); session_start(); captcha_issue_image("ABCDE");',
                     sid], cwd=directory/"src", check=True)

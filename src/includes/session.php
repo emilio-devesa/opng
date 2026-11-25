@@ -40,13 +40,15 @@ function session_start_secured(): void
     ini_set('session.use_strict_mode', '1');
     ini_set('session.use_only_cookies', '1');
     ini_set('session.cookie_httponly', '1');
-    // 48 hex-equivalent characters with the largest entropy alphabet. This
-    // raises the guessing cost without changing the session API (SEC-13).
-    // PHP 8.4 generates 128-bit session IDs and deprecates both settings, so
-    // only older releases need the explicit override.
+    // 48 characters from PHP's 5-bit alphabet give 240 bits of entropy and
+    // stay within RFC 6265 cookie characters. The 6-bit alphabet includes a
+    // comma, which PHP percent-encodes in Set-Cookie; cookie jars keep the
+    // encoded value, so anything that reuses the cookie verbatim (tests,
+    // proxies) sees an invalid session ID. PHP 8.4 generates 128-bit session
+    // IDs and deprecates both settings, so only older releases need this.
     if (PHP_VERSION_ID < 80400) {
         ini_set('session.sid_length', '48');
-        ini_set('session.sid_bits_per_character', '6');
+        ini_set('session.sid_bits_per_character', '5');
     }
 
     // `__Host-` requires Secure, Path=/ and no Domain, so it is only valid on
