@@ -60,6 +60,10 @@ deployments should upgrade using [UPGRADING.md](UPGRADING.md).
   login breaks. Set `OPNG_PUBLIC_URL` so the doctor verifies the canonical URL.
 - Session cookies use `__Host-` names, `HttpOnly`, `SameSite=Lax` and `Secure`
   under HTTPS. Do not relax these values.
+- On PHP < 8.4 the application generates 48-character session IDs from PHP's
+  5-bit alphabet (240 bits of entropy). Keep the ID cookie-safe: the 6-bit
+  alphabet includes a comma, which PHP percent-encodes in `Set-Cookie` and
+  external cookie jars keep encoded.
 - HSTS is sent only on HTTPS responses. Enable it after verifying every
   subdomain is HTTPS-only.
 - If a reverse proxy is used, set `OPNG_TRUSTED_PROXIES` to its exact IPs/CIDRs.
