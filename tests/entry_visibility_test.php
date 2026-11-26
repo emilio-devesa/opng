@@ -65,6 +65,40 @@ try {
 }
 visibility_assert($bad_alias_rejected, 'the listing alias is validated');
 
+$guest_listing = entry_listing_filter_sql('entries', null, 'guest');
+visibility_assert(
+    $guest_listing['params'] === []
+        && str_contains($guest_listing['sql'], "entries.visibility = 'public'")
+        && !str_contains($guest_listing['sql'], 'entries.user_id = ?'),
+    'guests only list public entries'
+);
+$user_listing = entry_listing_filter_sql('entries', 7, 'user');
+visibility_assert(
+    $user_listing['params'] === [7]
+        && str_contains($user_listing['sql'], "entries.visibility = 'public'")
+        && str_contains($user_listing['sql'], "entries.visibility = 'private' AND entries.user_id = ?"),
+    'signed-in users list public entries and their own private entries'
+);
+$admin_listing = entry_listing_filter_sql('entries', 9, 'admin');
+visibility_assert(
+    $admin_listing['params'] === []
+        && !str_contains($admin_listing['sql'], 'entries.visibility ='),
+    'administrators list every visibility'
+);
+$anonymous_admin = entry_listing_filter_sql('entries', null, 'admin');
+visibility_assert(
+    $anonymous_admin['params'] === []
+        && str_contains($anonymous_admin['sql'], "entries.visibility = 'public'"),
+    'an administrator role without an authenticated identity stays public'
+);
+$bad_listing_alias_rejected = false;
+try {
+    entry_listing_filter_sql('entries; DROP TABLE users', 1, 'user');
+} catch (InvalidArgumentException) {
+    $bad_listing_alias_rejected = true;
+}
+visibility_assert($bad_listing_alias_rejected, 'the viewer listing alias is validated');
+
 $public = ['id' => 'a', 'user_id' => 1, 'visibility' => 'public'];
 $unlisted = ['id' => 'b', 'user_id' => 1, 'visibility' => 'unlisted'];
 $private = ['id' => 'c', 'user_id' => 1, 'visibility' => 'private'];
@@ -169,8 +203,9 @@ $index_source = (string) file_get_contents(__DIR__ . '/../src/index.php');
 $cursor_source = (string) file_get_contents(__DIR__ . '/../src/includes/pagination_cursor.php');
 visibility_assert(
     str_contains($index_source, 'build_listing_query(')
-        && str_contains($cursor_source, 'entry_public_filter_sql('),
-    'the home listing uses the shared public filter through the cursor query'
+        && str_contains($index_source, 'refresh_account_role($db)')
+        && str_contains($cursor_source, 'entry_listing_filter_sql('),
+    'the home listing applies the viewer-aware filter through the cursor query'
 );
 
 echo "Visibility regression passed: access rules, inheritance, protection and route contracts.\n";

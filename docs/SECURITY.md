@@ -120,8 +120,10 @@ deployments should upgrade using [UPGRADING.md](UPGRADING.md).
   MFA is active without a valid key. Destructive actions require the password and
   a TOTP/recovery code when MFA is enabled.
 - Visibility is enforced server-side: `private` entries are readable only by the
-  author and administrators, `unlisted` entries are reachable by link but never
-  listed, and expired entries disappear from listings and direct views. Replies
+  author and administrators, `unlisted` entries are reachable by link but stay
+  out of the home listing for regular visitors, and expired entries disappear
+  from listings and direct views. Signed-in authors see their own private
+  entries in the listing and administrators see every visibility there. Replies
   inherit the parent's visibility, absolute expiry and protection hash; editing a
   thread root propagates those fields to the whole thread. Protection passwords
   use Argon2id when available and are never stored in clear.

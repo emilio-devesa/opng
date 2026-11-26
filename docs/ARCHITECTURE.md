@@ -174,7 +174,10 @@ large admin backup.
   trash.
 - **Visibility and protection** (`includes/entry_access.php`, `src/unlock.php`):
   server-side public/unlisted/private checks, absolute expiry, Argon2id password
-  protection and session unlock per thread root. Replies copy the parent's
+  protection and session unlock per thread root. The home listing is
+  viewer-aware: guests see public entries, signed-in authors also see their own
+  private entries and administrators see every visibility; unlisted entries stay
+  out of the listing except for administrators. Replies copy the parent's
   access fields; editing a root propagates them to the thread.
 - **API tokens** (`includes/api_tokens.php`, `src/api/v1/`): SHA-256 token
   storage, `read`/`write` scopes, expiry, revocation, per-token rate limits,

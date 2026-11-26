@@ -140,6 +140,15 @@ expect(
 );
 
 $root = dirname(__DIR__);
+$styles = file_get_contents($root . '/src/main.css');
+expect(
+    is_string($styles)
+        && str_contains($styles, '.auth-form .captcha-image')
+        && str_contains($styles, '.editor-form .captcha-field .captcha-image')
+        && str_contains($styles, 'background: #ffffff;'),
+    'the creation form frames the CAPTCHA image like the auth pages',
+    $failures
+);
 $endpoint = file_get_contents($root . '/src/auth/captcha.php');
 expect(
     is_string($endpoint)

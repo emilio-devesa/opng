@@ -1120,6 +1120,16 @@ textarea[name="input_text"] {
     margin: 0.25rem 0;
 }
 
+/* The creation form uses the same framed challenge as the auth pages. */
+.editor-form .captcha-field .captcha-image {
+    display: block;
+    width: 240px;
+    margin: 0.5rem auto;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #ffffff;
+}
+
 .captcha-field .refresh-captcha {
     align-self: center;
 }
@@ -1178,7 +1188,26 @@ textarea[name="input_text"] {
     font-weight: 600;
 }
 
-/* Remaining paste length: small, right-aligned, below the textarea. */
+/* Remaining paste length: small, right-aligned, below the textarea. The quota
+   notice shares the row and stays on the left. */
+.length-meter-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem 1rem;
+    margin-top: 0.35rem;
+}
+
+.length-meter-row .form-help {
+    flex: 1 1 18rem;
+    margin: 0;
+}
+
+.length-meter-row .length-meter {
+    margin-top: 0;
+}
+
 .length-meter {
     display: flex;
     align-items: center;
@@ -1287,6 +1316,78 @@ textarea[name="input_text"] {
     color: var(--muted);
     font-size: 0.9rem;
     margin: -0.75rem 0 1rem;
+}
+
+/* A note that follows a select without the negative margin used to tuck help
+   text under a label. */
+.form-help.field-note {
+    margin: 0.35rem 0 1rem;
+}
+
+/* Inline help for a single form field: a small disclosure next to the label,
+   visually consistent with the search help in the header. */
+.field-label-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.75rem;
+}
+
+#Content form .field-label-row label {
+    margin-top: 0;
+}
+
+button.field-help-trigger[type="button"] {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    min-width: 1.5rem;
+    min-height: 1.5rem;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--muted);
+    font-size: 0.85rem;
+    line-height: 1;
+}
+
+button.field-help-trigger[type="button"]:hover,
+button.field-help-trigger[type="button"]:focus-visible {
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+
+.field-help-tooltip {
+    position: absolute;
+    z-index: 5;
+    bottom: calc(100% + 0.45rem);
+    left: 0;
+    width: min(22rem, 100%);
+    padding: 0.65rem 0.8rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    color: var(--text);
+    font-size: 0.85rem;
+    font-weight: 400;
+    line-height: 1.45;
+    text-align: left;
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+}
+
+.field-help-trigger:hover ~ .field-help-tooltip,
+.field-help-trigger:focus-visible ~ .field-help-tooltip,
+.field-help-tooltip.is-open {
+    visibility: visible;
+    opacity: 1;
 }
 
 .search-help {

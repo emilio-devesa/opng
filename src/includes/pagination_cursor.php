@@ -213,18 +213,20 @@ function listing_cursor_condition(array $cursor, string $direction): array
 }
 
 /**
- * Build the public listing query shared by index.php and the query-plan test,
+ * Build the listing query shared by index.php and the query-plan test,
  * so the test always exercises the production WHERE/ORDER BY clauses.
  *
  * @param array{sort: string, order: string, value: string, id: string}|null $cursor
- * @return array{sql: string, params: list<string>}
+ * @return array{sql: string, params: list<int|string>}
  */
 function build_listing_query(
     ?string $search_expression,
     ?array $cursor,
     ?string $direction,
     string $sort,
-    string $sort_order
+    string $sort_order,
+    ?int $viewer_id = null,
+    string $viewer_role = 'guest'
 ): array {
     if (!in_array($sort_order, ['asc', 'desc'], true)) {
         throw new InvalidArgumentException('Invalid listing order.');
@@ -233,10 +235,13 @@ function build_listing_query(
         throw new InvalidArgumentException('Invalid listing direction.');
     }
 
-    // The public listing only shows live, public entries. Trashed and expired
-    // entries stay reachable from the owner's trash or an administrator view.
-    $conditions = [entry_public_filter_sql('entries')];
-    $params = [];
+    // The listing is viewer-aware: guests see public entries, users also see
+    // their own private entries and administrators see every visibility.
+    // Trashed and expired entries stay reachable from the owner's trash or an
+    // administrator view.
+    $visibility_filter = entry_listing_filter_sql('entries', $viewer_id, $viewer_role);
+    $conditions = [$visibility_filter['sql']];
+    $params = $visibility_filter['params'];
     if ($search_expression !== null) {
         $conditions[] = 'MATCH(entries.topic) AGAINST (? IN BOOLEAN MODE)';
         $params[] = $search_expression;
@@ -250,7 +255,7 @@ function build_listing_query(
         array_push($params, ...$cursor_condition['params']);
     }
 
-    // The public-entry predicate is always present, so the WHERE clause is
+    // The visibility predicate is always present, so the WHERE clause is
     // never empty.
     $where_sql = ' WHERE ' . implode(' AND ', $conditions);
     $sort_expression = entry_sort_expression($sort);

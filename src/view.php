@@ -384,8 +384,12 @@ require(__DIR__ . "/includes/layout_header.php");
                 <?php if ($is_thread_root): ?>
                 <fieldset class="access-options">
                     <legend data-i18n="access_options">Access and lifetime</legend>
-                    <label for="edit_visibility" data-i18n="visibility_label">Visibility:</label>
-                    <select id="edit_visibility" name="visibility">
+                    <div class="field-label-row">
+                        <label for="edit_visibility" data-i18n="visibility_label">Visibility:</label>
+                        <button class="field-help-trigger" type="button" data-help-trigger aria-label="Visibility help" title="Visibility help" aria-expanded="false" aria-controls="edit-visibility-help" data-i18n-aria-label="visibility_help_label" data-i18n-title="visibility_help_label"><?php echo opng_icon('info'); ?></button>
+                        <span id="edit-visibility-help" class="field-help-tooltip" role="note" data-i18n="visibility_help">Unlisted entries are reachable only by link. Private entries are visible to their author and administrators.</span>
+                    </div>
+                    <select id="edit_visibility" name="visibility" aria-describedby="edit-visibility-help">
                         <?php foreach (entry_visibility_options() as $value => $label_key): ?>
                         <option value="<?php echo htmlspecialchars($value, ENT_QUOTES, 'UTF-8'); ?>" data-i18n="<?php echo htmlspecialchars($label_key, ENT_QUOTES, 'UTF-8'); ?>"<?php echo $value === $visibility_value ? ' selected' : ''; ?>>
                             <?php echo htmlspecialchars(ucfirst($value), ENT_QUOTES, 'UTF-8'); ?>
@@ -401,9 +405,12 @@ require(__DIR__ . "/includes/layout_header.php");
                         </option>
                         <?php endforeach; ?>
                     </select>
-                    <label for="edit_protection_password" data-i18n="protection_password_replace_label">New protection password (optional):</label>
-                    <input id="edit_protection_password" type="password" name="protection_password" maxlength="72" autocomplete="new-password">
-                    <p class="form-help" data-i18n="protection_password_keep_help">Leave blank to keep the current protection. Changing it applies to every reply in the thread.</p>
+                    <div class="field-label-row">
+                        <label for="edit_protection_password" data-i18n="protection_password_replace_label">New protection password (optional):</label>
+                        <button class="field-help-trigger" type="button" data-help-trigger aria-label="Password protection help" title="Password protection help" aria-expanded="false" aria-controls="edit-protection-password-help" data-i18n-aria-label="protection_password_help_label" data-i18n-title="protection_password_help_label"><?php echo opng_icon('info'); ?></button>
+                        <span id="edit-protection-password-help" class="field-help-tooltip" role="note" data-i18n="protection_password_keep_help">Leave blank to keep the current protection. Changing it applies to every reply in the thread.</span>
+                    </div>
+                    <input id="edit_protection_password" type="password" name="protection_password" maxlength="72" autocomplete="new-password" aria-describedby="edit-protection-password-help">
                     <?php if ($has_protection): ?>
                     <label class="confirm-check">
                         <input type="checkbox" name="remove_protection" value="yes">
@@ -605,5 +612,6 @@ require(__DIR__ . "/includes/layout_header.php");
     <?php endif; ?>
     <?php endif; ?>
     <script src="assets/js/length-meter.js?v=<?php echo $asset_version; ?>" defer></script>
+    <script src="assets/js/field-help.js?v=<?php echo $asset_version; ?>" defer></script>
 
 <?php require(__DIR__ . "/includes/layout_footer.php"); ?>

@@ -328,6 +328,14 @@ if ($parent_id !== null) {
     exit;
 }
 
+// An unlisted root is deliberately absent from the listing, so the creator
+// must receive the only link that can reach it. Public roots keep the classic
+// dashboard redirect; private roots now appear in the owner's listing.
+if ($visibility === 'unlisted') {
+    header("Location: view.php?id=" . urlencode($id));
+    exit;
+}
+
 header("Location: index.php?msg=" . urlencode("Paste created successfully"));
 exit;
 ?>

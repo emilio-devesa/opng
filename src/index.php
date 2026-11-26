@@ -5,6 +5,7 @@ require_once __DIR__ . '/bootstrap.php';
 session_start_secured();
 require("includes/topic_search.php");
 require_once("includes/pagination_cursor.php");
+require_once("includes/account_role.php");
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     http_response_code(405);
     header('Allow: GET');
@@ -62,7 +63,21 @@ if (!$db) {
     opng_error_redirect('error_database_unavailable');
 }
 
-$listing = build_listing_query($search_expression, $cursor, $direction, $sort, $sort_order);
+// db_connect() has already validated the session. Guests get no identity;
+// signed-in users see their own private entries and administrators see all.
+$viewer_role = refresh_account_role($db);
+$viewer_id = $viewer_role === null ? null : http_positive_integer($_SESSION['user_id'] ?? null);
+$viewer_role ??= 'guest';
+
+$listing = build_listing_query(
+    $search_expression,
+    $cursor,
+    $direction,
+    $sort,
+    $sort_order,
+    $viewer_id,
+    $viewer_role
+);
 $list_sql = $listing['sql'];
 $params = $listing['params'];
 $entries = [];

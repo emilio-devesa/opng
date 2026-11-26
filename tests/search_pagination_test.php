@@ -149,6 +149,25 @@ assert_value(
     'the shared listing builder includes the FULLTEXT search clause'
 );
 
+$user_listing = build_listing_query(null, null, null, 'date', 'desc', 42, 'user');
+assert_value(
+    [42],
+    $user_listing['params'],
+    'a signed-in listing binds the viewer id for its own private entries'
+);
+assert_value(
+    true,
+    str_contains($user_listing['sql'], "entries.visibility = 'private' AND entries.user_id = ?"),
+    'a signed-in listing includes the viewer private entries'
+);
+$admin_listing = build_listing_query(null, null, null, 'date', 'desc', 7, 'admin');
+assert_value([], $admin_listing['params'], 'an administrator listing has no visibility parameter');
+assert_value(
+    false,
+    str_contains($admin_listing['sql'], 'entries.visibility ='),
+    'an administrator listing does not restrict visibility'
+);
+
 assert_value(
     [
         'sql' => '(entries.date < ? OR (entries.date = ? AND entries.id < ?))',

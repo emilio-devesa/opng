@@ -58,15 +58,22 @@ require(__DIR__ . "/includes/layout_header.php");
 
         <label data-i18n="text" for="input_text">Enter your text here</label>
         <textarea id="input_text" name="input_text" rows="25" cols="80" maxlength="1048576" required></textarea>
-        <div class="length-meter" data-length-meter-for="input_text" data-max-bytes="1048576">
-            <progress class="length-meter-bar" max="1048576" value="0" aria-label="Paste length" data-i18n-aria-label="length_meter_label"></progress>
-            <span class="length-meter-text"><span class="length-meter-value">1.00</span> <span data-i18n="length_mb_remaining">MB remaining</span></span>
+        <div class="length-meter-row">
+            <p class="form-help length-meter-quota" data-i18n="storage_quota_notice">Normal accounts can store up to 100 MiB across all pastes. Administrators are exempt.</p>
+            <div class="length-meter" data-length-meter-for="input_text" data-max-bytes="1048576">
+                <progress class="length-meter-bar" max="1048576" value="0" aria-label="Paste length" data-i18n-aria-label="length_meter_label"></progress>
+                <span class="length-meter-text"><span class="length-meter-value">1.00</span> <span data-i18n="length_mb_remaining">MB remaining</span></span>
+            </div>
         </div>
 
         <fieldset class="access-options">
             <legend data-i18n="access_options">Access and lifetime</legend>
-            <label for="input_visibility" data-i18n="visibility_label">Visibility:</label>
-            <select id="input_visibility" name="visibility">
+            <div class="field-label-row">
+                <label for="input_visibility" data-i18n="visibility_label">Visibility:</label>
+                <button class="field-help-trigger" type="button" data-help-trigger aria-label="Visibility help" title="Visibility help" aria-expanded="false" aria-controls="visibility-help" data-i18n-aria-label="visibility_help_label" data-i18n-title="visibility_help_label"><?php echo opng_icon('info'); ?></button>
+                <span id="visibility-help" class="field-help-tooltip" role="note" data-i18n="visibility_help">Unlisted entries are reachable only by link. Private entries are visible to their author and administrators.</span>
+            </div>
+            <select id="input_visibility" name="visibility" aria-describedby="visibility-help">
                 <?php foreach (entry_visibility_options() as $value => $label_key): ?>
                 <?php if ($is_guest && $value === 'private') { continue; } ?>
                 <option value="<?php echo htmlspecialchars($value, ENT_QUOTES, 'UTF-8'); ?>" data-i18n="<?php echo htmlspecialchars($label_key, ENT_QUOTES, 'UTF-8'); ?>">
@@ -74,10 +81,9 @@ require(__DIR__ . "/includes/layout_header.php");
                 </option>
                 <?php endforeach; ?>
             </select>
-            <p class="form-help" data-i18n="visibility_help">Unlisted entries are reachable only by link. Private entries are visible to their author and administrators.</p>
 
             <?php if ($is_guest): ?>
-            <p class="form-help" data-i18n="error_private_requires_login">Sign in to create a private paste.</p>
+            <p class="form-help field-note"><a href="auth/login.php" data-i18n="error_private_requires_login">Sign in to create a private paste.</a></p>
             <?php endif; ?>
 
             <label for="input_expiry" data-i18n="expiry_label">Expires:</label>
@@ -89,18 +95,21 @@ require(__DIR__ . "/includes/layout_header.php");
                 <?php endforeach; ?>
             </select>
 
-            <label for="input_protection_password" data-i18n="protection_password_label">Password protection (optional):</label>
-            <input id="input_protection_password" type="password" name="protection_password" maxlength="72" autocomplete="new-password">
-            <p class="form-help" data-i18n="protection_password_help">Minimum 4 characters. Replies inherit this protection automatically.</p>
+            <div class="field-label-row">
+                <label for="input_protection_password" data-i18n="protection_password_label">Password protection (optional):</label>
+                <button class="field-help-trigger" type="button" data-help-trigger aria-label="Password protection help" title="Password protection help" aria-expanded="false" aria-controls="protection-password-help" data-i18n-aria-label="protection_password_help_label" data-i18n-title="protection_password_help_label"><?php echo opng_icon('info'); ?></button>
+                <span id="protection-password-help" class="field-help-tooltip" role="note" data-i18n="protection_password_help">Minimum 4 characters. Replies inherit this protection automatically.</span>
+            </div>
+            <input id="input_protection_password" type="password" name="protection_password" maxlength="72" autocomplete="new-password" aria-describedby="protection-password-help">
         </fieldset>
 
         <?php if ($is_guest): ?>
         <?php captcha_render('auth/captcha.php'); ?>
         <?php endif; ?>
-        <p class="form-help" data-i18n="storage_quota_notice">Normal accounts can store up to 100 MiB across all pastes. Administrators are exempt.</p>
         <button data-i18n="submit" id="submit" type="submit">Submit</button>
     </form>
     <script src="assets/js/length-meter.js?v=<?php echo $asset_version; ?>" defer></script>
+    <script src="assets/js/field-help.js?v=<?php echo $asset_version; ?>" defer></script>
     <?php if ($is_guest): ?>
     <script src="assets/js/refresh-captcha.js?v=<?php echo $asset_version; ?>"></script>
     <?php endif; ?>

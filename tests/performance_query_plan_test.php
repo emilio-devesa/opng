@@ -45,8 +45,8 @@ try {
     $user_stmt = null;
 
     $stmt = $db->prepare(
-        'INSERT INTO entries (id, user_id, author_label, language, text, topic, date)
-         VALUES (?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO entries (id, user_id, author_label, language, text, topic, date, visibility)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
     );
     for ($index = 0; $index < 5000; $index++) {
         $id = $prefix . str_pad((string) $index, 5, '0', STR_PAD_LEFT);
@@ -55,7 +55,10 @@ try {
         $text = 'Synthetic performance-plan fixture.';
         $topic = $index % 2 === 0 ? 'needle performance match' : 'other performance topic';
         $date = gmdate('Y-m-d H:i:s', $base_timestamp + $index);
-        $stmt->bind_param('sisssss', $id, $owner_id, $author_label, $language, $text, $topic, $date);
+        // Mixed visibilities keep the viewer-aware listing plans honest: the
+        // owner branch must not turn into a full scan or a filesort.
+        $visibility = $index % 10 === 0 ? 'private' : ($index % 97 === 0 ? 'unlisted' : 'public');
+        $stmt->bind_param('sissssss', $id, $owner_id, $author_label, $language, $text, $topic, $date, $visibility);
         $stmt->execute();
     }
 
@@ -197,6 +200,22 @@ try {
         || str_contains(strtolower((string) ($listing_plans['author']['Extra'] ?? '')), 'filesort')
     ) {
         throw new RuntimeException('Author listing did not use idx_entries_author without filesort.');
+    }
+
+    // Signed-in listings add the viewer's own private entries. That OR must
+    // keep the ordering index and must not require a filesort.
+    $viewer_listing = build_listing_query(null, null, null, 'date', 'desc', $owner_id, 'user');
+    $viewer_explain = $db->prepare('EXPLAIN ' . $viewer_listing['sql']);
+    $viewer_param = $viewer_listing['params'][0];
+    $viewer_explain->bind_param('i', $viewer_param);
+    $viewer_explain->execute();
+    $viewer_plan = $viewer_explain->get_result()->fetch_assoc();
+    $viewer_explain->close();
+    if (
+        !in_array($viewer_plan['key'] ?? null, ['idx_entries_cursor', 'idx_entries_date', 'idx_entries_deleted'], true)
+        || str_contains(strtolower((string) ($viewer_plan['Extra'] ?? '')), 'filesort')
+    ) {
+        throw new RuntimeException('The signed-in listing lost its date index or required a filesort.');
     }
 
     // The account quota reads the denormalized counter from the primary key

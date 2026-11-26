@@ -86,6 +86,7 @@ def exercise(first, second, sql, directory):
     guest, user = Browser(first), Browser(first)
     page = guest.request("/pastebin.php")[2]
     assert 'value="private"' not in page and 'value="unlisted"' in page
+    assert re.search(r'<a href="auth/login\.php" data-i18n="error_private_requires_login"', page)
     paste = dict(input_topic="fixture", input_text="original", input_language="Plaintext")
     assert guest.request("/submit.php", dict(paste, visibility="private", csrf_token=csrf(page)))[0] == 403
     assert sql("SELECT COUNT(*) FROM entries") == "0"
@@ -97,6 +98,9 @@ def exercise(first, second, sql, directory):
     assert sql("SELECT COUNT(*) FROM entries") == "0"
     assert user.request("/submit.php", fields)[0] == 200
     entry = sql("SELECT id FROM entries WHERE visibility='private'")
+    private_link = f"view.php?id={entry}"
+    assert private_link not in guest.request("/index.php")[2]
+    assert private_link in user.request("/index.php")[2]
     assert user.request("/view.php?id="+entry)[0] == 200 and guest.request("/view.php?id="+entry)[0] == 404
     edit = dict(fields, input_ID=entry, input_text="original", protection_password="é"*36)
     assert user.request("/update.php", edit)[0] == 200
@@ -131,7 +135,10 @@ def exercise(first, second, sql, directory):
                     sid], cwd=directory/"src", check=True)
     result = guest.request("/submit.php", dict(paste, visibility="unlisted", csrf_token=csrf(guest.request("/pastebin.php")[2]),
                                                 captcha_answer="ABCDE"))
-    assert result[0] == 200 and sql("SELECT COUNT(*) FROM entries WHERE user_id IS NULL AND visibility='unlisted'") == "1"
+    unlisted_entry = sql("SELECT id FROM entries WHERE user_id IS NULL AND visibility='unlisted'")
+    assert result[0] == 200 and unlisted_entry
+    assert result[1].endswith("/view.php?id=" + unlisted_entry)
+    assert f"view.php?id={unlisted_entry}" not in guest.request("/index.php")[2]
 
     a, b = Browser(first), Browser(second)
     page = a.login("admin")[2]
@@ -176,6 +183,10 @@ def exercise(first, second, sql, directory):
     fresh.request("/auth/mfa.php", dict(csrf_token=csrf(challenge), mfa_code=otp(secret)))
     assert fresh.request("/auth/security.php")[0] == 200
     assert fresh.request("/view.php?id="+entry)[0] == 200
+    assert fresh.request("/view.php?id="+unlisted_entry)[0] == 200
+    admin_listing = fresh.request("/index.php")[2]
+    assert f"view.php?id={entry}" in admin_listing
+    assert f"view.php?id={unlisted_entry}" in admin_listing
     recovered = Browser(second)
     challenge = recovered.login("admin")[2]
     recovered.request("/auth/mfa.php", dict(csrf_token=csrf(challenge), mfa_code=codes[0]))

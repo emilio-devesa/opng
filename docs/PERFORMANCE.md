@@ -53,7 +53,10 @@ Environment:
 | PERF-17 | dashboard `COUNT(*)`/`SUM()` | global storage counters | 3.611 ms | 0.083 ms | 43.7x |
 
 The benchmark also asserts that the current author listing uses
-`idx_entries_author` without a filesort. The raw plans from that run were:
+`idx_entries_author` without a filesort. The viewer-aware listing is covered
+too: on the same synthetic dataset, a signed-in author's listing (public entries
+plus their own private entries) keeps the date index and does not fall back to a
+filesort. The raw plans from that run were:
 
 ```text
 PERF-12 previous: entries type=ALL key=NULL

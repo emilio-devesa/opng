@@ -193,7 +193,7 @@ The topic search uses a MySQL/MariaDB FULLTEXT index and requires all entered wo
 From the homepage you can:
 
 - 📝 **Create a new paste**: Enter your text or code, select a language and submit. The create, edit and reply editors show a small remaining-length meter (MB and progress bar) below the textarea.
-- 🔍 **View, edit and reply to a paste**: Click on the topic you want to view. The view page uses tabs — **View** (code), **Edit** (author or admin only), **Reply** (creates a real threaded reply) and **History** (when the entry is part of a thread). Includes syntax highlighting, line numbers (virtualized above 1,000 lines and hidden with a notice above 5,000 lines so huge pastes stay light) and one-click copy. Pastes larger than 200 KiB skip automatic highlighting and offer a **Highlight** button with progress and error states, so the initial render stays responsive. Authors can mark a paste **public**, **unlisted** or **private**, choose an optional expiry and add a password; replies inherit the parent's visibility, expiry and protection, and editing a thread root propagates those fields to the whole thread. Private pastes are visible only to their author and administrators; protected threads ask for the password once per session.
+- 🔍 **View, edit and reply to a paste**: Click on the topic you want to view. The view page uses tabs — **View** (code), **Edit** (author or admin only), **Reply** (creates a real threaded reply) and **History** (when the entry is part of a thread). Includes syntax highlighting, line numbers (virtualized above 1,000 lines and hidden with a notice above 5,000 lines so huge pastes stay light) and one-click copy. Pastes larger than 200 KiB skip automatic highlighting and offer a **Highlight** button with progress and error states, so the initial render stays responsive. Authors can mark a paste **public**, **unlisted** or **private**, choose an optional expiry and add a password; replies inherit the parent's visibility, expiry and protection, and editing a thread root propagates those fields to the whole thread. Private pastes are visible only to their author and administrators; signed-in authors also see their own private pastes in the home listing, and administrators see public, unlisted and private pastes there. Unlisted pastes stay hidden from the listing for everyone else. Protected threads ask for the password once per session.
 
   The **History** tab lists related entries in chronological order with topic, date, author and an *Ancestor*/*Current*/*Descendant* badge, followed by a semantic nested branch graph that works without JavaScript. Threads are capped at 32 levels and 500 rendered entries per page (`Load more` pages with `date, id` cursors); deleting a parent keeps its replies and shows a notice, and deleting a thread root keeps the subtree findable through `root_id`. Reply editors start with the parent paste text so you can quote or trim it, and the relationship is stored in the database rather than inferred from the `RE: ` prefix. The code view offers a three-step font-size control that remembers the choice in `localStorage`, and `@media print` hides navigation and controls so a paste prints cleanly.
 
@@ -222,6 +222,7 @@ For security reasons, access to **admin features** is restricted to administrato
 📝 Registered User
 - Can create and manage their own pastes
 - Can mark own pastes public, unlisted or private, set an expiry and add password protection
+- Sees public pastes and their own private pastes in the home listing
 - Can restore or permanently delete their own trashed threads
 - Can create and revoke personal API tokens
 - Can edit and delete only their own pastes
@@ -229,6 +230,7 @@ For security reasons, access to **admin features** is restricted to administrato
 
 🛠️ Administrator
 - Can manage entries, user accounts and roles through the admin panel
+- Sees public, unlisted and private pastes in the home listing
 - Must enroll TOTP MFA when it is the lowest-id administrator; other administrators may enable it voluntarily
 - Can edit or delete any paste (even from other users), review the audit log, restore or purge trashed threads, and review/revoke API tokens
 - Can empty all pastes via the admin panel after confirming with the current password and the confirmation checkbox (user accounts are preserved)
@@ -329,7 +331,7 @@ Your pastes are stored in a **MySQL database** on your web server. Security depe
 - Proper use of **server permissions**
 - Whether you enable **HTTPS** for secure connections
 
-By default, **new pastes are public**, but authors can choose **unlisted** or **private** visibility, set an expiry and add password protection. Private pastes are readable only by their author and administrators; unlisted pastes are reachable by link but never listed. Replies inherit the parent's access policy, so a reply cannot expose a private or protected thread. However, **registered users** can manage and delete their own pastes, and administrators can see every paste when moderation requires it.
+By default, **new pastes are public**, but authors can choose **unlisted** or **private** visibility, set an expiry and add password protection. Private pastes are readable only by their author and administrators, and signed-in authors see their own private pastes in the home listing. Unlisted pastes are reachable by link but never listed for regular visitors; administrators see them in the listing for moderation. Replies inherit the parent's access policy, so a reply cannot expose a private or protected thread. However, **registered users** can manage and delete their own pastes, and administrators can see every paste when moderation requires it.
 
 ### 🔷 Is Open Pastebin NG available in more languages?
 Yes! Open Pastebin NG supports multiple languages.

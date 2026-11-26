@@ -148,6 +148,41 @@ function entry_public_filter_sql(string $alias = 'entries'): string
 }
 
 /**
+ * SQL predicate for the listing as seen by the current viewer.
+ *
+ * Guests see public entries only. Signed-in users also see their own private
+ * entries, while administrators see every visibility. Unlisted entries stay
+ * out of the listing for everyone except administrators; they remain reachable
+ * by link. Deleted and expired entries never appear.
+ *
+ * @return array{sql: string, params: list<int>}
+ */
+function entry_listing_filter_sql(string $alias, ?int $user_id, string $role): array
+{
+    if (preg_match('/\A[a-z_][a-z0-9_]*\z/', $alias) !== 1) {
+        throw new InvalidArgumentException('Invalid entry table alias.');
+    }
+
+    $sql = "{$alias}.deleted_at IS NULL"
+        . " AND ({$alias}.expires_at IS NULL OR {$alias}.expires_at > UTC_TIMESTAMP())";
+
+    if ($role === 'admin' && $user_id !== null) {
+        return ['sql' => $sql, 'params' => []];
+    }
+
+    if ($role === 'user' && $user_id !== null) {
+        return [
+            'sql' => $sql
+                . " AND ({$alias}.visibility = 'public'"
+                . " OR ({$alias}.visibility = 'private' AND {$alias}.user_id = ?))",
+            'params' => [$user_id],
+        ];
+    }
+
+    return ['sql' => $sql . " AND {$alias}.visibility = 'public'", 'params' => []];
+}
+
+/**
  * SQL predicate for API detail. A read token does not unlock a paste.
  */
 function entry_api_content_filter_sql(): string

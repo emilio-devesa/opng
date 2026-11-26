@@ -248,6 +248,57 @@ if (
 ) {
     $failures[] = 'Search help script does not toggle aria-expanded or close on Escape';
 }
+$field_help_script = file_get_contents($root . '/src/assets/js/field-help.js');
+if (
+    !is_string($field_help_script)
+    || !str_contains($field_help_script, 'data-help-trigger')
+    || !str_contains($field_help_script, 'aria-expanded')
+    || !str_contains($field_help_script, 'is-open')
+    || !str_contains($field_help_script, 'Escape')
+) {
+    $failures[] = 'Field help script does not toggle aria-expanded or close on Escape';
+}
+foreach ([
+    ['/src/pastebin.php', 'visibility-help', 'protection-password-help'],
+    ['/src/view.php', 'edit-visibility-help', 'edit-protection-password-help'],
+] as [$field_help_path, $visibility_help_id, $password_help_id]) {
+    $field_help_page = file_get_contents($root . $field_help_path);
+    if (
+        !is_string($field_help_page)
+        || !str_contains($field_help_page, 'class="field-label-row"')
+        || !str_contains($field_help_page, 'data-help-trigger')
+        || !str_contains($field_help_page, 'aria-controls="' . $visibility_help_id . '"')
+        || !str_contains($field_help_page, 'aria-controls="' . $password_help_id . '"')
+        || !str_contains($field_help_page, 'aria-describedby="' . $visibility_help_id . '"')
+        || !str_contains($field_help_page, 'aria-describedby="' . $password_help_id . '"')
+        || !str_contains($field_help_page, 'assets/js/field-help.js')
+    ) {
+        $failures[] = "{$field_help_path} does not render the accessible inline field help";
+    }
+}
+$pastebin_quota_page = file_get_contents($root . '/src/pastebin.php');
+if (
+    !is_string($pastebin_quota_page)
+    || !str_contains($pastebin_quota_page, 'class="length-meter-row"')
+    || !str_contains($pastebin_quota_page, 'length-meter-quota')
+    || !str_contains($pastebin_quota_page, 'data-i18n="storage_quota_notice"')
+) {
+    $failures[] = 'The creation form does not place the quota notice beside the length meter';
+}
+if (
+    !is_string($pastebin_quota_page)
+    || !str_contains($pastebin_quota_page, '<a href="auth/login.php" data-i18n="error_private_requires_login"')
+) {
+    $failures[] = 'The guest private-entry notice does not link to the sign-in form';
+}
+$submit_source = file_get_contents($root . '/src/submit.php');
+if (
+    !is_string($submit_source)
+    || !str_contains($submit_source, "\$visibility === 'unlisted'")
+    || !str_contains($submit_source, 'view.php?id=')
+) {
+    $failures[] = 'Creating an unlisted entry does not redirect to its only reachable link';
+}
 foreach ([
     '/src/index.php' => 'data-i18n="latest_entries"',
     '/src/pastebin.php' => '<h1 data-i18n="create_new">',
@@ -309,6 +360,7 @@ foreach ([
     '/src/assets/js/copy.js',
     '/src/assets/js/search-clear.js',
     '/src/assets/js/search-help.js',
+    '/src/assets/js/field-help.js',
     '/src/assets/js/admin-tools.js',
     '/src/assets/js/length-meter.js',
     '/src/assets/js/delete-paste-dialog.js',
